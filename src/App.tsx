@@ -1,0 +1,1605 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { registerSW } from 'virtual:pwa-register'
+import { createBackupData, parseBackupData } from './backup'
+import {
+  calculateArtkeraProgress,
+  calculateLaparetProgress,
+  calculateMonthSummary,
+  calculatePlanProgress,
+  createSalaryMonth,
+} from './calculations'
+import {
+  addMonthsToSalesMonth,
+  formatDateLabel,
+  formatMoneyInputText,
+  formatMoneyInputValue,
+  formatMonthLabel,
+  parseMoneyInputValue,
+  formatRubles,
+  formatSalesPeriod,
+  formatShortDateLabel,
+  getCurrentSalesMonthId,
+} from './format'
+import {
+  consumeStorageIssues,
+  deleteStoredMonth,
+  loadStoredMonths,
+  loadStoredSelectedMonthId,
+  saveStoredMonths,
+  saveStoredSelectedMonthId,
+  sortMonthsDesc,
+} from './storage'
+import { buildPrintReportHtml } from './report'
+import {
+  applyEditableMonthUpdate,
+  closeSalaryMonth,
+  isMonthEditable,
+  reopenSalaryMonth,
+} from './monthState'
+import type { CalculationSummary, SalaryMonth } from './types'
+import './App.css'
+
+type TabId = 'home' | 'sales' | 'payments' | 'history'
+type TabIcon = 'home' | 'sales' | 'payments' | 'history'
+type SaveState = 'saved' | 'saving' | 'error'
+type UpdateServiceWorker = (reloadPage?: boolean) => Promise<void>
+
+const SAVE_DELAY_MS = 400
+const OFFLINE_READY_MESSAGE = 'Приложение готово к работе без интернета.'
+const PLAN_LEVELS = [
+  { threshold: 1_000_000, bonus: 5_000 },
+  { threshold: 2_000_000, bonus: 7_000 },
+  { threshold: 3_000_000, bonus: 10_000 },
+]
+const PRODUCT_GROUP_THRESHOLD = 750_000
+
+const TABS: Array<{ id: TabId; label: string; icon: TabIcon }> = [
+  { id: 'home', label: 'Главная', icon: 'home' },
+  { id: 'sales', label: 'Продажи', icon: 'sales' },
+  { id: 'payments', label: 'Выплаты', icon: 'payments' },
+  { id: 'history', label: 'История', icon: 'history' },
+]
+
+interface InitialState {
+  months: SalaryMonth[]
+  selectedMonthId: string
+  createdInitialMonth: boolean
+  storageIssues: string[]
+}
+
+interface RestorePreview {
+  fileName: string
+  months: SalaryMonth[]
+  selectedMonthId: string | null
+}
+
+function App() {
+  const [initialState] = useState(loadInitialState)
+  const [months, setMonths] = useState(initialState.months)
+  const [selectedMonthId, setSelectedMonthId] = useState(
+    initialState.selectedMonthId,
+  )
+  const [activeTab, setActiveTab] = useState<TabId>('home')
+  const [saveState, setSaveState] = useState<SaveState>('saved')
+  const [storageMessage, setStorageMessage] = useState(
+    initialState.storageIssues.join(' '),
+  )
+  const [pwaMessage, setPwaMessage] = useState<string | null>(null)
+  const [updateServiceWorker, setUpdateServiceWorker] =
+    useState<UpdateServiceWorker | null>(null)
+  const [pendingRestore, setPendingRestore] = useState<RestorePreview | null>(
+    null,
+  )
+  const didMountRef = useRef(false)
+  const saveTimerRef = useRef<number | undefined>(undefined)
+  const restoreInputRef = useRef<HTMLInputElement>(null)
+
+  const currentMonth = useMemo(
+    () =>
+      months.find((month) => month.id === selectedMonthId) ??
+      months[0] ??
+      createSalaryMonth(getCurrentSalesMonthId()),
+    [months, selectedMonthId],
+  )
+  const summary = useMemo(
+    () => calculateMonthSummary(currentMonth),
+    [currentMonth],
+  )
+
+  useEffect(() => {
+    const updateSW = registerSW({
+      immediate: true,
+      onNeedRefresh() {
+        setUpdateServiceWorker(() => updateSW)
+        setPwaMessage('Доступна новая версия приложения.')
+      },
+      onOfflineReady() {
+        setPwaMessage(OFFLINE_READY_MESSAGE)
+        window.setTimeout(() => {
+          setPwaMessage((currentMessage) =>
+            currentMessage === OFFLINE_READY_MESSAGE ? null : currentMessage,
+          )
+        }, 5000)
+      },
+      onRegisterError() {
+        setPwaMessage(
+          'Не удалось подготовить офлайн-режим. Данные в браузере не удалялись.',
+        )
+      },
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+
+      if (initialState.createdInitialMonth) {
+        saveStoredMonths(months)
+        saveStoredSelectedMonthId(selectedMonthId)
+        showStorageIssues()
+      }
+
+      return
+    }
+
+    setSaveState('saving')
+    window.clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = window.setTimeout(() => {
+      saveStoredMonths(months)
+      saveStoredSelectedMonthId(selectedMonthId)
+      if (!showStorageIssues()) {
+        setSaveState('saved')
+      }
+    }, SAVE_DELAY_MS)
+
+    return () => window.clearTimeout(saveTimerRef.current)
+  }, [initialState.createdInitialMonth, months, selectedMonthId])
+
+  function showStorageIssues(): boolean {
+    const issues = consumeStorageIssues()
+
+    if (issues.length === 0) {
+      return false
+    }
+
+    setStorageMessage(issues.map((issue) => issue.message).join(' '))
+    setSaveState('error')
+    return true
+  }
+
+  function updateCurrentMonth(
+    updater: (month: SalaryMonth) => SalaryMonth,
+  ): void {
+    const monthId = currentMonth.id
+    const updatedAt = new Date().toISOString()
+
+    setMonths((previousMonths) =>
+      sortMonthsDesc(
+        previousMonths.map((month) => {
+          if (month.id !== monthId) {
+            return month
+          }
+
+          const nextMonth = applyEditableMonthUpdate(month, updater)
+          return nextMonth === month ? month : { ...nextMonth, updatedAt }
+        }),
+      ),
+    )
+  }
+
+  function selectOrCreateMonth(monthId: string): void {
+    const existingMonth = months.find((month) => month.id === monthId)
+
+    if (existingMonth) {
+      setSelectedMonthId(existingMonth.id)
+      return
+    }
+
+    const newMonth = createSalaryMonth(monthId)
+    setMonths((previousMonths) => sortMonthsDesc([...previousMonths, newMonth]))
+    setSelectedMonthId(newMonth.id)
+  }
+
+  function createNextMonth(): void {
+    const newMonthId = getNextAvailableMonthId(months)
+    const newMonth = createSalaryMonth(newMonthId)
+    setMonths((previousMonths) => sortMonthsDesc([...previousMonths, newMonth]))
+    setSelectedMonthId(newMonth.id)
+    setActiveTab('home')
+  }
+
+  function deleteMonth(monthId: string): void {
+    const month = months.find((item) => item.id === monthId)
+
+    if (!month) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Удалить расчёт за ${formatMonthLabel(month.salesMonth).toLowerCase()}?\nВосстановить его без резервной копии будет невозможно`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    deleteStoredMonth(monthId)
+    setMonths((previousMonths) => {
+      const remainingMonths = previousMonths.filter((item) => item.id !== monthId)
+
+      if (remainingMonths.length > 0) {
+        return sortMonthsDesc(remainingMonths)
+      }
+
+      return [createSalaryMonth(getCurrentSalesMonthId())]
+    })
+
+    setSelectedMonthId((previousSelectedId) => {
+      if (previousSelectedId !== monthId) {
+        return previousSelectedId
+      }
+
+      const remainingMonths = months.filter((item) => item.id !== monthId)
+      return (
+        sortMonthsDesc(remainingMonths)[0]?.id ??
+        createSalaryMonth(getCurrentSalesMonthId()).id
+      )
+    })
+  }
+
+  function closeCurrentMonth(): void {
+    const confirmed = window.confirm(
+      `Закрыть расчёт за ${formatMonthLabel(currentMonth.salesMonth).toLowerCase()}?\nПосле закрытия все поля станут недоступны для редактирования`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    setMonths((previousMonths) =>
+      sortMonthsDesc(
+        previousMonths.map((month) =>
+          month.id === currentMonth.id
+            ? { ...closeSalaryMonth(month, nowIso), updatedAt: nowIso }
+            : month,
+        ),
+      ),
+    )
+  }
+
+  function reopenCurrentMonth(): void {
+    const confirmed = window.confirm('Открыть закрытый месяц для редактирования?')
+
+    if (!confirmed) {
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    setMonths((previousMonths) =>
+      sortMonthsDesc(
+        previousMonths.map((month) =>
+          month.id === currentMonth.id
+            ? { ...reopenSalaryMonth(month), updatedAt: nowIso }
+            : month,
+        ),
+      ),
+    )
+  }
+
+  function downloadBackup(): void {
+    const backup = createBackupData(months, selectedMonthId)
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `kontrol-zarplaty-backup-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.append(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  function openRestorePicker(): void {
+    restoreInputRef.current?.click()
+  }
+
+  function readBackupFile(file: File | null): void {
+    if (!file) {
+      return
+    }
+
+    file
+      .text()
+      .then((text) => {
+        const parsedBackup = parseBackupData(text)
+        setPendingRestore({
+          fileName: file.name,
+          months: parsedBackup.months,
+          selectedMonthId: parsedBackup.selectedMonthId,
+        })
+      })
+      .catch((error: unknown) => {
+        setStorageMessage(
+          error instanceof Error
+            ? error.message
+            : 'Не удалось прочитать резервную копию.',
+        )
+      })
+      .finally(() => {
+        if (restoreInputRef.current) {
+          restoreInputRef.current.value = ''
+        }
+      })
+  }
+
+  function confirmRestore(): void {
+    if (!pendingRestore) {
+      return
+    }
+
+    const restoredMonths = sortMonthsDesc(pendingRestore.months)
+    const restoredSelectedMonthId =
+      pendingRestore.selectedMonthId !== null &&
+      restoredMonths.some((month) => month.id === pendingRestore.selectedMonthId)
+        ? pendingRestore.selectedMonthId
+        : restoredMonths[0]?.id
+
+    if (!restoredSelectedMonthId) {
+      setStorageMessage('В резервной копии нет месяцев для восстановления.')
+      setPendingRestore(null)
+      return
+    }
+
+    setMonths(restoredMonths)
+    setSelectedMonthId(restoredSelectedMonthId)
+    setActiveTab('history')
+    setStorageMessage(`Восстановлено месяцев: ${restoredMonths.length}.`)
+    setPendingRestore(null)
+  }
+
+  function saveCurrentReport(): void {
+    const reportWindow = window.open('', '_blank')
+
+    if (!reportWindow) {
+      setStorageMessage(
+        'Браузер заблокировал окно отчёта. Разрешите всплывающие окна для этого приложения.',
+      )
+      return
+    }
+
+    reportWindow.document.open()
+    reportWindow.document.write(buildPrintReportHtml(currentMonth, summary))
+    reportWindow.document.close()
+    reportWindow.focus()
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="top-bar">
+        <div>
+          <p className="eyebrow">Контроль зарплаты</p>
+          <h1>{formatMonthLabel(currentMonth.salesMonth)}</h1>
+        </div>
+        <span className={`save-status ${saveState}`}>
+          {saveState === 'saving'
+            ? 'Сохранение…'
+            : saveState === 'error'
+              ? 'Ошибка сохранения'
+              : 'Сохранено'}
+        </span>
+      </header>
+
+      {storageMessage && (
+        <AppNotice
+          tone="danger"
+          message={storageMessage}
+          onDismiss={() => setStorageMessage('')}
+        />
+      )}
+      {pwaMessage && (
+        <AppNotice
+          tone={updateServiceWorker ? 'warning' : 'success'}
+          message={pwaMessage}
+          actionLabel={updateServiceWorker ? 'Обновить' : undefined}
+          onAction={
+            updateServiceWorker
+              ? () => {
+                  void updateServiceWorker(true)
+                }
+              : undefined
+          }
+          onDismiss={() => setPwaMessage(null)}
+        />
+      )}
+      <input
+        ref={restoreInputRef}
+        className="visually-hidden"
+        type="file"
+        accept="application/json,.json"
+        onChange={(event) => readBackupFile(event.currentTarget.files?.[0] ?? null)}
+      />
+
+      {activeTab === 'home' && (
+        <HomeScreen
+          month={currentMonth}
+          summary={summary}
+          previousMonth={findPreviousCalendarMonth(months, currentMonth.salesMonth)}
+          onMonthChange={selectOrCreateMonth}
+          onShiftMonth={(offset) =>
+            selectOrCreateMonth(
+              addMonthsToSalesMonth(currentMonth.salesMonth, offset),
+            )
+          }
+        />
+      )}
+      {activeTab === 'sales' && (
+        <SalesScreen
+          month={currentMonth}
+          summary={summary}
+          onChange={updateCurrentMonth}
+        />
+      )}
+      {activeTab === 'payments' && (
+        <PaymentsScreen
+          month={currentMonth}
+          summary={summary}
+          onChange={updateCurrentMonth}
+          onSaveReport={saveCurrentReport}
+          onClose={closeCurrentMonth}
+          onReopen={reopenCurrentMonth}
+        />
+      )}
+      {activeTab === 'history' && (
+        <HistoryScreen
+          months={months}
+          selectedMonthId={currentMonth.id}
+          onCreate={createNextMonth}
+          onDelete={deleteMonth}
+          onDownloadBackup={downloadBackup}
+          onRestoreRequest={openRestorePicker}
+          onOpen={(monthId) => {
+            setSelectedMonthId(monthId)
+            setActiveTab('home')
+          }}
+        />
+      )}
+
+      <nav className="bottom-nav" aria-label="Разделы приложения">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={tab.id === activeTab ? 'active' : ''}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <NavIcon icon={tab.icon} />
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {pendingRestore && (
+        <RestoreDialog
+          preview={pendingRestore}
+          onConfirm={confirmRestore}
+          onCancel={() => setPendingRestore(null)}
+        />
+      )}
+    </main>
+  )
+}
+
+interface ScreenProps {
+  month: SalaryMonth
+  summary: CalculationSummary
+  onChange: (updater: (month: SalaryMonth) => SalaryMonth) => void
+}
+
+function HomeScreen({
+  month,
+  summary,
+  previousMonth,
+  onMonthChange,
+  onShiftMonth,
+}: {
+  month: SalaryMonth
+  summary: CalculationSummary
+  previousMonth: SalaryMonth | undefined
+  onMonthChange: (monthId: string) => void
+  onShiftMonth: (offset: number) => void
+}) {
+  const previousSummary = previousMonth
+    ? calculateMonthSummary(previousMonth)
+    : undefined
+
+  return (
+    <section className="screen">
+      {month.isClosed && <StatusBadge label="Закрыт" />}
+
+      <div className="month-switcher">
+        <button
+          type="button"
+          className="month-arrow"
+          aria-label="Предыдущий месяц"
+          onClick={() => onShiftMonth(-1)}
+        >
+          ‹
+        </button>
+        <label>
+          <span>Расчётный месяц</span>
+          <input
+            type="month"
+            value={month.salesMonth}
+            onChange={(event) => onMonthChange(event.currentTarget.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="month-arrow"
+          aria-label="Следующий месяц"
+          onClick={() => onShiftMonth(1)}
+        >
+          ›
+        </button>
+      </div>
+
+      <section className="hero-total">
+        <div className="hero-topline">
+          <span className="hero-icon" aria-hidden="true">₽</span>
+          <span>К выплате {formatShortDateLabel(summary.dates.bonusPaymentDate)}</span>
+        </div>
+        <strong>{formatRubles(summary.expectedBonusPayment)}</strong>
+        <small>Расчёт за {formatMonthLabel(month.salesMonth).toLowerCase()}</small>
+      </section>
+
+      <section className="month-meta-card">
+        <div>
+          <span>Период продаж</span>
+          <strong>{formatSalesPeriod(summary.dates)}</strong>
+        </div>
+      </section>
+
+      <InfoGrid
+        items={[
+          {
+            label: 'Общие продажи',
+            value: formatRubles(month.salesTotal),
+            icon: '₽',
+          },
+          {
+            label: 'Все начисленные бонусы',
+            value: formatRubles(summary.totalAccruedBonuses),
+            icon: '+',
+          },
+          {
+            label: 'Всего заработано за месяц',
+            value: formatRubles(summary.totalEarned),
+            icon: '∑',
+          },
+          {
+            label: 'Уже выплачено из бонусов',
+            value: formatRubles(summary.advanceBonusPart),
+            icon: '−',
+          },
+        ]}
+      />
+
+      <BonusProgressBlock month={month} summary={summary} />
+      <ComparisonBlock
+        currentMonth={month}
+        currentSummary={summary}
+        previousMonth={previousMonth}
+        previousSummary={previousSummary}
+      />
+      <Warnings summary={summary} />
+    </section>
+  )
+}
+
+function SalesScreen({ month, summary, onChange }: ScreenProps) {
+  const editable = isMonthEditable(month)
+
+  return (
+    <section className="screen">
+      <MoneyInput
+        id="sales-total"
+        label="Общие продажи"
+        value={month.salesTotal}
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            salesTotal: value ?? 0,
+          }))
+        }
+      />
+      <MoneyInput
+        id="program-bonus"
+        label="Бонусы по программе"
+        value={month.programBonus}
+        note="Общая сумма бонусов из рабочей программы за расчётный месяц"
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            programBonus: value ?? 0,
+          }))
+        }
+      />
+      <MoneyInput
+        id="sales-artkera"
+        label="Продажи Арткера"
+        value={month.salesArtkera}
+        note={getProductGroupHint(month.salesArtkera)}
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            salesArtkera: value ?? 0,
+          }))
+        }
+      />
+      <MoneyInput
+        id="sales-laparet"
+        label="Продажи Лапарет"
+        value={month.salesLaparet}
+        note={getProductGroupHint(month.salesLaparet)}
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            salesLaparet: value ?? 0,
+          }))
+        }
+      />
+
+      <ThresholdCard
+        title="Общий план"
+        value={summary.planBonus}
+        hint={getPlanHint(month.salesTotal)}
+        progress={getPlanProgress(month.salesTotal)}
+      />
+      <ThresholdCard
+        title="Бонус Арткера"
+        value={summary.artkeraBonus}
+        hint={getProductGroupHint(month.salesArtkera)}
+        progress={getProductGroupProgress(month.salesArtkera)}
+      />
+      <ThresholdCard
+        title="Бонус Лапарет"
+        value={summary.laparetBonus}
+        hint={getProductGroupHint(month.salesLaparet)}
+        progress={getProductGroupProgress(month.salesLaparet)}
+      />
+
+      <Warnings summary={summary} codes={['product_groups_exceed_total']} />
+
+      <Breakdown
+        title="Начисленные бонусы"
+        items={[
+          ['Бонусы по программе', summary.programBonusTotal],
+          ['Бонус за план', summary.planBonus],
+          ['Бонус Арткера', summary.artkeraBonus],
+          ['Бонус Лапарет', summary.laparetBonus],
+        ]}
+        totalLabel="Итого начислено"
+        totalValue={summary.totalAccruedBonuses}
+      />
+    </section>
+  )
+}
+
+function PaymentsScreen({
+  month,
+  summary,
+  onChange,
+  onSaveReport,
+  onClose,
+  onReopen,
+}: ScreenProps & {
+  onSaveReport: () => void
+  onClose: () => void
+  onReopen: () => void
+}) {
+  const editable = isMonthEditable(month)
+
+  return (
+    <section className="screen">
+      <MoneyInput
+        id="salary"
+        label="Оклад"
+        value={month.salary}
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            salary: value ?? 0,
+          }))
+        }
+      />
+      <MoneyInput
+        id="payment-day25"
+        label={`Аванс ${formatShortDateLabel(summary.dates.day25)}`}
+        value={month.payments.day25}
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            payments: {
+              ...currentMonth.payments,
+              day25: value ?? 0,
+            },
+          }))
+        }
+      />
+      <MoneyInput
+        id="payment-day01"
+        label={`Зарплата ${formatShortDateLabel(summary.dates.day01)}`}
+        value={month.payments.day01}
+        note="По умолчанию 10 000 ₽"
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            payments: {
+              ...currentMonth.payments,
+              day01: value ?? 0,
+            },
+          }))
+        }
+      />
+      <MoneyInput
+        id="payment-day10"
+        label={`Аванс ${formatShortDateLabel(summary.dates.day10)}`}
+        value={month.payments.day10}
+        disabled={!editable}
+        onValueChange={(value) =>
+          onChange((currentMonth) => ({
+            ...currentMonth,
+            payments: {
+              ...currentMonth.payments,
+              day10: value ?? 0,
+            },
+          }))
+        }
+      />
+      <Breakdown
+        title="Сводка выплат"
+        items={[
+          ['Всего промежуточных выплат', summary.interimPayments],
+          ['Выплачено в счёт оклада', summary.salaryPaidPart],
+          ['Уже выплачено из бонусов', summary.advanceBonusPart],
+          ['Ожидаемая выплата 15-го', summary.expectedBonusPayment],
+        ]}
+      />
+      <button type="button" className="secondary-action" onClick={onSaveReport}>
+        Сохранить расчёт
+      </button>
+      <CloseMonthPanel
+        month={month}
+        onClose={onClose}
+        onReopen={onReopen}
+      />
+    </section>
+  )
+}
+
+function HistoryScreen({
+  months,
+  selectedMonthId,
+  onCreate,
+  onDelete,
+  onDownloadBackup,
+  onRestoreRequest,
+  onOpen,
+}: {
+  months: SalaryMonth[]
+  selectedMonthId: string
+  onCreate: () => void
+  onDelete: (monthId: string) => void
+  onDownloadBackup: () => void
+  onRestoreRequest: () => void
+  onOpen: (monthId: string) => void
+}) {
+  return (
+    <section className="screen">
+      <div className="history-toolbar">
+        <button type="button" className="primary-action" onClick={onCreate}>
+          Создать следующий месяц
+        </button>
+        <button type="button" onClick={onDownloadBackup}>
+          Скачать резервную копию
+        </button>
+        <button type="button" onClick={onRestoreRequest}>
+          Восстановить из резервной копии
+        </button>
+      </div>
+
+      <div className="history-list">
+        {sortMonthsDesc(months).map((month) => {
+          const summary = calculateMonthSummary(month)
+          const isSelected = month.id === selectedMonthId
+
+          return (
+            <article
+              key={month.id}
+              className={`history-card ${isSelected ? 'selected' : ''}`}
+            >
+              <div>
+                <h2>{formatMonthLabel(month.salesMonth)}</h2>
+                <p>Выплата бонуса: {formatDateLabel(summary.dates.bonusPaymentDate)}</p>
+                <StatusBadge label={month.isClosed ? 'Закрыт' : 'Открыт'} />
+              </div>
+              <dl>
+                <div>
+                  <dt>Продажи</dt>
+                  <dd>{formatRubles(month.salesTotal)}</dd>
+                </div>
+                <div>
+                  <dt>Начислено</dt>
+                  <dd>{formatRubles(summary.totalAccruedBonuses)}</dd>
+                </div>
+                <div>
+                  <dt>Заработано</dt>
+                  <dd>{formatRubles(summary.totalEarned)}</dd>
+                </div>
+                <div>
+                  <dt>К выплате</dt>
+                  <dd>{formatRubles(summary.expectedBonusPayment)}</dd>
+                </div>
+              </dl>
+              <HistoryComparison
+                month={month}
+                summary={summary}
+                previousMonth={findPreviousCalendarMonth(
+                  months,
+                  month.salesMonth,
+                )}
+              />
+              <div className="history-actions">
+                <button type="button" onClick={() => onOpen(month.id)}>
+                  Открыть
+                </button>
+                <button type="button" className="danger" onClick={() => onDelete(month.id)}>
+                  Удалить
+                </button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function MoneyInput({
+  id,
+  label,
+  value,
+  onValueChange,
+  disabled = false,
+  note,
+}: {
+  id: string
+  label: string
+  value: number
+  onValueChange: (value: number) => void
+  disabled?: boolean
+  note?: string
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [text, setText] = useState(() => formatMoneyInputValue(value))
+
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setText(formatMoneyInputValue(value))
+    }
+  }, [value])
+
+  function handleChange(rawValue: string): void {
+    if (disabled) {
+      return
+    }
+
+    const formattedValue = formatMoneyInputText(rawValue)
+    setText(formattedValue)
+
+    if (formattedValue.trim() === '') {
+      onValueChange(0)
+      return
+    }
+
+    const parsedValue = parseMoneyInputValue(formattedValue)
+
+    if (parsedValue === null) {
+      return
+    }
+
+    onValueChange(Math.max(0, parsedValue))
+  }
+
+  function clearField(): void {
+    if (disabled) {
+      return
+    }
+
+    setText('')
+    onValueChange(0)
+    inputRef.current?.focus()
+  }
+
+  return (
+    <label className="money-field" htmlFor={id}>
+      <span>{label}</span>
+      <div className="money-control">
+        <input
+          ref={inputRef}
+          id={id}
+          type="text"
+          inputMode="decimal"
+          value={text}
+          disabled={disabled}
+          onBlur={() => setText(formatMoneyInputValue(value))}
+          onChange={(event) => handleChange(event.currentTarget.value)}
+        />
+        {value !== 0 && !disabled && (
+          <button
+            type="button"
+            className="clear-money"
+            aria-label={`Очистить поле ${label}`}
+            onClick={clearField}
+          >
+            ×
+          </button>
+        )}
+        <b>₽</b>
+      </div>
+      {note && <small>{note}</small>}
+    </label>
+  )
+}
+
+function BonusProgressBlock({
+  month,
+  summary,
+}: {
+  month: SalaryMonth
+  summary: CalculationSummary
+}) {
+  const plan = calculatePlanProgress(month.salesTotal)
+  const artkera = calculateArtkeraProgress(month.salesArtkera)
+  const laparet = calculateLaparetProgress(month.salesLaparet)
+  const planThreshold = getNextPlanThreshold(month.salesTotal)
+
+  return (
+    <section className="summary-card compact-card">
+      <h2>До следующих бонусов</h2>
+      <div className="progress-list">
+        <ProgressMeterItem
+          title="Общий план"
+          amountLine={
+            planThreshold === null
+              ? `${formatRubles(month.salesTotal)}`
+              : `${formatRubles(month.salesTotal)} из ${formatRubles(planThreshold)}`
+          }
+          progress={
+            planThreshold === null
+              ? undefined
+              : clampPercent((month.salesTotal / planThreshold) * 100)
+          }
+          detail={
+            plan.isComplete
+              ? 'Максимальная ступень выполнена'
+              : `Осталось ${formatRubles(plan.remaining)}`
+          }
+          meta={
+            plan.isComplete
+              ? `Текущий бонус: ${formatRubles(plan.currentBonus)}`
+              : `Текущий бонус: ${formatRubles(plan.currentBonus)} · следующий: ${formatRubles(plan.nextBonus)}`
+          }
+          tone={plan.isComplete ? 'success' : 'warning'}
+        />
+        <ProgressMeterItem
+          title="Арткера"
+          amountLine={
+            artkera.isComplete
+              ? `Продажи: ${formatRubles(month.salesArtkera)}`
+              : `${formatRubles(month.salesArtkera)} из ${formatRubles(PRODUCT_GROUP_THRESHOLD)}`
+          }
+          progress={
+            artkera.isComplete
+              ? undefined
+              : getProductGroupProgress(month.salesArtkera)
+          }
+          detail={
+            artkera.isComplete
+              ? 'Порог выполнен'
+              : `Осталось ${formatRubles(artkera.remaining)}`
+          }
+          meta={
+            artkera.isComplete
+              ? `Текущий бонус: ${formatRubles(summary.artkeraBonus)}`
+              : 'Минимальный бонус после порога: 5 625 ₽'
+          }
+          tone={artkera.isComplete ? 'success' : 'warning'}
+        />
+        <ProgressMeterItem
+          title="Лапарет"
+          amountLine={
+            laparet.isComplete
+              ? `Продажи: ${formatRubles(month.salesLaparet)}`
+              : `${formatRubles(month.salesLaparet)} из ${formatRubles(PRODUCT_GROUP_THRESHOLD)}`
+          }
+          progress={
+            laparet.isComplete
+              ? undefined
+              : getProductGroupProgress(month.salesLaparet)
+          }
+          detail={
+            laparet.isComplete
+              ? 'Порог выполнен'
+              : `Осталось ${formatRubles(laparet.remaining)}`
+          }
+          meta={
+            laparet.isComplete
+              ? `Текущий бонус: ${formatRubles(summary.laparetBonus)}`
+              : 'Минимальный бонус после порога: 9 375 ₽'
+          }
+          tone={laparet.isComplete ? 'success' : 'warning'}
+        />
+      </div>
+    </section>
+  )
+}
+
+function ProgressMeterItem({
+  title,
+  amountLine,
+  progress,
+  detail,
+  meta,
+  tone,
+}: {
+  title: string
+  amountLine: string
+  progress?: number
+  detail: string
+  meta: string
+  tone: 'success' | 'warning'
+}) {
+  return (
+    <article className={`progress-item ${tone}`}>
+      <div>
+        <div className="progress-title-row">
+          <strong>{title}</strong>
+          {progress === undefined && <span>Порог выполнен</span>}
+        </div>
+        <p>{amountLine}</p>
+        {progress !== undefined && (
+          <div className="progress-track slim" aria-hidden="true">
+            <span style={{ width: `${progress}%` }} />
+          </div>
+        )}
+        <small>{detail}</small>
+        <em>{meta}</em>
+      </div>
+    </article>
+  )
+}
+
+function ComparisonBlock({
+  currentMonth,
+  currentSummary,
+  previousMonth,
+  previousSummary,
+}: {
+  currentMonth: SalaryMonth
+  currentSummary: CalculationSummary
+  previousMonth: SalaryMonth | undefined
+  previousSummary: CalculationSummary | undefined
+}) {
+  if (!previousMonth || !previousSummary) {
+    return (
+      <section className="summary-card compact-card">
+        <h2>Сравнение с прошлым месяцем</h2>
+        <p>Недостаточно данных для сравнения с прошлым месяцем</p>
+      </section>
+    )
+  }
+
+  if (!hasMeaningfulMonthData(previousMonth, previousSummary)) {
+    return (
+      <section className="summary-card compact-card">
+        <h2>Сравнение с прошлым месяцем</h2>
+        <p>Недостаточно данных для сравнения с прошлым месяцем</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="summary-card compact-card">
+      <h2>Сравнение с прошлым месяцем</h2>
+      <dl className="comparison-list">
+        {getComparisonRows(currentMonth, currentSummary, previousMonth, previousSummary).map(
+          (row) => (
+            <div key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>
+                <span className={`delta-pill ${row.tone}`}>
+                  {row.icon} {row.amount}
+                </span>
+              </dd>
+            </div>
+          ),
+        )}
+      </dl>
+    </section>
+  )
+}
+
+function HistoryComparison({
+  month,
+  summary,
+  previousMonth,
+}: {
+  month: SalaryMonth
+  summary: CalculationSummary
+  previousMonth: SalaryMonth | undefined
+}) {
+  if (!previousMonth) {
+    return (
+      <p className="history-compare">
+        Недостаточно данных для сравнения с прошлым месяцем
+      </p>
+    )
+  }
+
+  const previousSummary = calculateMonthSummary(previousMonth)
+  if (!hasMeaningfulMonthData(previousMonth, previousSummary)) {
+    return (
+      <p className="history-compare">
+        Недостаточно данных для сравнения с прошлым месяцем
+      </p>
+    )
+  }
+  const rows = getComparisonRows(month, summary, previousMonth, previousSummary)
+
+  return (
+    <p className="history-compare">
+      К прошлому: {rows.map((row) => `${row.short}: ${row.icon} ${row.amount}`).join('; ')}
+    </p>
+  )
+}
+
+function CloseMonthPanel({
+  month,
+  onClose,
+  onReopen,
+}: {
+  month: SalaryMonth
+  onClose: () => void
+  onReopen: () => void
+}) {
+  return (
+    <section className="summary-card close-panel">
+      <div>
+        <h2>{month.isClosed ? 'Месяц закрыт' : 'Закрытие месяца'}</h2>
+        <p>Закрывайте месяц после внесения выплаты 10-го числа.</p>
+      </div>
+      {month.isClosed ? (
+        <button type="button" onClick={onReopen}>
+          Открыть для редактирования
+        </button>
+      ) : (
+        <button type="button" className="primary-action" onClick={onClose}>
+          Закрыть месяц
+        </button>
+      )}
+    </section>
+  )
+}
+
+function StatusBadge({ label }: { label: 'Открыт' | 'Закрыт' }) {
+  return <span className={`status-badge ${label === 'Закрыт' ? 'closed' : ''}`}>{label}</span>
+}
+
+function AppNotice({
+  tone,
+  message,
+  actionLabel,
+  onAction,
+  onDismiss,
+}: {
+  tone: 'success' | 'warning' | 'danger'
+  message: string
+  actionLabel?: string
+  onAction?: () => void
+  onDismiss: () => void
+}) {
+  return (
+    <section className={`app-notice ${tone}`} role="status">
+      <p>{message}</p>
+      <div>
+        {actionLabel && onAction && (
+          <button type="button" onClick={onAction}>
+            {actionLabel}
+          </button>
+        )}
+        <button type="button" onClick={onDismiss} aria-label="Закрыть уведомление">
+          ×
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function RestoreDialog({
+  preview,
+  onConfirm,
+  onCancel,
+}: {
+  preview: RestorePreview
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section
+        className="restore-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restore-title"
+      >
+        <h2 id="restore-title">Восстановить резервную копию?</h2>
+        <p>
+          Найдено месяцев: <strong>{preview.months.length}</strong>. Текущие
+          данные в приложении будут заменены данными из файла {preview.fileName}.
+        </p>
+        <div className="dialog-actions">
+          <button type="button" className="primary-action" onClick={onConfirm}>
+            Восстановить
+          </button>
+          <button type="button" onClick={onCancel}>
+            Отмена
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function ThresholdCard({
+  title,
+  value,
+  hint,
+  progress,
+}: {
+  title: string
+  value: number
+  hint: string
+  progress: number
+}) {
+  return (
+    <section className="summary-card">
+      <div className="summary-card-top">
+        <h2>{title}</h2>
+        <strong>{formatRubles(value)}</strong>
+      </div>
+      <p>{hint}</p>
+      <div className="progress-track" aria-hidden="true">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+    </section>
+  )
+}
+
+function Breakdown({
+  title,
+  items,
+  totalLabel,
+  totalValue,
+}: {
+  title: string
+  items: Array<[string, number]>
+  totalLabel?: string
+  totalValue?: number
+}) {
+  return (
+    <section className="summary-card">
+      <h2>{title}</h2>
+      <dl className="breakdown-list">
+        {items.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{formatRubles(value)}</dd>
+          </div>
+        ))}
+        {totalLabel && (
+          <div className="total-row">
+            <dt>{totalLabel}</dt>
+            <dd>{formatRubles(totalValue ?? 0)}</dd>
+          </div>
+        )}
+      </dl>
+    </section>
+  )
+}
+
+function NavIcon({ icon }: { icon: TabIcon }) {
+  if (icon === 'home') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 11.5 12 5l8 6.5V20h-5v-5H9v5H4z" />
+      </svg>
+    )
+  }
+
+  if (icon === 'sales') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 18h16M7 15V9m5 6V6m5 9v-4" />
+      </svg>
+    )
+  }
+
+  if (icon === 'payments') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16v10H4zM7 10h5m5 4h.01" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 5h12M6 12h12M6 19h12" />
+    </svg>
+  )
+}
+
+function InfoGrid({
+  items,
+}: {
+  items: Array<{ label: string; value: string; icon: string }>
+}) {
+  return (
+    <section className="info-grid">
+      {items.map((item) => (
+        <div key={item.label} className="info-card">
+          <i aria-hidden="true">{item.icon}</i>
+          <span>{item.label}</span>
+          <strong>{item.value}</strong>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function Warnings({
+  summary,
+  codes,
+}: {
+  summary: CalculationSummary
+  codes?: string[]
+}) {
+  const warnings = codes
+    ? summary.warnings.filter((warning) => codes.includes(warning.code))
+    : summary.warnings
+
+  if (warnings.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="warning-list" aria-label="Предупреждения">
+      {warnings.map((warning) => (
+        <p key={warning.code}>{warning.message}</p>
+      ))}
+    </section>
+  )
+}
+
+function loadInitialState(): InitialState {
+  const storedMonths = loadStoredMonths()
+
+  if (storedMonths.length === 0) {
+    const currentMonth = createSalaryMonth(getCurrentSalesMonthId())
+    return {
+      months: [currentMonth],
+      selectedMonthId: currentMonth.id,
+      createdInitialMonth: true,
+      storageIssues: consumeStorageIssues().map((issue) => issue.message),
+    }
+  }
+
+  const storedSelectedMonthId = loadStoredSelectedMonthId()
+  const selectedMonthId =
+    storedSelectedMonthId !== null &&
+    storedMonths.some((month) => month.id === storedSelectedMonthId)
+      ? storedSelectedMonthId
+      : storedMonths[0].id
+
+  return {
+    months: storedMonths,
+    selectedMonthId,
+    createdInitialMonth: false,
+    storageIssues: consumeStorageIssues().map((issue) => issue.message),
+  }
+}
+
+function getNextAvailableMonthId(months: SalaryMonth[]): string {
+  const latestMonthId =
+    [...months].sort((left, right) =>
+      left.salesMonth.localeCompare(right.salesMonth),
+    )[months.length - 1]?.salesMonth ?? getCurrentSalesMonthId()
+  let nextMonthId = addMonthsToSalesMonth(latestMonthId, 1)
+
+  while (months.some((month) => month.id === nextMonthId)) {
+    nextMonthId = addMonthsToSalesMonth(nextMonthId, 1)
+  }
+
+  return nextMonthId
+}
+
+function getPlanHint(salesTotal: number): string {
+  const nextLevel = PLAN_LEVELS.find((level) => salesTotal < level.threshold)
+
+  if (!nextLevel) {
+    return 'Максимальная ступень выполнена'
+  }
+
+  return `До бонуса ${formatRubles(nextLevel.bonus)} осталось ${formatRubles(nextLevel.threshold - salesTotal)}`
+}
+
+function getPlanProgress(salesTotal: number): number {
+  if (salesTotal >= PLAN_LEVELS[2].threshold) {
+    return 100
+  }
+
+  const nextThreshold =
+    PLAN_LEVELS.find((level) => salesTotal < level.threshold)?.threshold ??
+    PLAN_LEVELS[2].threshold
+
+  return clampPercent((salesTotal / nextThreshold) * 100)
+}
+
+function getProductGroupHint(sales: number): string {
+  if (sales >= PRODUCT_GROUP_THRESHOLD) {
+    return 'Порог выполнен'
+  }
+
+  return `До порога осталось ${formatRubles(PRODUCT_GROUP_THRESHOLD - sales)}`
+}
+
+function getProductGroupProgress(sales: number): number {
+  return clampPercent((sales / PRODUCT_GROUP_THRESHOLD) * 100)
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.min(100, Math.max(0, value))
+}
+
+function findPreviousCalendarMonth(
+  months: SalaryMonth[],
+  salesMonth: string,
+): SalaryMonth | undefined {
+  const previousMonthId = addMonthsToSalesMonth(salesMonth, -1)
+  return months.find((month) => month.salesMonth === previousMonthId)
+}
+
+function getComparisonRows(
+  currentMonth: SalaryMonth,
+  currentSummary: CalculationSummary,
+  previousMonth: SalaryMonth,
+  previousSummary: CalculationSummary,
+): Array<{
+  label: string
+  short: string
+  icon: '↑' | '↓' | '—'
+  amount: string
+  tone: 'positive' | 'negative' | 'neutral'
+}> {
+  return [
+    {
+      label: 'Общие продажи',
+      short: 'продажи',
+      ...formatComparisonDifference(
+        currentMonth.salesTotal - previousMonth.salesTotal,
+      ),
+    },
+    {
+      label: 'Все начисленные бонусы',
+      short: 'бонусы',
+      ...formatComparisonDifference(
+        currentSummary.totalAccruedBonuses -
+          previousSummary.totalAccruedBonuses,
+      ),
+    },
+    {
+      label: 'Всего заработано',
+      short: 'заработано',
+      ...formatComparisonDifference(
+        currentSummary.totalEarned - previousSummary.totalEarned,
+      ),
+    },
+    {
+      label: 'К выплате 15-го',
+      short: 'к выплате',
+      ...formatComparisonDifference(
+        currentSummary.expectedBonusPayment -
+          previousSummary.expectedBonusPayment,
+      ),
+    },
+  ]
+}
+
+function formatComparisonDifference(difference: number): {
+  icon: '↑' | '↓' | '—'
+  amount: string
+  tone: 'positive' | 'negative' | 'neutral'
+} {
+  const roundedDifference = Math.round(difference)
+
+  if (roundedDifference > 0) {
+    return {
+      icon: '↑',
+      amount: formatRubles(roundedDifference),
+      tone: 'positive',
+    }
+  }
+
+  if (roundedDifference < 0) {
+    return {
+      icon: '↓',
+      amount: formatRubles(Math.abs(roundedDifference)),
+      tone: 'negative',
+    }
+  }
+
+  return {
+    icon: '—',
+    amount: 'Без изменений',
+    tone: 'neutral',
+  }
+}
+
+function getNextPlanThreshold(salesTotal: number): number | null {
+  if (salesTotal >= 3_000_000) {
+    return null
+  }
+
+  if (salesTotal >= 2_000_000) {
+    return 3_000_000
+  }
+
+  if (salesTotal >= 1_000_000) {
+    return 2_000_000
+  }
+
+  return 1_000_000
+}
+
+function hasMeaningfulMonthData(
+  month: SalaryMonth,
+  summary: CalculationSummary,
+): boolean {
+  return (
+    month.salesTotal > 0 ||
+    month.salesArtkera > 0 ||
+    month.salesLaparet > 0 ||
+    month.programBonus > 0 ||
+    month.payments.day25 > 0 ||
+    month.payments.day10 > 0 ||
+    summary.totalAccruedBonuses > 0 ||
+    summary.expectedBonusPayment > 0
+  )
+}
+
+export default App

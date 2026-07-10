@@ -1,0 +1,104 @@
+:root {
+  color-scheme: light dark;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --background: #f3f6f5;
+  --surface: #ffffff;
+  --surface-muted: #eef5f3;
+  --text-primary: #172421;
+  --text-secondary: #687873;
+  --accent: #0b6f68;
+  --accent-soft: #e1f2ef;
+  --success: #17803f;
+  --success-soft: #e2f5e8;
+  --warning: #a76700;
+  --warning-soft: #fff3d7;
+  --danger: #b24040;
+  --danger-soft: #fdeaea;
+  --border: #dde7e4;
+  --shadow: 0 14px 34px rgba(20, 42, 37, 0.09);
+  --shadow-soft: 0 8px 22px rgba(20, 42, 37, 0.06);
+  --radius: 8px;
+
+  --page: var(--background);
+  --text-strong: var(--text-primary);
+  --muted: var(--text-secondary);
+  --border-soft: #edf3f1;
+  --accent-strong: var(--accent);
+  --accent-border: #9cd3ca;
+  --track: #dce8e5;
+  --warning-bg: var(--warning-soft);
+  --warning-border: #e6c66a;
+  --warning-text: #6f4b00;
+  --danger-bg: var(--danger-soft);
+  --danger-border: #efbaba;
+  --danger-text: var(--danger);
+
+  color: var(--text-primary);
+  background: var(--background);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #111816;
+    --surface: #19221f;
+    --surface-muted: #202d29;
+    --text-primary: #eff8f5;
+    --text-secondary: #9eb0aa;
+    --accent: #64d6c8;
+    --accent-soft: #123731;
+    --success: #72d889;
+    --success-soft: #173823;
+    --warning: #f0c766;
+    --warning-soft: #3a2d14;
+    --danger: #ff9a9a;
+    --danger-soft: #3a1e1f;
+    --border: #2d3b37;
+    --shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+    --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.2);
+
+    --border-soft: #26332f;
+    --accent-border: #236f64;
+    --track: #2b3935;
+    --warning-border: #775f22;
+    --warning-text: #f4d57f;
+    --danger-border: #7b393d;
+    --danger-text: var(--danger);
+
+    color: var(--text-primary);
+    background: var(--background);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+  background: var(--background);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  color: var(--text-primary);
+  background: var(--background);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
