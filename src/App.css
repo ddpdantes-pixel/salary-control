@@ -668,8 +668,8 @@ button.danger {
   left: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
   max-width: 780px;
   margin: 0 auto;
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
@@ -690,6 +690,7 @@ button.danger {
   box-shadow: none;
   font-size: 12px;
   font-weight: 650;
+  white-space: nowrap;
 }
 
 .bottom-nav svg {
@@ -705,6 +706,16 @@ button.danger {
 .bottom-nav button.active {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.bottom-nav button.money-tab.active {
+  color: #2768ad;
+  background: #e7f1fc;
+}
+
+.finance-active .save-status.saving {
+  color: #2768ad;
+  background: #e7f1fc;
 }
 
 .dialog-backdrop {
@@ -734,6 +745,37 @@ button.danger {
 
 .restore-dialog p strong {
   color: var(--text-primary);
+}
+
+.restore-preview-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  background: var(--surface-muted);
+}
+
+.restore-preview-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 9px 0;
+}
+
+.restore-preview-list div:last-child {
+  border-bottom: 0;
+}
+
+.restore-preview-list dt {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.restore-preview-list dd {
+  margin: 0;
+  font-weight: 750;
 }
 
 .dialog-actions {
@@ -787,6 +829,17 @@ button.danger {
   .hero-total {
     padding: 18px;
   }
+
+  .bottom-nav {
+    gap: 1px;
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+
+  .bottom-nav button {
+    padding-right: 2px;
+    padding-left: 2px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -808,6 +861,12 @@ button.danger {
   .hero-icon {
     color: var(--accent);
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  .bottom-nav button.money-tab.active,
+  .finance-active .save-status.saving {
+    color: #8bc1f3;
+    background: #18334e;
   }
 }
 

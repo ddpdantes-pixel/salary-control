@@ -37,10 +37,19 @@ import {
   reopenSalaryMonth,
 } from './monthState'
 import type { CalculationSummary, SalaryMonth } from './types'
+import { FinanceScreen } from './FinanceScreen'
+import type { FinanceAnchorInput } from './FinanceScreen'
+import { createDefaultFinanceState } from './financeDefaults'
+import {
+  consumeFinanceStorageIssues,
+  loadStoredFinanceState,
+  saveStoredFinanceState,
+} from './financeStorage'
+import type { BalanceAnchor, FinanceState } from './financeTypes'
 import './App.css'
 
-type TabId = 'home' | 'sales' | 'payments' | 'history'
-type TabIcon = 'home' | 'sales' | 'payments' | 'history'
+type TabId = 'home' | 'sales' | 'payments' | 'history' | 'money'
+type TabIcon = 'home' | 'sales' | 'payments' | 'history' | 'money'
 type SaveState = 'saved' | 'saving' | 'error'
 type UpdateServiceWorker = (reloadPage?: boolean) => Promise<void>
 
@@ -58,6 +67,7 @@ const TABS: Array<{ id: TabId; label: string; icon: TabIcon }> = [
   { id: 'sales', label: 'Продажи', icon: 'sales' },
   { id: 'payments', label: 'Выплаты', icon: 'payments' },
   { id: 'history', label: 'История', icon: 'history' },
+  { id: 'money', label: 'Деньги', icon: 'money' },
 ]
 
 interface InitialState {
@@ -71,18 +81,22 @@ interface RestorePreview {
   fileName: string
   months: SalaryMonth[]
   selectedMonthId: string | null
+  financeState: FinanceState | null
 }
 
 function App() {
   const [initialState] = useState(loadInitialState)
   const [months, setMonths] = useState(initialState.months)
+  const [financeState, setFinanceState] = useState<FinanceState | null>(
+    loadStoredFinanceState,
+  )
   const [selectedMonthId, setSelectedMonthId] = useState(
     initialState.selectedMonthId,
   )
   const [activeTab, setActiveTab] = useState<TabId>('home')
   const [saveState, setSaveState] = useState<SaveState>('saved')
-  const [storageMessage, setStorageMessage] = useState(
-    initialState.storageIssues.join(' '),
+  const [storageMessage, setStorageMessage] = useState(() =>
+    [...initialState.storageIssues, ...consumeFinanceStorageIssues()].join(' '),
   )
   const [pwaMessage, setPwaMessage] = useState<string | null>(null)
   const [updateServiceWorker, setUpdateServiceWorker] =
@@ -92,6 +106,8 @@ function App() {
   )
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
+  const financeDidMountRef = useRef(false)
+  const financeSaveTimerRef = useRef<number | undefined>(undefined)
   const restoreInputRef = useRef<HTMLInputElement>(null)
 
   const currentMonth = useMemo(
@@ -111,7 +127,7 @@ function App() {
       immediate: true,
       onNeedRefresh() {
         setUpdateServiceWorker(() => updateSW)
-        setPwaMessage('Доступна новая версия приложения.')
+        setPwaMessage('Доступно обновление приложения')
       },
       onOfflineReady() {
         setPwaMessage(OFFLINE_READY_MESSAGE)
@@ -155,14 +171,39 @@ function App() {
     return () => window.clearTimeout(saveTimerRef.current)
   }, [initialState.createdInitialMonth, months, selectedMonthId])
 
+  useEffect(() => {
+    if (!financeDidMountRef.current) {
+      financeDidMountRef.current = true
+      return
+    }
+
+    if (!financeState) {
+      return
+    }
+
+    setSaveState('saving')
+    window.clearTimeout(financeSaveTimerRef.current)
+    financeSaveTimerRef.current = window.setTimeout(() => {
+      saveStoredFinanceState(financeState)
+      if (!showStorageIssues()) {
+        setSaveState('saved')
+      }
+    }, SAVE_DELAY_MS)
+
+    return () => window.clearTimeout(financeSaveTimerRef.current)
+  }, [financeState])
+
   function showStorageIssues(): boolean {
-    const issues = consumeStorageIssues()
+    const issues = [
+      ...consumeStorageIssues().map((issue) => issue.message),
+      ...consumeFinanceStorageIssues(),
+    ]
 
     if (issues.length === 0) {
       return false
     }
 
-    setStorageMessage(issues.map((issue) => issue.message).join(' '))
+    setStorageMessage(issues.join(' '))
     setSaveState('error')
     return true
   }
@@ -288,7 +329,7 @@ function App() {
   }
 
   function downloadBackup(): void {
-    const backup = createBackupData(months, selectedMonthId)
+    const backup = createBackupData(months, selectedMonthId, financeState)
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: 'application/json',
     })
@@ -319,6 +360,7 @@ function App() {
           fileName: file.name,
           months: parsedBackup.months,
           selectedMonthId: parsedBackup.selectedMonthId,
+          financeState: parsedBackup.financeState,
         })
       })
       .catch((error: unknown) => {
@@ -355,8 +397,15 @@ function App() {
 
     setMonths(restoredMonths)
     setSelectedMonthId(restoredSelectedMonthId)
+    if (pendingRestore.financeState) {
+      setFinanceState(pendingRestore.financeState)
+    }
     setActiveTab('history')
-    setStorageMessage(`Восстановлено месяцев: ${restoredMonths.length}.`)
+    setStorageMessage(
+      pendingRestore.financeState
+        ? `Восстановлено месяцев: ${restoredMonths.length}. Финансовые данные восстановлены.`
+        : `Восстановлено месяцев: ${restoredMonths.length}. Финансовые данные не изменялись.`,
+    )
     setPendingRestore(null)
   }
 
@@ -376,12 +425,59 @@ function App() {
     reportWindow.focus()
   }
 
+  function completeFinanceSetup(input: FinanceAnchorInput): void {
+    const nowIso = new Date().toISOString()
+    const initialFinanceState = createDefaultFinanceState(nowIso)
+
+    setFinanceState({
+      ...initialFinanceState,
+      anchors: [createBalanceAnchor(input, nowIso)],
+      updatedAt: nowIso,
+    })
+  }
+
+  function addFinanceAnchor(input: FinanceAnchorInput): void {
+    const nowIso = new Date().toISOString()
+
+    setFinanceState((currentState) => {
+      if (!currentState) {
+        return null
+      }
+
+      return {
+        ...currentState,
+        anchors: [
+          ...currentState.anchors,
+          createBalanceAnchor(input, nowIso),
+        ],
+        updatedAt: nowIso,
+      }
+    })
+  }
+
+  function updateFinanceState(
+    updater: (state: FinanceState) => FinanceState,
+  ): void {
+    const nowIso = new Date().toISOString()
+    setFinanceState((currentState) =>
+      currentState
+        ? { ...updater(currentState), schemaVersion: 3, updatedAt: nowIso }
+        : null,
+    )
+  }
+
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''}`}>
       <header className="top-bar">
         <div>
-          <p className="eyebrow">Контроль зарплаты</p>
-          <h1>{formatMonthLabel(currentMonth.salesMonth)}</h1>
+          <p className="eyebrow">
+            {activeTab === 'money' ? 'Личные финансы' : 'Контроль зарплаты'}
+          </p>
+          <h1>
+            {activeTab === 'money'
+              ? 'Деньги'
+              : formatMonthLabel(currentMonth.salesMonth)}
+          </h1>
         </div>
         <span className={`save-status ${saveState}`}>
           {saveState === 'saving'
@@ -466,13 +562,28 @@ function App() {
           }}
         />
       )}
+      {activeTab === 'money' && (
+        <FinanceScreen
+          state={financeState}
+          salaryMonths={months}
+          todayIsoDate={getLocalIsoDate()}
+          onCompleteSetup={completeFinanceSetup}
+          onAddAnchor={addFinanceAnchor}
+          onChangeState={updateFinanceState}
+          onOpenSalaryMonth={(monthId) => {
+            selectOrCreateMonth(monthId)
+            setActiveTab('home')
+          }}
+        />
+      )}
 
       <nav className="bottom-nav" aria-label="Разделы приложения">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
-            className={tab.id === activeTab ? 'active' : ''}
+            className={`${tab.id === activeTab ? 'active' : ''} ${tab.id === 'money' ? 'money-tab' : ''}`}
+            aria-current={tab.id === activeTab ? 'page' : undefined}
             onClick={() => setActiveTab(tab.id)}
           >
             <NavIcon icon={tab.icon} />
@@ -1254,9 +1365,17 @@ function RestoreDialog({
         aria-labelledby="restore-title"
       >
         <h2 id="restore-title">Восстановить резервную копию?</h2>
+        <p>Файл: <strong>{preview.fileName}</strong></p>
+        <dl className="restore-preview-list">
+          <div><dt>Зарплатные месяцы</dt><dd>{preview.months.length}</dd></div>
+          <div><dt>Финансовые операции</dt><dd>{preview.financeState?.operations.length ?? 0}</dd></div>
+          <div><dt>Обязательства</dt><dd>{preview.financeState?.obligations.length ?? 0}</dd></div>
+          <div><dt>Фактические остатки</dt><dd>{preview.financeState?.anchors.length ?? 0}</dd></div>
+          <div><dt>Регулярные личные расходы</dt><dd>{preview.financeState?.personalExpenses.length ?? 0}</dd></div>
+        </dl>
         <p>
-          Найдено месяцев: <strong>{preview.months.length}</strong>. Текущие
-          данные в приложении будут заменены данными из файла {preview.fileName}.
+          Текущие данные будут заменены данными из резервной копии.
+          {!preview.financeState && ' Финансовый раздел в этом файле отсутствует и изменён не будет.'}
         </p>
         <div className="dialog-actions">
           <button type="button" className="primary-action" onClick={onConfirm}>
@@ -1353,6 +1472,15 @@ function NavIcon({ icon }: { icon: TabIcon }) {
     )
   }
 
+  if (icon === 'money') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2h10" />
+        <path d="M15 12h5v4h-5a2 2 0 0 1 0-4Z" />
+      </svg>
+    )
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 5h12M6 12h12M6 19h12" />
@@ -1428,6 +1556,28 @@ function loadInitialState(): InitialState {
     createdInitialMonth: false,
     storageIssues: consumeStorageIssues().map((issue) => issue.message),
   }
+}
+
+function createBalanceAnchor(
+  input: FinanceAnchorInput,
+  createdAt: string,
+): BalanceAnchor {
+  return {
+    id: `anchor-${input.date}-${createdAt}`,
+    date: input.date,
+    title: 'Фактический остаток счёта',
+    balanceKopecks: input.balanceKopecks,
+    note: input.note || undefined,
+    createdAt,
+  }
+}
+
+function getLocalIsoDate(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
 }
 
 function getNextAvailableMonthId(months: SalaryMonth[]): string {

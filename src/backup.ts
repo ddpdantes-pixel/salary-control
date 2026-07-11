@@ -1,8 +1,11 @@
 import { normalizeStoredMonth, sortMonthsDesc } from './storage'
+import { normalizeFinanceState } from './financeStorage'
+import type { FinanceState } from './financeTypes'
 import type { SalaryMonth } from './types'
 
 const BACKUP_APP_ID = 'kontrol-zarplaty'
-const BACKUP_STRUCTURE_VERSION = 2
+const BACKUP_STRUCTURE_VERSION = 4
+const SUPPORTED_BACKUP_VERSIONS = new Set([2, 3, BACKUP_STRUCTURE_VERSION])
 
 export interface BackupData {
   app: typeof BACKUP_APP_ID
@@ -12,17 +15,20 @@ export interface BackupData {
   settings: {
     selectedMonthId: string | null
   }
+  financeState?: FinanceState
 }
 
 export interface ParsedBackup {
   createdAt: string
   months: SalaryMonth[]
   selectedMonthId: string | null
+  financeState: FinanceState | null
 }
 
 export function createBackupData(
   months: SalaryMonth[],
   selectedMonthId: string | null,
+  financeState?: FinanceState | null,
 ): BackupData {
   return {
     app: BACKUP_APP_ID,
@@ -32,6 +38,7 @@ export function createBackupData(
     settings: {
       selectedMonthId,
     },
+    ...(financeState ? { financeState } : {}),
   }
 }
 
@@ -48,7 +55,10 @@ export function parseBackupData(text: string): ParsedBackup {
     throw new Error('Этот файл не похож на резервную копию приложения.')
   }
 
-  if (parsed.structureVersion !== BACKUP_STRUCTURE_VERSION) {
+  if (
+    typeof parsed.structureVersion !== 'number' ||
+    !SUPPORTED_BACKUP_VERSIONS.has(parsed.structureVersion)
+  ) {
     throw new Error('Версия резервной копии не поддерживается.')
   }
 
@@ -69,6 +79,14 @@ export function parseBackupData(text: string): ParsedBackup {
   const settings = isRecord(parsed.settings) ? parsed.settings : {}
   const selectedMonthId =
     typeof settings.selectedMonthId === 'string' ? settings.selectedMonthId : null
+  const financeState =
+    parsed.financeState === undefined
+      ? null
+      : normalizeFinanceState(parsed.financeState)
+
+  if (parsed.financeState !== undefined && financeState === null) {
+    throw new Error('В резервной копии повреждены финансовые данные.')
+  }
 
   return {
     createdAt:
@@ -77,6 +95,7 @@ export function parseBackupData(text: string): ParsedBackup {
         : new Date().toISOString(),
     months: sortMonthsDesc(normalizedMonths),
     selectedMonthId,
+    financeState,
   }
 }
 
