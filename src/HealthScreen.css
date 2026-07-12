@@ -1,0 +1,402 @@
+.health-screen,
+.health-today {
+  display: grid;
+  gap: 12px;
+}
+
+.health-today {
+  animation: card-in 220ms ease both;
+}
+
+.health-date-panel,
+.health-block,
+.health-placeholder {
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.health-date-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 10px;
+  align-items: start;
+  padding: 16px;
+}
+
+.health-date-panel > div {
+  display: grid;
+  gap: 3px;
+}
+
+.health-date-panel > div span,
+.health-date-panel label,
+.health-muted {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.health-date-panel > div strong {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.health-date-panel label {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 5px;
+  font-weight: 650;
+}
+
+.health-date-panel input,
+.health-text-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  color: var(--text-primary);
+  background: var(--surface);
+  outline: none;
+}
+
+.health-date-panel input:focus,
+.health-text-field input:focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.health-text-field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  background: var(--surface-muted);
+}
+
+.health-save-status {
+  border-radius: 999px;
+  padding: 7px 9px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.health-save-status.saving {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.health-save-status.error {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.health-storage-issue,
+.health-amber-note {
+  border-radius: var(--radius);
+  padding: 11px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.health-storage-issue {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.health-amber-note {
+  color: var(--warning-text);
+  background: var(--warning-soft);
+}
+
+.health-block {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.health-block h2 {
+  font-size: 18px;
+}
+
+.number-choices,
+.bristol-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 5px;
+}
+
+.number-choices button,
+.bristol-grid button,
+.health-chip-grid button,
+.binary-choice button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 6px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  box-shadow: none;
+  font-weight: 750;
+}
+
+.number-choices button.selected,
+.bristol-grid button.selected,
+.health-chip-grid button.selected,
+.binary-choice button.selected {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.health-result {
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 760;
+}
+
+.health-toggle-list,
+.workout-list,
+.conditional-fields,
+.hair-schedule,
+.scale-field {
+  display: grid;
+  gap: 8px;
+}
+
+.health-toggle,
+.workout-option {
+  display: grid;
+  width: 100%;
+  min-height: 52px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--surface-muted);
+  box-shadow: none;
+}
+
+.health-toggle.selected,
+.workout-option.selected {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.health-toggle > span:last-child,
+.workout-option {
+  min-width: 0;
+}
+
+.health-toggle strong,
+.health-toggle small,
+.workout-option span,
+.workout-option small {
+  display: block;
+}
+
+.health-toggle strong,
+.workout-option span {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.health-toggle small,
+.workout-option small {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.health-checkmark {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 2px solid var(--border);
+  border-radius: 7px;
+  color: var(--surface);
+  background: var(--surface);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.health-toggle.selected .health-checkmark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.workout-option {
+  grid-template-columns: 1fr;
+}
+
+.health-secondary-action,
+.health-copy-action,
+.health-delete-temporary {
+  width: 100%;
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
+  font-weight: 760;
+}
+
+.health-share-action {
+  width: 100%;
+  color: #ffffff;
+  background: var(--accent);
+  font-weight: 780;
+}
+
+.health-share-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.health-delete-temporary {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.health-field-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.scale-choices button,
+.bristol-grid button {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+}
+
+.scale-choices button small,
+.bristol-grid button small {
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.scale-choices button:has(small) {
+  min-height: 54px;
+}
+
+.bristol-grid button.norm:not(.selected) {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.bristol-grid button.selected {
+  transform: translateY(-1px);
+}
+
+.bristol-description {
+  min-height: 36px;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.health-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 6px;
+}
+
+.beer-amount-choices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.health-text-field {
+  display: grid;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.binary-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.health-finish-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.health-complete-action {
+  width: 100%;
+  color: #ffffff;
+  background: var(--accent);
+  font-weight: 780;
+}
+
+.health-complete-action.completed {
+  color: var(--success);
+  background: var(--success-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 38%, transparent);
+}
+
+.health-copy-message,
+.health-share-message {
+  border-radius: var(--radius);
+  padding: 10px 11px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.health-copy-message,
+.health-share-message.success {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.health-share-message.warning {
+  color: var(--warning-text);
+  background: var(--warning-soft);
+}
+
+.health-placeholder {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  gap: 4px;
+  padding: 24px;
+  text-align: center;
+}
+
+.health-placeholder p {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 340px) {
+  .health-date-panel,
+  .health-block {
+    padding: 14px;
+  }
+
+  .health-chip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .health-screen .section-tabs-4 button {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 341px) and (max-width: 420px) {
+  .health-screen .section-tabs-4 button {
+    padding-right: 2px;
+    padding-left: 2px;
+    font-size: 12px;
+  }
+}

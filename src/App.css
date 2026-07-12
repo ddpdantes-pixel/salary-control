@@ -159,6 +159,48 @@ button:active {
   animation: card-in 220ms ease both;
 }
 
+.section-with-tabs {
+  display: grid;
+  gap: 12px;
+}
+
+.section-tabs {
+  display: grid;
+  gap: 4px;
+  border-radius: var(--radius);
+  padding: 4px;
+  background: var(--surface-muted);
+}
+
+.section-tabs-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.section-tabs-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.section-tabs button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 6px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-tabs button.active {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
 .month-switcher {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -839,6 +881,13 @@ button.danger {
   .bottom-nav button {
     padding-right: 2px;
     padding-left: 2px;
+    font-size: 11px;
+  }
+
+  .section-tabs-4 button {
+    padding-right: 2px;
+    padding-left: 2px;
+    font-size: 12px;
   }
 }
 

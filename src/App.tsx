@@ -46,10 +46,20 @@ import {
   saveStoredFinanceState,
 } from './financeStorage'
 import type { BalanceAnchor, FinanceState } from './financeTypes'
+import {
+  APP_NAME,
+  PAYMENT_TABS,
+  TABS,
+  getHistoryMonthOpenTarget,
+} from './appNavigation'
+import type {
+  PaymentsView,
+  TabIcon,
+  TabId,
+} from './appNavigation'
+import { HealthScreen } from './HealthScreen'
 import './App.css'
 
-type TabId = 'home' | 'sales' | 'payments' | 'history' | 'money'
-type TabIcon = 'home' | 'sales' | 'payments' | 'history' | 'money'
 type SaveState = 'saved' | 'saving' | 'error'
 type UpdateServiceWorker = (reloadPage?: boolean) => Promise<void>
 
@@ -61,14 +71,6 @@ const PLAN_LEVELS = [
   { threshold: 3_000_000, bonus: 10_000 },
 ]
 const PRODUCT_GROUP_THRESHOLD = 750_000
-
-const TABS: Array<{ id: TabId; label: string; icon: TabIcon }> = [
-  { id: 'home', label: 'Главная', icon: 'home' },
-  { id: 'sales', label: 'Продажи', icon: 'sales' },
-  { id: 'payments', label: 'Выплаты', icon: 'payments' },
-  { id: 'history', label: 'История', icon: 'history' },
-  { id: 'money', label: 'Деньги', icon: 'money' },
-]
 
 interface InitialState {
   months: SalaryMonth[]
@@ -94,6 +96,8 @@ function App() {
     initialState.selectedMonthId,
   )
   const [activeTab, setActiveTab] = useState<TabId>('home')
+  const [paymentsView, setPaymentsView] =
+    useState<PaymentsView>('current')
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [storageMessage, setStorageMessage] = useState(() =>
     [...initialState.storageIssues, ...consumeFinanceStorageIssues()].join(' '),
@@ -400,7 +404,8 @@ function App() {
     if (pendingRestore.financeState) {
       setFinanceState(pendingRestore.financeState)
     }
-    setActiveTab('history')
+    setActiveTab('payments')
+    setPaymentsView('history')
     setStorageMessage(
       pendingRestore.financeState
         ? `Восстановлено месяцев: ${restoredMonths.length}. Финансовые данные восстановлены.`
@@ -466,26 +471,42 @@ function App() {
     )
   }
 
+  function openMonthFromHistory(monthId: string): void {
+    const target = getHistoryMonthOpenTarget(monthId)
+    setSelectedMonthId(target.selectedMonthId)
+    setPaymentsView(target.paymentsView)
+    setActiveTab(target.activeTab)
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+
   return (
     <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''}`}>
       <header className="top-bar">
         <div>
           <p className="eyebrow">
-            {activeTab === 'money' ? 'Личные финансы' : 'Контроль зарплаты'}
+            {activeTab === 'money'
+              ? 'Личные финансы'
+              : activeTab === 'health'
+                ? 'Ежедневный контроль'
+                : APP_NAME}
           </p>
           <h1>
             {activeTab === 'money'
               ? 'Деньги'
+              : activeTab === 'health'
+                ? 'Здоровье'
               : formatMonthLabel(currentMonth.salesMonth)}
           </h1>
         </div>
-        <span className={`save-status ${saveState}`}>
-          {saveState === 'saving'
-            ? 'Сохранение…'
-            : saveState === 'error'
-              ? 'Ошибка сохранения'
-              : 'Сохранено'}
-        </span>
+        {activeTab !== 'health' && (
+          <span className={`save-status ${saveState}`}>
+            {saveState === 'saving'
+              ? 'Сохранение…'
+              : saveState === 'error'
+                ? 'Ошибка сохранения'
+                : 'Сохранено'}
+          </span>
+        )}
       </header>
 
       {storageMessage && (
@@ -539,28 +560,34 @@ function App() {
         />
       )}
       {activeTab === 'payments' && (
-        <PaymentsScreen
-          month={currentMonth}
-          summary={summary}
-          onChange={updateCurrentMonth}
-          onSaveReport={saveCurrentReport}
-          onClose={closeCurrentMonth}
-          onReopen={reopenCurrentMonth}
-        />
-      )}
-      {activeTab === 'history' && (
-        <HistoryScreen
-          months={months}
-          selectedMonthId={currentMonth.id}
-          onCreate={createNextMonth}
-          onDelete={deleteMonth}
-          onDownloadBackup={downloadBackup}
-          onRestoreRequest={openRestorePicker}
-          onOpen={(monthId) => {
-            setSelectedMonthId(monthId)
-            setActiveTab('home')
-          }}
-        />
+        <section className="section-with-tabs">
+          <SectionTabs
+            label="Раздел выплат"
+            tabs={PAYMENT_TABS}
+            activeTab={paymentsView}
+            onChange={setPaymentsView}
+          />
+          {paymentsView === 'current' ? (
+            <PaymentsScreen
+              month={currentMonth}
+              summary={summary}
+              onChange={updateCurrentMonth}
+              onSaveReport={saveCurrentReport}
+              onClose={closeCurrentMonth}
+              onReopen={reopenCurrentMonth}
+            />
+          ) : (
+            <HistoryScreen
+              months={months}
+              selectedMonthId={currentMonth.id}
+              onCreate={createNextMonth}
+              onDelete={deleteMonth}
+              onDownloadBackup={downloadBackup}
+              onRestoreRequest={openRestorePicker}
+              onOpen={openMonthFromHistory}
+            />
+          )}
+        </section>
       )}
       {activeTab === 'money' && (
         <FinanceScreen
@@ -575,6 +602,9 @@ function App() {
             setActiveTab('home')
           }}
         />
+      )}
+      {activeTab === 'health' && (
+        <HealthScreen />
       )}
 
       <nav className="bottom-nav" aria-label="Разделы приложения">
@@ -600,6 +630,39 @@ function App() {
         />
       )}
     </main>
+  )
+}
+
+function SectionTabs<T extends string>({
+  label,
+  tabs,
+  activeTab,
+  onChange,
+}: {
+  label: string
+  tabs: Array<{ id: T; label: string }>
+  activeTab: T
+  onChange: (tab: T) => void
+}) {
+  return (
+    <div
+      className={`section-tabs section-tabs-${tabs.length}`}
+      role="tablist"
+      aria-label={label}
+    >
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          role="tab"
+          aria-selected={tab.id === activeTab}
+          className={tab.id === activeTab ? 'active' : ''}
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -1477,6 +1540,14 @@ function NavIcon({ icon }: { icon: TabIcon }) {
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 7.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2h10" />
         <path d="M15 12h5v4h-5a2 2 0 0 1 0-4Z" />
+      </svg>
+    )
+  }
+
+  if (icon === 'health') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20.8 5.9a5.1 5.1 0 0 0-7.2 0L12 7.5l-1.6-1.6a5.1 5.1 0 1 0-7.2 7.2L12 21l8.8-7.9a5.1 5.1 0 0 0 0-7.2Z" />
       </svg>
     )
   }

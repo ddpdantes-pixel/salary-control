@@ -13,8 +13,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'icons.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Контроль зарплаты',
-        short_name: 'Зарплата',
+        name: 'Мой ритм',
+        short_name: 'Мой ритм',
         lang: 'ru',
         display: 'standalone',
         orientation: 'portrait-primary',
