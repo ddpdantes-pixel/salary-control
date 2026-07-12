@@ -33,6 +33,21 @@ describe('PNG ежедневного чек-листа', () => {
     expect(drawnText.join(' ')).toContain('Поза ребёнка')
   })
 
+  it('рисует распирание без /5 и сохраняет отдельное значение позывов', () => {
+    const { canvas, drawnText } = makeCanvas()
+    const entry = {
+      ...createHealthEntry('2026-07-12'),
+      bloating: 0,
+      urges: 0.5,
+    }
+
+    createHealthChecklistImage(entry, () => canvas)
+
+    expect(drawnText).toContain('Распирание: 0')
+    expect(drawnText).not.toContain('Распирание: 0/5')
+    expect(drawnText).toContain('Позывы: 0,5')
+  })
+
   it('не обращается к IndexedDB при создании временного PNG', () => {
     const { canvas } = makeCanvas()
     const open = vi.fn()

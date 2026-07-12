@@ -67,7 +67,7 @@ export function buildHealthChecklistText(entry: HealthEntry): string {
     `Фигура «4»: ${yesNo(entry.relaxation.figureFour)}`,
     '',
     'Симптомы:',
-    `Распирание: ${entry.bloating}/5`,
+    `Распирание: ${entry.bloating}`,
     `Позывы: ${formatNumber(entry.urges)}`,
   )
 

@@ -3,6 +3,21 @@ import { buildHealthChecklistText } from './healthExport'
 import { WORKOUTS, createHealthEntry } from './healthModel'
 
 describe('копирование ежедневного чек-листа', () => {
+  it.each([0, 1, 2, 3, 4, 5])(
+    'выводит распирание %s без обозначения максимума',
+    (bloating) => {
+      const text = buildHealthChecklistText({
+        ...createHealthEntry('2026-07-11'),
+        bloating,
+        urges: 0.5,
+      })
+
+      expect(text).toContain(`Распирание: ${bloating}`)
+      expect(text).not.toContain(`Распирание: ${bloating}/5`)
+      expect(text).toContain('Позывы: 0,5')
+    },
+  )
+
   it('формирует читаемый текст с заполненными данными', () => {
     const entry = {
       ...createHealthEntry('2026-07-11'),
