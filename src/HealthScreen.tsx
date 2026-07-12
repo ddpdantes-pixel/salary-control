@@ -756,17 +756,20 @@ function ScaleField({
           <button
             key={value}
             type="button"
-            className={selected === value ? 'selected' : ''}
+            className={`${selected === value ? 'selected' : ''} ${personalReference === value ? 'personal-reference' : ''}`}
             aria-pressed={selected === value}
             onClick={() => onSelect(value)}
           >
             <strong>{formatChoiceNumber(value)}</strong>
             {personalReference === value && isPersonalUrgeReference(value) && (
-              <small>Личный ориентир</small>
+              <span className="personal-reference-mark" aria-hidden="true" />
             )}
           </button>
         ))}
       </div>
+      {personalReference !== undefined && isPersonalUrgeReference(personalReference) && (
+        <p className="scale-reference-note">0,5 — личный ориентир</p>
+      )}
     </div>
   )
 }

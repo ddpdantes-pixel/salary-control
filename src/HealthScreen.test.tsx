@@ -8,6 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HealthScreen } from './HealthScreen'
 import { HEALTH_STATE_KEY } from './healthStorage'
 
+vi.mock('./healthChecklistImage', () => ({
+  createHealthChecklistImage: async (entry: { date: string }) =>
+    new File(['png'], `health-checklist-${entry.date}.png`, { type: 'image/png' }),
+}))
+
 describe('экран здоровья сегодня', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -65,7 +70,7 @@ describe('экран здоровья сегодня', () => {
     )
 
     const message = await screen.findByText(
-      'Отчёт подготовлен. Временные скриншоты удалены',
+      'Отчёт передан. Временные скриншоты удалены',
     )
     expect(message.classList.contains('success')).toBe(true)
     expect(message.classList.contains('warning')).toBe(false)
@@ -97,6 +102,32 @@ describe('экран здоровья сегодня', () => {
     )
     expect(message.classList.contains('warning')).toBe(true)
     expect(message.classList.contains('success')).toBe(false)
+  })
+
+  it('показывает личный ориентир под шкалой, а не внутри кнопки 0,5', () => {
+    render(<HealthScreen />)
+    const urges = screen.getByRole('group', { name: 'Позывы' })
+    const halfButton = within(urges).getByRole('button', { name: '0,5' })
+    const note = screen.getByText('0,5 — личный ориентир')
+
+    expect(within(urges).getAllByRole('button')).toHaveLength(7)
+    expect(halfButton.textContent).toBe('0,5')
+    expect(halfButton.classList.contains('personal-reference')).toBe(true)
+    expect(urges.contains(note)).toBe(false)
+    expect(note.classList.contains('scale-reference-note')).toBe(true)
+  })
+
+  it('сохраняет текущее оформление и подписи Бристольской шкалы', () => {
+    render(<HealthScreen />)
+    const bristol = screen.getByRole('group', { name: 'Тип по Бристольской шкале' })
+    const buttons = within(bristol).getAllByRole('button')
+
+    expect(buttons).toHaveLength(7)
+    expect(buttons.map((button) => button.querySelector('strong')?.textContent)).toEqual([
+      '1', '2', '3', '4', '5', '6', '7',
+    ])
+    expect(within(bristol).getByRole('button', { name: /3\s*Норма/ })).not.toBeNull()
+    expect(within(bristol).getByRole('button', { name: /4\s*Норма/ })).not.toBeNull()
   })
 
   it('переключает условные поля для вариантов алкоголя', async () => {

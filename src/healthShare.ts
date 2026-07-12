@@ -1,4 +1,5 @@
 import { buildHealthChecklistText } from './healthExport'
+import { createHealthChecklistImage } from './healthChecklistImage'
 import type { HealthAttachment } from './healthAttachments'
 import type { HealthEntry } from './healthTypes'
 
@@ -15,24 +16,24 @@ interface ShareNavigator {
   clipboard?: Pick<Clipboard, 'writeText'>
 }
 
-export function createHealthChecklistFile(entry: HealthEntry): File {
-  return new File([buildHealthChecklistText(entry)], `health-checklist-${entry.date}.txt`, {
-    type: 'text/plain;charset=utf-8',
-  })
-}
-
-export function createHealthShareFiles(
+export async function createHealthShareFiles(
   entry: HealthEntry,
   attachments: HealthAttachment[],
-): File[] {
+  createChecklistImage: (entry: HealthEntry) => Promise<File> = createHealthChecklistImage,
+): Promise<File[]> {
+  const checklistImage = await createChecklistImage(entry)
   return [
-    createHealthChecklistFile(entry),
+    checklistImage,
     ...attachments.map(
-      (attachment) =>
-        new File([attachment.blob], attachment.fileName, {
+      (attachment) => {
+        if (!attachment.mimeType.startsWith('image/')) {
+          throw new Error('В отчёт можно передавать только изображения')
+        }
+        return new File([attachment.blob], attachment.fileName, {
           type: attachment.mimeType,
           lastModified: new Date(attachment.addedAt).getTime(),
-        }),
+        })
+      },
     ),
   ]
 }
@@ -42,13 +43,24 @@ export async function shareHealthReport({
   attachments,
   deleteAttachments,
   navigatorLike = navigator,
+  createChecklistImage = createHealthChecklistImage,
 }: {
   entry: HealthEntry
   attachments: HealthAttachment[]
   deleteAttachments: () => Promise<void>
   navigatorLike?: ShareNavigator
+  createChecklistImage?: (entry: HealthEntry) => Promise<File>
 }): Promise<HealthShareResult> {
-  const files = createHealthShareFiles(entry, attachments)
+  let files: File[]
+  try {
+    files = await createHealthShareFiles(entry, attachments, createChecklistImage)
+  } catch {
+    return {
+      status: 'error',
+      message: 'Не удалось подготовить изображение отчёта. Скриншоты сохранены временно',
+    }
+  }
+
   let canShareFiles = false
   try {
     canShareFiles =
@@ -67,27 +79,27 @@ export async function shareHealthReport({
     return {
       status: 'fallback',
       message: copied
-        ? 'Текст скопирован. Прикрепите подготовленные изображения в ChatGPT'
-        : 'Подготовьте текст и прикрепите изображения в ChatGPT вручную',
+        ? 'Текст скопирован. Изображения сохранены временно'
+        : 'Не удалось скопировать текст. Изображения сохранены временно',
     }
   }
 
   try {
-    await navigatorLike.share!({
-      title: `Здоровье — ${entry.date}`,
-      files,
-    })
+    await navigatorLike.share!({ files })
     await deleteAttachments()
     return {
       status: 'shared',
-      message: 'Отчёт подготовлен. Временные скриншоты удалены',
+      message: 'Отчёт передан. Временные скриншоты удалены',
     }
   } catch (error) {
     return {
       status: error instanceof DOMException && error.name === 'AbortError'
         ? 'cancelled'
         : 'error',
-      message: 'Отправка отменена. Скриншоты сохранены временно',
+      message:
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'Отправка отменена. Скриншоты сохранены временно'
+          : 'Не удалось передать отчёт. Скриншоты сохранены временно',
     }
   }
 }
