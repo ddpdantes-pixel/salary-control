@@ -39,7 +39,7 @@ import {
 import type { CalculationSummary, SalaryMonth } from './types'
 import { FinanceScreen } from './FinanceScreen'
 import type { FinanceAnchorInput } from './FinanceScreen'
-import { createDefaultFinanceState } from './financeDefaults'
+import { createDefaultFinanceState, FINANCE_SCHEMA_VERSION } from './financeDefaults'
 import {
   consumeFinanceStorageIssues,
   loadStoredFinanceState,
@@ -466,7 +466,11 @@ function App() {
     const nowIso = new Date().toISOString()
     setFinanceState((currentState) =>
       currentState
-        ? { ...updater(currentState), schemaVersion: 3, updatedAt: nowIso }
+        ? {
+            ...updater(currentState),
+            schemaVersion: FINANCE_SCHEMA_VERSION,
+            updatedAt: nowIso,
+          }
         : null,
     )
   }
@@ -1639,6 +1643,7 @@ function createBalanceAnchor(
     title: 'Фактический остаток счёта',
     balanceKopecks: input.balanceKopecks,
     note: input.note || undefined,
+    confirmedAt: createdAt,
     createdAt,
   }
 }

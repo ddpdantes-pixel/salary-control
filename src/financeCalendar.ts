@@ -5,6 +5,7 @@ import {
 import {
   getLatestBalanceAnchor,
   getOperationDisplayStatus,
+  isOperationIncludedInAnchor,
   sortFinanceOperations,
 } from './financeCalculations'
 import { getObligationCategoryLabel } from './financeObligations'
@@ -48,18 +49,19 @@ export function buildFinanceCalendarTimeline(input: {
   todayIsoDate: string
 }): FinanceCalendarItem[] {
   const anchor = getLatestBalanceAnchor(input.anchors)
-  const anchorDate = anchor?.date ?? '0000-00-00'
   let balanceKopecks = anchor?.balanceKopecks ?? 0
 
   return sortFinanceOperations(input.operations).map((operation) => {
     const balanceBeforeKopecks = balanceKopecks
-    const includedInAnchor = compareIsoDates(operation.date, anchorDate) <= 0
+    const includedInAnchor = isOperationIncludedInAnchor(operation, anchor)
     const affectsBalance = shouldApplyOperation(
       operation,
-      anchorDate,
+      anchor,
       input.todayIsoDate,
     )
-    let balanceAfterKopecks: number | null = balanceKopecks
+    let balanceAfterKopecks: number | null = includedInAnchor
+      ? null
+      : balanceKopecks
 
     if (affectsBalance && operation.amountKopecks !== null) {
       balanceKopecks =
@@ -154,18 +156,20 @@ export function getOperationStatusLabel(
 
 function shouldApplyOperation(
   operation: FinanceOperation,
-  anchorDate: string,
+  anchor: BalanceAnchor | null,
   todayIsoDate: string,
 ): boolean {
   if (
-    compareIsoDates(operation.date, anchorDate) <= 0 ||
+    isOperationIncludedInAnchor(operation, anchor) ||
     operation.status === 'cancelled' ||
     operation.amountKopecks === null
   ) {
     return false
   }
 
-  if (compareIsoDates(operation.date, todayIsoDate) <= 0) {
+  const actualDate =
+    operation.actualDate ?? operation.completedDate ?? operation.date
+  if (compareIsoDates(actualDate, todayIsoDate) <= 0) {
     return operation.status === 'completed'
   }
 

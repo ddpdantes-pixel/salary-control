@@ -68,6 +68,7 @@ describe('финансовые расчёты', () => {
       date: '2026-07-10',
       title: 'Проверенный остаток',
       balanceKopecks: rublesToKopecks(10_000),
+      confirmedAt: '2026-07-10T12:00:00.000Z',
       createdAt: '2026-07-10T12:00:00.000Z',
     }
     const anchors = [olderAnchor, newerAnchor]
@@ -95,6 +96,120 @@ describe('финансовые расчёты', () => {
     expect(getLatestBalanceAnchor(anchors)?.id).toBe('anchor-2026-07-10')
     expect(anchors).toHaveLength(2)
     expect(result.balanceKopecks).toBe(rublesToKopecks(11_000))
+  })
+
+  it('списывает операцию, завершённую позже подтверждения в тот же день', () => {
+    const anchor: BalanceAnchor = {
+      id: 'anchor-2026-07-11-morning',
+      date: '2026-07-11',
+      title: 'Подтверждённый остаток',
+      balanceKopecks: rublesToKopecks(9_783),
+      confirmedAt: '2026-07-11T08:00:00.000Z',
+      createdAt: '2026-07-11T08:00:00.000Z',
+    }
+    const operation = makeOperation({
+      id: 'yandex-split',
+      date: '2026-07-11',
+      actualDate: '2026-07-11',
+      completedDate: '2026-07-11',
+      completedAt: '2026-07-11T10:00:00.000Z',
+      amountKopecks: rublesToKopecks(9_783),
+    })
+
+    const result = calculateCurrentBalance({
+      anchors: [anchor],
+      operations: [operation],
+      todayIsoDate: '2026-07-11',
+    })
+
+    expect(result.balanceKopecks).toBe(0)
+    expect(result.timeline[0].balanceAfterKopecks).toBe(0)
+  })
+
+  it('не списывает повторно операцию, завершённую до подтверждения в тот же день', () => {
+    const anchor: BalanceAnchor = {
+      id: 'anchor-after-operation',
+      date: '2026-07-11',
+      title: 'Подтверждённый остаток',
+      balanceKopecks: rublesToKopecks(5_000),
+      confirmedAt: '2026-07-11T10:00:00.000Z',
+      createdAt: '2026-07-11T10:00:00.000Z',
+    }
+    const operation = makeOperation({
+      date: '2026-07-11',
+      actualDate: '2026-07-11',
+      completedAt: '2026-07-11T08:00:00.000Z',
+    })
+
+    const result = calculateCurrentBalance({
+      anchors: [anchor],
+      operations: [operation],
+      todayIsoDate: '2026-07-11',
+    })
+
+    expect(result.balanceKopecks).toBe(rublesToKopecks(5_000))
+    expect(result.timeline).toHaveLength(0)
+  })
+
+  it('последовательно применяет две completed-операции после контрольной точки', () => {
+    const anchor: BalanceAnchor = {
+      id: 'anchor-before-two',
+      date: '2026-07-11',
+      title: 'Подтверждённый остаток',
+      balanceKopecks: rublesToKopecks(5_000),
+      confirmedAt: '2026-07-11T08:00:00.000Z',
+      createdAt: '2026-07-11T08:00:00.000Z',
+    }
+    const operations = [
+      makeOperation({
+        id: 'first',
+        date: '2026-07-11',
+        actualDate: '2026-07-11',
+        completedAt: '2026-07-11T09:00:00.000Z',
+        amountKopecks: rublesToKopecks(1_000),
+      }),
+      makeOperation({
+        id: 'second',
+        date: '2026-07-11',
+        actualDate: '2026-07-11',
+        completedAt: '2026-07-11T10:00:00.000Z',
+        amountKopecks: rublesToKopecks(2_000),
+      }),
+    ]
+
+    const result = calculateCurrentBalance({
+      anchors: [anchor],
+      operations: operations.reverse(),
+      todayIsoDate: '2026-07-11',
+    })
+
+    expect(result.timeline.map((item) => item.balanceAfterKopecks)).toEqual([
+      rublesToKopecks(4_000),
+      rublesToKopecks(2_000),
+    ])
+  })
+
+  it('не применяет cancelled-операцию после контрольной точки', () => {
+    const anchor: BalanceAnchor = {
+      id: 'anchor-cancelled',
+      date: '2026-07-11',
+      title: 'Подтверждённый остаток',
+      balanceKopecks: rublesToKopecks(5_000),
+      confirmedAt: '2026-07-11T08:00:00.000Z',
+      createdAt: '2026-07-11T08:00:00.000Z',
+    }
+    const operation = makeOperation({
+      date: '2026-07-11',
+      actualDate: '2026-07-11',
+      completedAt: '2026-07-11T10:00:00.000Z',
+      status: 'cancelled',
+    })
+
+    expect(calculateCurrentBalance({
+      anchors: [anchor],
+      operations: [operation],
+      todayIsoDate: '2026-07-11',
+    }).balanceKopecks).toBe(rublesToKopecks(5_000))
   })
 
   it('не включает вклад 90 000 ₽ в баланс счёта для кредитов', () => {

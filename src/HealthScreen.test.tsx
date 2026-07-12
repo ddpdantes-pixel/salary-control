@@ -9,7 +9,7 @@ import { HealthScreen } from './HealthScreen'
 import { HEALTH_STATE_KEY } from './healthStorage'
 
 vi.mock('./healthChecklistImage', () => ({
-  createHealthChecklistImage: async (entry: { date: string }) =>
+  createHealthChecklistImage: (entry: { date: string }) =>
     new File(['png'], `health-checklist-${entry.date}.png`, { type: 'image/png' }),
 }))
 
@@ -17,6 +17,10 @@ describe('экран здоровья сегодня', () => {
   beforeEach(() => {
     window.localStorage.clear()
     vi.stubGlobal('indexedDB', new IDBFactory())
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => true),
+    })
   })
   afterEach(() => {
     cleanup()
@@ -35,11 +39,22 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByText('Сегодня кофе больше выбранной цели')).not.toBeNull()
   })
 
-  it('делает системную отправку доступной после заполнения чек-листа', async () => {
+  it('показывает новый сценарий подготовки и оставляет резервное копирование текста', () => {
+    render(<HealthScreen />)
+
+    expect(screen.getByRole('button', { name: 'Подготовить отчёт здоровья для ChatGPT' }))
+      .not.toBeNull()
+    expect(
+      screen.getByText('Текст скопируется, а изображения можно будет сохранить в Фото'),
+    ).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Скопировать только текст' })).not.toBeNull()
+  })
+
+  it('делает системную подготовку доступной после заполнения чек-листа', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
     const sendButton = screen.getByRole('button', {
-      name: 'Отправить отчёт здоровья в ChatGPT через системное меню',
+      name: 'Подготовить отчёт здоровья для ChatGPT',
     }) as HTMLButtonElement
 
     expect(sendButton.disabled).toBe(true)
@@ -50,13 +65,12 @@ describe('экран здоровья сегодня', () => {
     expect(sendButton.disabled).toBe(false)
   })
 
-  it('показывает успешную отправку зелёным сообщением', async () => {
+  it('одним нажатием копирует текст, открывает share и показывает инструкцию', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('navigator', {
       ...navigator,
       canShare: () => true,
       share: vi.fn(async () => undefined),
-      clipboard: { writeText: vi.fn(async () => undefined) },
     })
     render(<HealthScreen />)
     const waterChoices = screen.getByRole('group', {
@@ -65,15 +79,21 @@ describe('экран здоровья сегодня', () => {
     await user.click(within(waterChoices).getByRole('button', { name: '1' }))
     await user.click(
       screen.getByRole('button', {
-        name: 'Отправить отчёт здоровья в ChatGPT через системное меню',
+        name: 'Подготовить отчёт здоровья для ChatGPT',
       }),
     )
 
     const message = await screen.findByText(
-      'Отчёт передан. Временные скриншоты удалены',
+      'Готово: текст скопирован, изображения подготовлены',
     )
+    expect(document.execCommand).toHaveBeenCalledWith('copy')
     expect(message.classList.contains('success')).toBe(true)
     expect(message.classList.contains('warning')).toBe(false)
+    expect(
+      screen.getByText(
+        'Откройте нужный чат ChatGPT, выберите последние изображения и вставьте текст',
+      ),
+    ).not.toBeNull()
   })
 
   it('показывает отмену мягким янтарным сообщением', async () => {
@@ -84,7 +104,6 @@ describe('экран здоровья сегодня', () => {
       share: vi.fn(async () => {
         throw new DOMException('cancelled', 'AbortError')
       }),
-      clipboard: { writeText: vi.fn(async () => undefined) },
     })
     render(<HealthScreen />)
     const waterChoices = screen.getByRole('group', {
@@ -93,12 +112,12 @@ describe('экран здоровья сегодня', () => {
     await user.click(within(waterChoices).getByRole('button', { name: '1' }))
     await user.click(
       screen.getByRole('button', {
-        name: 'Отправить отчёт здоровья в ChatGPT через системное меню',
+        name: 'Подготовить отчёт здоровья для ChatGPT',
       }),
     )
 
     const message = await screen.findByText(
-      'Отправка отменена. Скриншоты сохранены временно',
+      'Сохранение изображений отменено. Текст уже скопирован',
     )
     expect(message.classList.contains('warning')).toBe(true)
     expect(message.classList.contains('success')).toBe(false)

@@ -8,6 +8,7 @@ export type HealthShareStatus = 'shared' | 'fallback' | 'cancelled' | 'error'
 export interface HealthShareResult {
   status: HealthShareStatus
   message: string
+  checklistImage?: File
 }
 
 interface ShareNavigator {
@@ -16,12 +17,12 @@ interface ShareNavigator {
   clipboard?: Pick<Clipboard, 'writeText'>
 }
 
-export async function createHealthShareFiles(
+export function createHealthShareFiles(
   entry: HealthEntry,
   attachments: HealthAttachment[],
-  createChecklistImage: (entry: HealthEntry) => Promise<File> = createHealthChecklistImage,
-): Promise<File[]> {
-  const checklistImage = await createChecklistImage(entry)
+  createChecklistImage: (entry: HealthEntry) => File = createHealthChecklistImage,
+): File[] {
+  const checklistImage = createChecklistImage(entry)
   return [
     checklistImage,
     ...attachments.map(
@@ -38,27 +39,43 @@ export async function createHealthShareFiles(
   ]
 }
 
-export async function shareHealthReport({
+export function shareHealthReport({
   entry,
   attachments,
   deleteAttachments,
   navigatorLike = navigator,
   createChecklistImage = createHealthChecklistImage,
+  copyTextImmediately = (text) =>
+    copyTextForPreparation(text, navigatorLike.clipboard),
 }: {
   entry: HealthEntry
   attachments: HealthAttachment[]
   deleteAttachments: () => Promise<void>
   navigatorLike?: ShareNavigator
-  createChecklistImage?: (entry: HealthEntry) => Promise<File>
+  createChecklistImage?: (entry: HealthEntry) => File
+  copyTextImmediately?: (text: string) => boolean | Promise<boolean>
 }): Promise<HealthShareResult> {
+  const checklistText = buildHealthChecklistText(entry)
+  const copyResult = copyTextImmediately(checklistText)
+  if (copyResult === false) {
+    return Promise.resolve({
+      status: 'error',
+      message: 'Не удалось скопировать текст. Повторите подготовку отчёта',
+    })
+  }
+
   let files: File[]
   try {
-    files = await createHealthShareFiles(entry, attachments, createChecklistImage)
+    files = createHealthShareFiles(entry, attachments, createChecklistImage)
   } catch {
-    return {
-      status: 'error',
-      message: 'Не удалось подготовить изображение отчёта. Скриншоты сохранены временно',
-    }
+    return resolveCopyResult(copyResult).then((copied) =>
+      copied
+        ? {
+            status: 'error',
+            message: 'Не удалось подготовить изображения. Текст уже скопирован',
+          }
+        : getCopyFailureResult(),
+    )
   }
 
   let canShareFiles = false
@@ -72,35 +89,85 @@ export async function shareHealthReport({
   }
 
   if (!canShareFiles) {
-    const copied = await copyTextToClipboard(
-      buildHealthChecklistText(entry),
-      navigatorLike.clipboard,
+    return resolveCopyResult(copyResult).then((copied) =>
+      copied
+        ? {
+            status: 'fallback',
+            message: 'Передача файлов не поддерживается. Текст скопирован; сохраните изображения отдельно',
+            checklistImage: files[0],
+          }
+        : getCopyFailureResult(),
     )
-    return {
-      status: 'fallback',
-      message: copied
-        ? 'Текст скопирован. Изображения сохранены временно'
-        : 'Не удалось скопировать текст. Изображения сохранены временно',
-    }
   }
 
+  let sharePromise: Promise<void>
   try {
-    await navigatorLike.share!({ files })
-    await deleteAttachments()
-    return {
-      status: 'shared',
-      message: 'Отчёт передан. Временные скриншоты удалены',
-    }
+    sharePromise = navigatorLike.share!({ files })
   } catch (error) {
-    return {
-      status: error instanceof DOMException && error.name === 'AbortError'
-        ? 'cancelled'
-        : 'error',
-      message:
-        error instanceof DOMException && error.name === 'AbortError'
-          ? 'Отправка отменена. Скриншоты сохранены временно'
-          : 'Не удалось передать отчёт. Скриншоты сохранены временно',
-    }
+    return resolveCopyResult(copyResult).then((copied) =>
+      copied ? getShareFailureResult(error) : getCopyFailureResult(),
+    )
+  }
+
+  return Promise.allSettled([resolveCopyResult(copyResult), sharePromise])
+    .then(async ([copyOutcome, shareOutcome]) => {
+      if (copyOutcome.status === 'rejected' || !copyOutcome.value) {
+        return getCopyFailureResult()
+      }
+      if (shareOutcome.status === 'rejected') {
+        return getShareFailureResult(shareOutcome.reason)
+      }
+
+      await deleteAttachments()
+      return {
+        status: 'shared' as const,
+        message: 'Готово: текст скопирован, изображения подготовлены',
+      }
+    })
+    .catch(() => ({
+      status: 'error',
+      message: 'Не удалось подготовить изображения. Текст уже скопирован',
+    }))
+}
+
+export function copyTextToClipboardSynchronously(text: string): boolean {
+  if (typeof document === 'undefined' || typeof document.execCommand !== 'function') {
+    return false
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.append(textarea)
+  textarea.focus()
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    textarea.remove()
+  }
+}
+
+export function copyTextForPreparation(
+  text: string,
+  clipboard: Pick<Clipboard, 'writeText'> | undefined =
+    typeof navigator !== 'undefined' ? navigator.clipboard : undefined,
+): boolean | Promise<boolean> {
+  if (copyTextToClipboardSynchronously(text)) return true
+  if (!clipboard) return false
+
+  try {
+    return clipboard.writeText(text).then(
+      () => true,
+      () => false,
+    )
+  } catch {
+    return false
   }
 }
 
@@ -109,24 +176,7 @@ export async function copyTextToClipboard(
   clipboard: Pick<Clipboard, 'writeText'> | undefined =
     typeof navigator !== 'undefined' ? navigator.clipboard : undefined,
 ): Promise<boolean> {
-  if (typeof document !== 'undefined' && typeof document.execCommand === 'function') {
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.setAttribute('readonly', '')
-    textarea.style.position = 'fixed'
-    textarea.style.left = '-9999px'
-    document.body.append(textarea)
-    textarea.focus()
-    textarea.select()
-    textarea.setSelectionRange(0, textarea.value.length)
-    try {
-      if (document.execCommand('copy')) return true
-    } catch {
-      // The asynchronous Clipboard API remains available below.
-    } finally {
-      textarea.remove()
-    }
-  }
+  if (copyTextToClipboardSynchronously(text)) return true
 
   if (!clipboard) return false
   try {
@@ -134,5 +184,26 @@ export async function copyTextToClipboard(
     return true
   } catch {
     return false
+  }
+}
+
+function getShareFailureResult(error: unknown): HealthShareResult {
+  const cancelled = error instanceof DOMException && error.name === 'AbortError'
+  return {
+    status: cancelled ? 'cancelled' : 'error',
+    message: cancelled
+      ? 'Сохранение изображений отменено. Текст уже скопирован'
+      : 'Не удалось подготовить изображения. Текст уже скопирован',
+  }
+}
+
+function resolveCopyResult(result: boolean | Promise<boolean>): Promise<boolean> {
+  return Promise.resolve(result).catch(() => false)
+}
+
+function getCopyFailureResult(): HealthShareResult {
+  return {
+    status: 'error',
+    message: 'Не удалось скопировать текст. Повторите подготовку отчёта',
   }
 }

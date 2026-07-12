@@ -11,6 +11,8 @@ import type {
 const INITIAL_CREATED_AT = '2026-06-25T12:00:00.000Z'
 const INITIAL_CONFIRMED_THROUGH = '2026-07-10'
 
+export const FINANCE_SCHEMA_VERSION = 7
+
 export const INITIAL_FUTURE_OPERATION_IDS: ReadonlySet<string> = new Set([
   'yandex-split-2026-07-12',
   'salary-transfer-2026-07-15',
@@ -78,6 +80,7 @@ export const INITIAL_CREDIT_ACCOUNT_ANCHOR: BalanceAnchor = {
   date: '2026-06-25',
   title: 'Стартовый остаток счёта для кредитов',
   balanceKopecks: rublesToKopecks('6 055,00'),
+  confirmedAt: INITIAL_CREATED_AT,
   createdAt: INITIAL_CREATED_AT,
 }
 
@@ -178,7 +181,7 @@ export function createDefaultFinanceState(
   nowIso = INITIAL_CREATED_AT,
 ): FinanceState {
   return {
-    schemaVersion: 6,
+    schemaVersion: FINANCE_SCHEMA_VERSION,
     settings: { ...DEFAULT_FINANCE_SETTINGS },
     anchors: [{ ...INITIAL_CREDIT_ACCOUNT_ANCHOR }],
     operations: createInitialJulyControlOperations(),
@@ -203,13 +206,17 @@ function createOperation(
 ): FinanceOperation {
   const nowIso = INITIAL_CREATED_AT
 
+  const completed = date <= INITIAL_CONFIRMED_THROUGH
   return {
     id,
     date,
     title,
     amountKopecks: rublesToKopecks(amountRubles),
     direction,
-    status: date <= INITIAL_CONFIRMED_THROUGH ? 'completed' : 'planned',
+    status: completed ? 'completed' : 'planned',
+    actualDate: completed ? date : undefined,
+    completedDate: completed ? date : undefined,
+    completedAt: completed ? `${date}T12:00:00.000Z` : undefined,
     source,
     category: getOperationCategory(source, direction, obligationId),
     amountSource,
@@ -267,6 +274,10 @@ function createCustomObligation(input: {
     date,
     amountKopecks: rublesToKopecks(amount),
     status: date <= INITIAL_CONFIRMED_THROUGH ? 'completed' as const : 'planned' as const,
+    actualDate: date <= INITIAL_CONFIRMED_THROUGH ? date : undefined,
+    completedDate: date <= INITIAL_CONFIRMED_THROUGH ? date : undefined,
+    completedAt:
+      date <= INITIAL_CONFIRMED_THROUGH ? `${date}T12:00:00.000Z` : undefined,
     amountSource: 'explicit' as const,
     dateSource: 'explicit' as const,
     createdAt: INITIAL_CREATED_AT,

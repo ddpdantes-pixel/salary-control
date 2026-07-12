@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Component, useEffect, useMemo, useRef, useState } from 'react'
+import type { ErrorInfo, ReactNode } from 'react'
 import { addDays } from './financeDates'
 import { formatDateLabel, formatMoneyInputText } from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
+import { ObligationDateField } from './ObligationDateField'
 import {
   closeObligationInState,
   createObligationFromDraft,
@@ -24,10 +26,13 @@ import type {
 type ObligationView = 'active' | 'closed'
 
 interface PaymentEditorRow {
+  draftId: string
   id?: string
   date: string
   amountText: string
 }
+
+let nextDraftPaymentId = 0
 
 export function FinanceObligationsScreen({
   state,
@@ -45,6 +50,7 @@ export function FinanceObligationsScreen({
   const [view, setView] = useState<ObligationView>('active')
   const [editing, setEditing] = useState<Obligation | null>(null)
   const [showEditor, setShowEditor] = useState(false)
+  const backdropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!openEditorOnMount) return
@@ -52,6 +58,35 @@ export function FinanceObligationsScreen({
     setShowEditor(true)
     onEditorOpened?.()
   }, [onEditorOpened, openEditorOnMount])
+
+  useEffect(() => {
+    if (!showEditor) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const viewport = window.visualViewport
+    const updateViewport = () => {
+      const backdrop = backdropRef.current
+      if (!backdrop) return
+      backdrop.style.setProperty(
+        '--finance-editor-viewport-height',
+        `${viewport?.height ?? window.innerHeight}px`,
+      )
+      backdrop.style.setProperty(
+        '--finance-editor-viewport-offset',
+        `${viewport?.offsetTop ?? 0}px`,
+      )
+    }
+    updateViewport()
+    viewport?.addEventListener('resize', updateViewport)
+    viewport?.addEventListener('scroll', updateViewport)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      viewport?.removeEventListener('resize', updateViewport)
+      viewport?.removeEventListener('scroll', updateViewport)
+    }
+  }, [showEditor])
   const obligations = state.obligations.filter(
     (obligation) => obligation.status === view,
   )
@@ -137,14 +172,44 @@ export function FinanceObligationsScreen({
       </section>
 
       {showEditor && (
-        <div className="dialog-backdrop" role="presentation">
+        <div ref={backdropRef} className="dialog-backdrop finance-editor-backdrop" role="presentation">
           <section className="finance-dialog finance-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="obligation-editor-title">
-            <ObligationEditor obligation={editing} todayIsoDate={todayIsoDate} onSave={saveObligation} onCancel={() => setShowEditor(false)} />
+            <ObligationEditorErrorBoundary onBack={() => setShowEditor(false)}>
+              <ObligationEditor obligation={editing} todayIsoDate={todayIsoDate} onSave={saveObligation} onCancel={() => setShowEditor(false)} />
+            </ObligationEditorErrorBoundary>
           </section>
         </div>
       )}
     </section>
   )
+}
+
+export class ObligationEditorErrorBoundary extends Component<{
+  children: ReactNode
+  onBack: () => void
+}, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('Obligation editor failed', error, info)
+  }
+
+  render(): ReactNode {
+    if (this.state.failed) {
+      return (
+        <div className="finance-editor-fallback" role="alert">
+          <h2>Не удалось открыть или изменить обязательство</h2>
+          <button type="button" onClick={this.props.onBack}>Вернуться</button>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
 }
 
 function ObligationCard({
@@ -230,19 +295,27 @@ function ObligationEditor({
   const [originalDebtText, setOriginalDebtText] = useState(toMoneyText(obligation?.originalDebtKopecks))
   const [note, setNote] = useState(obligation?.note ?? '')
   const [payments, setPayments] = useState<PaymentEditorRow[]>(() => {
-    const existing = obligation?.payments.map((payment) => ({ id: payment.id, date: payment.date ?? '', amountText: toMoneyText(payment.amountKopecks) })) ?? []
+    const existing = obligation?.payments.map((payment) => createPaymentEditorRow(payment.date ?? '', toMoneyText(payment.amountKopecks), payment.id)) ?? []
     if (existing.length > 0) return existing
-    return [{ id: undefined, date: todayIsoDate, amountText: '' }]
+    return [createPaymentEditorRow(todayIsoDate)]
   })
   const [error, setError] = useState('')
 
   function submit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     const defaultPaymentKopecks = parseMoneyInput(amountText)
-    const paymentDrafts = payments.map((payment) => ({ id: payment.id, date: payment.date, amountKopecks: parseMoneyInput(payment.amountText) }))
+    const parsedPaymentDrafts = payments.map((payment) => ({
+      id: payment.id,
+      date: payment.date,
+      amountKopecks: parseMoneyInput(payment.amountText),
+    }))
+    const paymentDrafts = scheduleType === 'single'
+      ? parsedPaymentDrafts.slice(0, 1)
+      : parsedPaymentDrafts.sort((first, second) => first.date.localeCompare(second.date))
     if (!title.trim()) { setError('Укажите название обязательства.'); return }
-    if (scheduleType === 'monthlyFixed' && (!startDate || defaultPaymentKopecks === null || Number(dueDay) < 1 || Number(dueDay) > 31)) { setError('Проверьте сумму, день месяца и дату начала.'); return }
-    if (scheduleType !== 'monthlyFixed' && paymentDrafts.some((payment) => !payment.date || payment.amountKopecks === null)) { setError('Заполните дату и сумму каждого платежа.'); return }
+    if (scheduleType === 'monthlyFixed' && (!startDate || defaultPaymentKopecks === null || defaultPaymentKopecks <= 0 || !/^\d+$/.test(dueDay) || Number(dueDay) < 1 || Number(dueDay) > 31)) { setError('Укажите положительную сумму, день месяца от 1 до 31 и дату начала.'); return }
+    if (scheduleType === 'monthlyFixed' && endDate && endDate < startDate) { setError('Дата завершения не может быть раньше даты начала.'); return }
+    if (scheduleType !== 'monthlyFixed' && paymentDrafts.some((payment) => !payment.date || payment.amountKopecks === null || payment.amountKopecks <= 0)) { setError('Укажите дату и положительную сумму каждого платежа.'); return }
 
     onSave({
       id: obligation?.id,
@@ -256,7 +329,7 @@ function ObligationEditor({
       remainingDebtKopecks: parseMoneyInput(remainingDebtText),
       originalDebtKopecks: parseMoneyInput(originalDebtText),
       note,
-      payments: scheduleType === 'single' ? paymentDrafts.slice(0, 1) : paymentDrafts,
+      payments: paymentDrafts,
     })
   }
 
@@ -270,18 +343,21 @@ function ObligationEditor({
       {scheduleType === 'monthlyFixed' ? (
         <div className="finance-schedule-fields">
           <MoneyEditor label="Сумма платежа" value={amountText} onChange={setAmountText} />
-          <label><span>День месяца</span><input type="number" min="1" max="31" value={dueDay} onChange={(event) => setDueDay(event.currentTarget.value)} /></label>
-          <label><span>Дата начала</span><input type="date" value={startDate} onChange={(event) => setStartDate(event.currentTarget.value)} /></label>
-          <label><span>Дата завершения <small>необязательно</small></span><input type="date" value={endDate} onChange={(event) => setEndDate(event.currentTarget.value)} /></label>
+          <label><span>День месяца</span><input type="text" inputMode="numeric" pattern="[0-9]*" value={dueDay} onChange={(event) => setDueDay(event.currentTarget.value.replace(/\D/g, '').slice(0, 2))} /></label>
+          <ObligationDateField label="Дата начала" value={startDate} todayIsoDate={todayIsoDate} onChange={setStartDate} />
+          <ObligationDateField label="Дата завершения" value={endDate} todayIsoDate={todayIsoDate} optional onChange={setEndDate} />
         </div>
       ) : (
         <section className="finance-payment-editor">
-          <div className="finance-card-heading"><h3>{scheduleType === 'single' ? 'Разовый платёж' : 'Платежи по датам'}</h3>{scheduleType === 'custom' && <button type="button" onClick={() => setPayments((current) => [...current, { id: undefined, date: todayIsoDate, amountText: '' }])}>+ Строка</button>}</div>
+          <div className="finance-card-heading"><h3>{scheduleType === 'single' ? 'Разовый платёж' : 'Платежи по датам'}</h3>{scheduleType === 'custom' && <button type="button" onClick={() => setPayments((current) => [...current, createPaymentEditorRow(todayIsoDate)])}>+ Строка</button>}</div>
           {(scheduleType === 'single' ? payments.slice(0, 1) : payments).map((payment, index) => (
-            <div className="finance-payment-row" key={payment.id ?? index}>
-              <input aria-label={`Дата платежа ${index + 1}`} type="date" value={payment.date} onChange={(event) => setPayments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, date: event.currentTarget.value } : item))} />
-              <div className="finance-compact-money"><input aria-label={`Сумма платежа ${index + 1}`} inputMode="decimal" value={payment.amountText} onChange={(event) => setPayments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, amountText: formatMoneyInputText(event.currentTarget.value) } : item))} /><b>₽</b></div>
-              {scheduleType === 'custom' && payments.length > 1 && <button type="button" aria-label={`Удалить платёж ${index + 1}`} onClick={() => setPayments((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button>}
+            <div className="finance-payment-row" key={payment.draftId}>
+              <ObligationDateField label={`Дата платежа ${index + 1}`} value={payment.date} todayIsoDate={todayIsoDate} onChange={(value) => setPayments((current) => current.map((item) => item.draftId === payment.draftId ? { ...item, date: value } : item))} />
+              <div className="finance-compact-money"><input aria-label={`Сумма платежа ${index + 1}`} type="text" inputMode="decimal" value={payment.amountText} onChange={(event) => {
+                const value = formatMoneyInputText(event.currentTarget.value)
+                setPayments((current) => current.map((item) => item.draftId === payment.draftId ? { ...item, amountText: value } : item))
+              }} /><b>₽</b></div>
+              {scheduleType === 'custom' && payments.length > 1 && <button type="button" aria-label={`Удалить платёж ${index + 1}`} onClick={() => setPayments((current) => current.filter((item) => item.draftId !== payment.draftId))}>×</button>}
             </div>
           ))}
         </section>
@@ -297,9 +373,14 @@ function ObligationEditor({
 }
 
 function MoneyEditor({ label, optional, value, onChange }: { label: string; optional?: boolean; value: string; onChange: (value: string) => void }) {
-  return <label><span>{label} {optional && <small>необязательно</small>}</span><div className="finance-compact-money"><input inputMode="decimal" value={value} onChange={(event) => onChange(formatMoneyInputText(event.currentTarget.value))} /><b>₽</b></div></label>
+  return <label><span>{label} {optional && <small>необязательно</small>}</span><div className="finance-compact-money"><input aria-label={label} type="text" inputMode="decimal" value={value} onChange={(event) => onChange(formatMoneyInputText(event.currentTarget.value))} /><b>₽</b></div></label>
 }
 
 function toMoneyText(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : formatMoney(value).replace(/ ₽$/, '')
+}
+
+function createPaymentEditorRow(date: string, amountText = '', id?: string): PaymentEditorRow {
+  nextDraftPaymentId += 1
+  return { draftId: id ?? `draft-payment-${nextDraftPaymentId}`, id, date, amountText }
 }

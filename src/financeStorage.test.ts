@@ -40,6 +40,7 @@ describe('локальное хранение финансов', () => {
       title: 'Фактический остаток счёта',
       balanceKopecks: rublesToKopecks('13 098,59'),
       note: 'Проверено в приложении банка',
+      confirmedAt: '2026-07-25T12:00:00.000Z',
       createdAt: '2026-07-25T12:00:00.000Z',
     })
 
@@ -85,7 +86,7 @@ describe('локальное хранение финансов', () => {
     }
 
     expect(migratedPayment?.status).toBe('planned')
-    expect(saved.schemaVersion).toBe(6)
+    expect(saved.schemaVersion).toBe(7)
   })
 
   it('мигрирует досрочную оплату и сохраняет исходную дату графика', () => {
@@ -218,7 +219,7 @@ describe('локальное хранение финансов', () => {
       (expense) => expense.id === 'rent',
     )!
 
-    expect(migrated.schemaVersion).toBe(6)
+    expect(migrated.schemaVersion).toBe(7)
     expect(migrated.personalExpenses).toHaveLength(3)
     expect(rent.active).toBe(true)
     expect(rent.amountHistory[0].amountKopecks).toBe(
@@ -338,5 +339,91 @@ describe('локальное хранение финансов', () => {
 
     expect(restoredOperation.status).toBe('cancelled')
     expect(balance.balanceKopecks).toBe(rublesToKopecks('17 928,63'))
+  })
+
+  it('после перезагрузки сохраняет timestamps и остаток 9 783 − 9 783 = 0', () => {
+    const state = createDefaultFinanceState()
+    const anchor = {
+      ...state.anchors[0],
+      date: '2026-07-11',
+      balanceKopecks: rublesToKopecks(9_783),
+      confirmedAt: '2026-07-11T08:00:00.000Z',
+      createdAt: '2026-07-11T08:00:00.000Z',
+    }
+    const operation = state.operations.find(
+      (item) => item.id === 'yandex-split-2026-07-12',
+    )!
+    const completed = setFinanceOperationStatus({
+      state: { ...state, anchors: [anchor] },
+      operation,
+      nextStatus: 'completed',
+      todayIsoDate: '2026-07-11',
+      actualDate: '2026-07-11',
+      nowIso: '2026-07-11T10:00:00.000Z',
+    })
+
+    saveStoredFinanceState(completed)
+    const restored = loadStoredFinanceState()!
+    const restoredOperation = restored.operations.find(
+      (item) => item.id === operation.id,
+    )!
+    const balance = calculateCurrentBalance({
+      anchors: restored.anchors,
+      operations: [restoredOperation],
+      todayIsoDate: '2026-07-11',
+    })
+
+    expect(restored.anchors[0].confirmedAt).toBe('2026-07-11T08:00:00.000Z')
+    expect(restoredOperation).toMatchObject({
+      scheduledDate: '2026-07-12',
+      actualDate: '2026-07-11',
+      completedAt: '2026-07-11T10:00:00.000Z',
+    })
+    expect(balance.balanceKopecks).toBe(0)
+  })
+
+  it('идемпотентно мигрирует старые timestamps без дубликатов и двойного списания', () => {
+    const raw = JSON.parse(JSON.stringify(createDefaultFinanceState()))
+    raw.schemaVersion = 6
+    raw.anchors = [{
+      ...raw.anchors[0],
+      date: '2026-07-11',
+      balanceKopecks: rublesToKopecks(9_783),
+      createdAt: '2026-07-11T08:00:00.000Z',
+    }]
+    delete raw.anchors[0].confirmedAt
+    const operation = raw.operations.find(
+      (item: { id: string }) => item.id === 'yandex-split-2026-07-12',
+    )
+    Object.assign(operation, {
+      date: '2026-07-11',
+      scheduledDate: '2026-07-12',
+      completedDate: '2026-07-11',
+      status: 'completed',
+      updatedAt: '2026-07-11T10:00:00.000Z',
+    })
+    delete operation.actualDate
+    delete operation.completedAt
+
+    const migrated = normalizeFinanceState(raw, '2026-07-11')!
+    const repeated = normalizeFinanceState(
+      JSON.parse(JSON.stringify(migrated)),
+      '2026-07-11',
+    )!
+    const migratedOperation = migrated.operations.find(
+      (item) => item.id === operation.id,
+    )!
+    const balance = calculateCurrentBalance({
+      anchors: migrated.anchors,
+      operations: [migratedOperation],
+      todayIsoDate: '2026-07-11',
+    })
+
+    expect(migrated.anchors[0].confirmedAt).toBe('2026-07-11T08:00:00.000Z')
+    expect(migratedOperation.completedAt).toBe('2026-07-11T10:00:00.000Z')
+    expect(repeated).toEqual(migrated)
+    expect(repeated.operations).toHaveLength(migrated.operations.length)
+    expect(repeated.obligations).toHaveLength(migrated.obligations.length)
+    expect(balance.balanceKopecks).toBe(0)
   })
 })

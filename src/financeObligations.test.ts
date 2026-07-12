@@ -117,7 +117,9 @@ describe('графики и жизненный цикл обязательств
     expect(completed).toMatchObject({
       date: '2026-07-10',
       scheduledDate: '2026-07-12',
+      actualDate: '2026-07-10',
       completedDate: '2026-07-10',
+      completedAt: NOW,
       status: 'completed',
     })
     expect(
@@ -126,7 +128,9 @@ describe('графики и жизненный цикл обязательств
         ?.payments.find((payment) => payment.date === '2026-07-12'),
     ).toMatchObject({
       date: '2026-07-12',
+      actualDate: '2026-07-10',
       completedDate: '2026-07-10',
+      completedAt: NOW,
       status: 'completed',
     })
     expect(
@@ -196,6 +200,8 @@ describe('графики и жизненный цикл обязательств
       status: 'planned',
     })
     expect(restoredOperation.completedDate).toBeUndefined()
+    expect(restoredOperation.actualDate).toBeUndefined()
+    expect(restoredOperation.completedAt).toBeUndefined()
     expect(current.balanceKopecks).toBe(rublesToKopecks('17 928,63'))
     expect(forecast.forecastBalanceKopecks).toBe(rublesToKopecks('8 145,63'))
     expect(
@@ -234,6 +240,8 @@ describe('графики и жизненный цикл обязательств
 
     expect(cancelledOperation.status).toBe('cancelled')
     expect(cancelledOperation.completedDate).toBeUndefined()
+    expect(cancelledOperation.actualDate).toBeUndefined()
+    expect(cancelledOperation.completedAt).toBeUndefined()
     expect(current.balanceKopecks).toBe(rublesToKopecks('17 928,63'))
     expect(forecast.forecastBalanceKopecks).toBe(rublesToKopecks('17 928,63'))
     expect(
@@ -265,6 +273,62 @@ describe('графики и жизненный цикл обязательств
 
     expect(samePayment).toHaveLength(1)
     expect(current.balanceKopecks).toBe(rublesToKopecks('8 145,63'))
+  })
+
+  it('при повторном planned → completed записывает новый момент и применяет платёж один раз', () => {
+    const state = createDefaultFinanceState()
+    const original = state.operations.find(
+      (item) => item.id === 'yandex-split-2026-07-12',
+    )!
+    const firstCompletion = setFinanceOperationStatus({
+      state,
+      operation: original,
+      nextStatus: 'completed',
+      todayIsoDate: '2026-07-11',
+      actualDate: '2026-07-11',
+      nowIso: '2026-07-11T09:00:00.000Z',
+    })
+    const firstOperation = firstCompletion.operations.find(
+      (item) => item.id === original.id,
+    )!
+    const planned = setFinanceOperationStatus({
+      state: firstCompletion,
+      operation: firstOperation,
+      nextStatus: 'planned',
+      todayIsoDate: '2026-07-11',
+      nowIso: '2026-07-11T10:00:00.000Z',
+    })
+    const plannedOperation = planned.operations.find(
+      (item) => item.id === original.id,
+    )!
+    const repeated = setFinanceOperationStatus({
+      state: planned,
+      operation: plannedOperation,
+      nextStatus: 'completed',
+      todayIsoDate: '2026-07-11',
+      actualDate: '2026-07-11',
+      nowIso: '2026-07-11T11:00:00.000Z',
+    })
+    const repeatedOperation = repeated.operations.find(
+      (item) => item.id === original.id,
+    )!
+    const anchor = {
+      ...state.anchors[0],
+      date: '2026-07-11',
+      balanceKopecks: rublesToKopecks(9_783),
+      confirmedAt: '2026-07-11T08:00:00.000Z',
+      createdAt: '2026-07-11T08:00:00.000Z',
+    }
+
+    const balance = calculateCurrentBalance({
+      anchors: [anchor],
+      operations: repeated.operations.filter((item) => item.id === original.id),
+      todayIsoDate: '2026-07-11',
+    })
+
+    expect(repeated.operations.filter((item) => item.id === original.id)).toHaveLength(1)
+    expect(repeatedOperation.completedAt).toBe('2026-07-11T11:00:00.000Z')
+    expect(balance.balanceKopecks).toBe(0)
   })
 })
 

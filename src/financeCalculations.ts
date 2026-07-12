@@ -6,6 +6,7 @@ import {
   isIsoDateBefore,
 } from './financeDates'
 import { getPersonalExpenseDeductions } from './financePersonalExpenses'
+import { deriveFinanceEventTimestamp } from './financeTimestamps'
 import type {
   BalanceAnchor,
   BalanceForecast,
@@ -145,6 +146,13 @@ export function sortFinanceOperations(
       return dateOrder
     }
 
+    if (first.status === 'completed' && second.status === 'completed') {
+      const completionOrder = getOperationCompletedTimestamp(first).localeCompare(
+        getOperationCompletedTimestamp(second),
+      )
+      if (completionOrder !== 0) return completionOrder
+    }
+
     const rankOrder = getOperationSortRank(first) - getOperationSortRank(second)
 
     if (rankOrder !== 0) {
@@ -165,14 +173,43 @@ export function getLatestBalanceAnchor(
   anchors: BalanceAnchor[],
 ): BalanceAnchor | null {
   return [...anchors].sort((first, second) => {
-    const dateOrder = compareIsoDates(first.date, second.date)
-
-    if (dateOrder !== 0) {
-      return dateOrder
-    }
-
-    return first.createdAt.localeCompare(second.createdAt)
+    return getBalanceAnchorTimestamp(first).localeCompare(
+      getBalanceAnchorTimestamp(second),
+    )
   }).at(-1) ?? null
+}
+
+export function getBalanceAnchorTimestamp(anchor: BalanceAnchor): string {
+  return deriveFinanceEventTimestamp(
+    anchor.date,
+    anchor.confirmedAt,
+    anchor.createdAt,
+  )
+}
+
+export function getOperationCompletedTimestamp(
+  operation: FinanceOperation,
+): string {
+  const actualDate =
+    operation.actualDate ?? operation.completedDate ?? operation.date
+  return deriveFinanceEventTimestamp(
+    actualDate,
+    operation.completedAt,
+    operation.updatedAt,
+    operation.createdAt,
+  )
+}
+
+export function isOperationIncludedInAnchor(
+  operation: FinanceOperation,
+  anchor: BalanceAnchor | null,
+): boolean {
+  return Boolean(
+    anchor &&
+      operation.status === 'completed' &&
+      getOperationCompletedTimestamp(operation) <=
+        getBalanceAnchorTimestamp(anchor),
+  )
 }
 
 export function calculateCurrentBalance(input: {
@@ -181,12 +218,11 @@ export function calculateCurrentBalance(input: {
   todayIsoDate: string
 }): CurrentBalanceCalculation {
   const anchor = getLatestBalanceAnchor(input.anchors)
-  const anchorDate = anchor?.date ?? '0000-00-00'
   let balanceKopecks = anchor?.balanceKopecks ?? 0
   const timeline: BalanceTimelineItem[] = []
 
   for (const operation of sortFinanceOperations(input.operations)) {
-    if (!shouldApplyCompletedOperation(operation, anchorDate, input.todayIsoDate)) {
+    if (!shouldApplyCompletedOperation(operation, anchor, input.todayIsoDate)) {
       continue
     }
 
@@ -316,12 +352,14 @@ function getObligationOperationCategory(
 
 function shouldApplyCompletedOperation(
   operation: FinanceOperation,
-  anchorDate: string,
+  anchor: BalanceAnchor | null,
   todayIsoDate: string,
 ): boolean {
+  const actualDate =
+    operation.actualDate ?? operation.completedDate ?? operation.date
   return (
-    isIsoDateAfter(operation.date, anchorDate) &&
-    compareIsoDates(operation.date, todayIsoDate) <= 0 &&
+    !isOperationIncludedInAnchor(operation, anchor) &&
+    compareIsoDates(actualDate, todayIsoDate) <= 0 &&
     operation.status === 'completed' &&
     operation.amountKopecks !== null
   )

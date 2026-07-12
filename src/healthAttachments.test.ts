@@ -28,15 +28,15 @@ describe('подготовка временных скриншотов', () => {
     expect(attachment.blob).toBe(file)
   })
 
-  it('ограничивает выбор тремя изображениями и отклоняет четвёртое', () => {
-    const files = [1, 2, 3, 4].map((number) =>
+  it('ограничивает выбор четырьмя изображениями и отклоняет пятое', () => {
+    const files = [1, 2, 3, 4, 5].map((number) =>
       imageFile(`${number}.jpg`, 'image/jpeg', String(number)),
     )
     const selection = selectAttachmentFiles(files, 0)
 
     expect(selection.accepted).toHaveLength(MAX_HEALTH_ATTACHMENTS)
     expect(selection.rejectedForLimit).toBe(1)
-    expect(selectAttachmentFiles([files[3]], 3)).toEqual({
+    expect(selectAttachmentFiles([files[4]], 4)).toEqual({
       accepted: [],
       rejectedForLimit: 1,
     })

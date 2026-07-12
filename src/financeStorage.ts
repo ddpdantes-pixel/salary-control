@@ -1,4 +1,5 @@
 import {
+  FINANCE_SCHEMA_VERSION,
   INITIAL_FUTURE_OPERATION_IDS,
   createDefaultFinanceState,
   createInitialObligations,
@@ -26,6 +27,10 @@ import type {
   PersonalExpenseMonthOverride,
   SalaryIncomeField,
 } from './financeTypes'
+import {
+  deriveFinanceEventTimestamp,
+  isFinanceTimestamp,
+} from './financeTimestamps'
 
 const FINANCE_STATE_KEY = 'kontrol-zarplaty.finance-state.v1'
 
@@ -154,7 +159,7 @@ export function normalizeFinanceState(
   )
 
   return {
-    schemaVersion: 6,
+    schemaVersion: FINANCE_SCHEMA_VERSION,
     settings,
     anchors,
     operations,
@@ -200,13 +205,19 @@ function normalizeAnchor(raw: unknown): BalanceAnchor | null {
     return null
   }
 
+  const createdAt = stringValue(raw.createdAt, `${raw.date}T12:00:00.000Z`)
   return {
     id: raw.id,
     date: raw.date,
     title: stringValue(raw.title, 'Фактический остаток счёта'),
     balanceKopecks: integerValue(raw.balanceKopecks, 0),
     note: optionalString(raw.note),
-    createdAt: stringValue(raw.createdAt, new Date().toISOString()),
+    confirmedAt: deriveFinanceEventTimestamp(
+      raw.date,
+      isFinanceTimestamp(raw.confirmedAt) ? raw.confirmedAt : undefined,
+      createdAt,
+    ),
+    createdAt,
   }
 }
 
@@ -232,6 +243,16 @@ function normalizeOperation(
     raw.status === 'completed'
       ? 'planned'
       : raw.status
+  const createdAt = stringValue(raw.createdAt, `${raw.date}T12:00:00.000Z`)
+  const updatedAt = stringValue(raw.updatedAt, createdAt)
+  const actualDate =
+    status === 'completed'
+      ? isIsoDate(raw.actualDate)
+        ? raw.actualDate
+        : isIsoDate(raw.completedDate)
+          ? raw.completedDate
+          : raw.date
+      : undefined
 
   return {
     id: raw.id,
@@ -239,10 +260,20 @@ function normalizeOperation(
     scheduledDate: isIsoDate(raw.scheduledDate)
       ? raw.scheduledDate
       : undefined,
+    actualDate,
     completedDate: isIsoDate(raw.completedDate)
       ? raw.completedDate
-      : status === 'completed' && isIsoDate(raw.scheduledDate)
-        ? raw.date
+      : status === 'completed'
+        ? actualDate
+        : undefined,
+    completedAt:
+      status === 'completed'
+        ? deriveFinanceEventTimestamp(
+            actualDate ?? raw.date,
+            isFinanceTimestamp(raw.completedAt) ? raw.completedAt : undefined,
+            updatedAt,
+            createdAt,
+          )
         : undefined,
     title: stringValue(raw.title, 'Операция'),
     amountKopecks:
@@ -275,8 +306,8 @@ function normalizeOperation(
     personalExpensesAmountKopecks: optionalInteger(
       raw.personalExpensesAmountKopecks,
     ),
-    createdAt: stringValue(raw.createdAt, new Date().toISOString()),
-    updatedAt: stringValue(raw.updatedAt, new Date().toISOString()),
+    createdAt,
+    updatedAt,
   }
 }
 
@@ -353,25 +384,50 @@ function normalizeObligationPayment(raw: unknown): ObligationPayment | null {
     return null
   }
 
+  const date =
+    isIsoDate(raw.date)
+      ? raw.date
+      : isIsoDate(raw.dueDate)
+        ? raw.dueDate
+        : null
+  const createdAt = stringValue(
+    raw.createdAt,
+    date ? `${date}T12:00:00.000Z` : new Date().toISOString(),
+  )
+  const updatedAt = stringValue(raw.updatedAt, createdAt)
+  const actualDate =
+    raw.status === 'completed'
+      ? isIsoDate(raw.actualDate)
+        ? raw.actualDate
+        : isIsoDate(raw.completedDate)
+          ? raw.completedDate
+          : date ?? undefined
+      : undefined
+
   return {
     id: raw.id,
-    date:
-      isIsoDate(raw.date)
-        ? raw.date
-        : isIsoDate(raw.dueDate)
-          ? raw.dueDate
-          : null,
+    date,
+    actualDate,
     completedDate: isIsoDate(raw.completedDate)
       ? raw.completedDate
-      : undefined,
+      : actualDate,
+    completedAt:
+      raw.status === 'completed' && actualDate
+        ? deriveFinanceEventTimestamp(
+            actualDate,
+            isFinanceTimestamp(raw.completedAt) ? raw.completedAt : undefined,
+            updatedAt,
+            createdAt,
+          )
+        : undefined,
     amountKopecks:
       raw.amountKopecks === null ? null : integerValue(raw.amountKopecks, 0),
     status: raw.status,
     amountSource: raw.amountSource,
     dateSource: isDateSource(raw.dateSource) ? raw.dateSource : 'explicit',
     note: optionalString(raw.note),
-    createdAt: stringValue(raw.createdAt, new Date().toISOString()),
-    updatedAt: stringValue(raw.updatedAt, new Date().toISOString()),
+    createdAt,
+    updatedAt,
   }
 }
 
@@ -520,23 +576,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function needsFinanceMigration(raw: unknown): boolean {
   if (
-    !isRecord(raw) ||
-    (typeof raw.schemaVersion === 'number' && raw.schemaVersion >= 6)
+    !isRecord(raw)
   ) {
     return false
   }
 
-  if (typeof raw.schemaVersion !== 'number' || raw.schemaVersion < 6) {
+  if (
+    typeof raw.schemaVersion !== 'number' ||
+    raw.schemaVersion < FINANCE_SCHEMA_VERSION
+  ) {
     return true
   }
 
-  return Array.isArray(raw.operations) && raw.operations.some(
-    (operation) =>
-      isRecord(operation) &&
-      typeof operation.id === 'string' &&
-      INITIAL_FUTURE_OPERATION_IDS.has(operation.id) &&
-      operation.status === 'completed',
-  )
+  const anchorsNeedTimestamp =
+    Array.isArray(raw.anchors) &&
+    raw.anchors.some(
+      (anchor) => isRecord(anchor) && !isFinanceTimestamp(anchor.confirmedAt),
+    )
+  const operationsNeedTimestamp =
+    Array.isArray(raw.operations) &&
+    raw.operations.some(
+      (operation) =>
+        isRecord(operation) &&
+        operation.status === 'completed' &&
+        (!isFinanceTimestamp(operation.completedAt) ||
+          !isIsoDate(operation.actualDate)),
+    )
+  const paymentsNeedTimestamp =
+    Array.isArray(raw.obligations) &&
+    raw.obligations.some(
+      (obligation) =>
+        isRecord(obligation) &&
+        Array.isArray(obligation.payments) &&
+        obligation.payments.some(
+          (payment) =>
+            isRecord(payment) &&
+            payment.status === 'completed' &&
+            !isFinanceTimestamp(payment.completedAt),
+        ),
+    )
+
+  return anchorsNeedTimestamp || operationsNeedTimestamp || paymentsNeedTimestamp
 }
 
 function migrateEarlyCompletedOperations(
@@ -557,7 +637,13 @@ function migrateEarlyCompletedOperations(
       ...operation,
       date: todayIsoDate,
       scheduledDate: operation.date,
+      actualDate: todayIsoDate,
       completedDate: todayIsoDate,
+      completedAt: deriveFinanceEventTimestamp(
+        todayIsoDate,
+        operation.updatedAt,
+        operation.createdAt,
+      ),
     }
   })
 }
@@ -599,9 +685,17 @@ function syncObligationPaymentStatuses(
       return {
         ...payment,
         status: operation.status,
+        actualDate:
+          operation.status === 'completed'
+            ? operation.actualDate ?? operation.completedDate ?? operation.date
+            : undefined,
         completedDate:
           operation.status === 'completed'
             ? operation.completedDate ?? operation.date
+            : undefined,
+        completedAt:
+          operation.status === 'completed'
+            ? operation.completedAt
             : undefined,
         updatedAt: operation.updatedAt,
       }

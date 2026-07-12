@@ -1020,7 +1020,125 @@
 }
 
 .finance-editor-dialog {
-  max-height: calc(100vh - 24px - env(safe-area-inset-bottom));
+  max-height: calc(var(--finance-editor-viewport-height, 100dvh) - 24px - env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.finance-editor-backdrop {
+  top: var(--finance-editor-viewport-offset, 0px);
+  bottom: auto;
+  height: var(--finance-editor-viewport-height, 100dvh);
+}
+
+.finance-editor-fallback {
+  display: grid;
+  gap: 16px;
+}
+
+.finance-editor-fallback h2 {
+  font-size: 20px;
+}
+
+.obligation-date-field {
+  min-width: 0;
+}
+
+.obligation-date-field > button {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  color: var(--text-primary);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  text-align: left;
+}
+
+.obligation-date-field > button.placeholder {
+  color: var(--text-secondary);
+}
+
+.obligation-calendar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.44);
+}
+
+.obligation-calendar {
+  display: grid;
+  width: min(100%, 360px);
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  gap: 12px;
+  overflow-y: auto;
+  border-radius: var(--radius);
+  padding: 16px;
+  color: var(--text-primary);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.obligation-calendar header,
+.obligation-calendar footer {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 8px;
+  align-items: center;
+}
+
+.obligation-calendar header strong {
+  text-align: center;
+}
+
+.obligation-calendar header button,
+.obligation-calendar footer button,
+.obligation-calendar-grid button {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--surface-muted);
+}
+
+.obligation-calendar footer {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.obligation-calendar footer button {
+  padding: 8px 6px;
+  font-size: 13px;
+}
+
+.obligation-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.obligation-calendar-grid > span {
+  padding: 5px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.obligation-calendar-grid button {
+  min-width: 0;
+  padding: 0;
+}
+
+.obligation-calendar-grid button.selected {
+  color: white;
+  background: var(--finance-accent, #2768ad);
+}
+
+.obligation-calendar-grid i {
+  min-height: 44px;
 }
 
 .finance-edit-form,

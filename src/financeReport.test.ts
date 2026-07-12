@@ -88,4 +88,31 @@ describe('финансовый отчёт', () => {
       'Оплачено досрочно',
     )
   })
+
+  it('помечает старую операцию как учтённую вместо ложного повторного остатка', () => {
+    const state = createDefaultFinanceState()
+    const operation = {
+      ...state.operations.find((item) => item.id === 'yandex-split-2026-07-12')!,
+      date: '2026-07-11',
+      actualDate: '2026-07-11',
+      completedDate: '2026-07-11',
+      completedAt: '2026-07-11T08:00:00.000Z',
+      status: 'completed' as const,
+    }
+    const anchor = {
+      ...state.anchors[0],
+      date: '2026-07-11',
+      confirmedAt: '2026-07-11T10:00:00.000Z',
+      createdAt: '2026-07-11T10:00:00.000Z',
+    }
+    const item = buildFinanceCalendarTimeline({
+      anchors: [anchor],
+      operations: [operation],
+      todayIsoDate: '2026-07-11',
+    })[0]
+
+    expect(formatFinanceFeedItem(item).join('\n')).toContain(
+      'операция уже учтена в фактическом остатке',
+    )
+  })
 })

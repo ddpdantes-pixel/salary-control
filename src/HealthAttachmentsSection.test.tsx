@@ -28,29 +28,55 @@ describe('блок временных скриншотов', () => {
   it('добавляет одно изображение и открывает крупный просмотр', async () => {
     const user = userEvent.setup()
     renderSection()
+    expect(screen.getByText('Максимум 4 скриншота')).not.toBeNull()
+    expect(screen.getByText(/Можно добавить до 4 изображений/)).not.toBeNull()
     addFiles([imageFile('workout.png', 'first')])
 
     expect(await screen.findByText('workout.png')).not.toBeNull()
-    expect(screen.getByText('Добавлено: 1 из 3')).not.toBeNull()
+    expect(screen.getByText('Добавлено: 1 из 4')).not.toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Открыть изображение 1' }))
     expect(screen.getByRole('dialog', { name: 'Просмотр скриншота' })).not.toBeNull()
   })
 
-  it('разрешает максимум три изображения и отклоняет четвёртое', async () => {
+  it('разрешает четыре изображения и отклоняет пятое', async () => {
     renderSection()
     addFiles([
       imageFile('one.png', '1'),
       imageFile('two.png', '2'),
       imageFile('three.png', '3'),
+      imageFile('four.png', '4'),
     ])
-    expect(await screen.findByText('Добавлено: 3 из 3')).not.toBeNull()
+    expect(await screen.findByText('Добавлено: 4 из 4')).not.toBeNull()
 
-    addFiles([imageFile('four.png', '4')])
+    addFiles([imageFile('five.png', '5')])
     expect(await screen.findByRole('status')).not.toBeNull()
-    expect(screen.getByRole('status').textContent).toBe('Максимум 3 скриншота')
-    expect(screen.queryByText('four.png')).toBeNull()
-    expect(await listHealthAttachments('2026-07-12')).toHaveLength(3)
+    expect(screen.getByRole('status').textContent).toBe(
+      'Можно добавить не больше 4 скриншотов',
+    )
+    expect(screen.queryByText('five.png')).toBeNull()
+    expect(await listHealthAttachments('2026-07-12')).toHaveLength(4)
+  })
+
+  it('после удаления одного из четырёх снова позволяет добавить изображение', async () => {
+    const user = userEvent.setup()
+    renderSection()
+    addFiles([
+      imageFile('one.png', '1'),
+      imageFile('two.png', '2'),
+      imageFile('three.png', '3'),
+      imageFile('four.png', '4'),
+    ])
+    expect(await screen.findByText('Добавлено: 4 из 4')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Удалить изображение 2' }))
+    expect(await screen.findByText('Добавлено: 3 из 4')).not.toBeNull()
+    addFiles([imageFile('replacement-slot.png', 'new')])
+
+    expect(await screen.findByText('replacement-slot.png')).not.toBeNull()
+    expect(screen.getByText('Добавлено: 4 из 4')).not.toBeNull()
+    expect((await listHealthAttachments('2026-07-12')).map((item) => item.fileName))
+      .toEqual(['one.png', 'three.png', 'four.png', 'replacement-slot.png'])
   })
 
   it('удаляет изображение вручную', async () => {
@@ -81,15 +107,56 @@ describe('блок временных скриншотов', () => {
     expect(stored.fileName).toBe('after.jpg')
   })
 
-  it('восстанавливает неотправленные изображения после повторного открытия', async () => {
+  it('заменяет четвёртое изображение с сохранением его позиции', async () => {
+    const user = userEvent.setup()
+    renderSection()
+    addFiles([
+      imageFile('one.png', '1'),
+      imageFile('two.png', '2'),
+      imageFile('three.png', '3'),
+      imageFile('four.png', '4'),
+    ])
+    expect(await screen.findByText('Добавлено: 4 из 4')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Заменить изображение 4' }))
+    fireEvent.change(screen.getByLabelText('Выбрать замену скриншота'), {
+      target: { files: [imageFile('new-fourth.jpg', 'new-fourth', 'image/jpeg')] },
+    })
+
+    expect(await screen.findByText('new-fourth.jpg')).not.toBeNull()
+    expect((await listHealthAttachments('2026-07-12')).map((item) => item.fileName))
+      .toEqual(['one.png', 'two.png', 'three.png', 'new-fourth.jpg'])
+  })
+
+  it('восстанавливает четыре неотправленных изображения после повторного открытия', async () => {
     const first = renderSection()
-    addFiles([imageFile('persist.png', 'persist')])
-    expect(await screen.findByText('persist.png')).not.toBeNull()
+    addFiles([
+      imageFile('persist-1.png', '1'),
+      imageFile('persist-2.png', '2'),
+      imageFile('persist-3.png', '3'),
+      imageFile('persist-4.png', '4'),
+    ])
+    expect(await screen.findByText('Добавлено: 4 из 4')).not.toBeNull()
     first.unmount()
 
     renderSection()
-    expect(await screen.findByText('persist.png')).not.toBeNull()
-    expect(screen.getByText('Добавлено: 1 из 3')).not.toBeNull()
+    expect(await screen.findByText('persist-4.png')).not.toBeNull()
+    expect(screen.getByText('Добавлено: 4 из 4')).not.toBeNull()
+  })
+
+  it('продолжает открывать старый набор из трёх изображений', async () => {
+    const first = renderSection()
+    addFiles([
+      imageFile('legacy-1.png', '1'),
+      imageFile('legacy-2.png', '2'),
+      imageFile('legacy-3.png', '3'),
+    ])
+    expect(await screen.findByText('Добавлено: 3 из 4')).not.toBeNull()
+    first.unmount()
+
+    renderSection()
+    expect(await screen.findByText('legacy-3.png')).not.toBeNull()
+    expect(screen.getByText('Добавлено: 3 из 4')).not.toBeNull()
   })
 
   it('не сохраняет невалидный файл', async () => {

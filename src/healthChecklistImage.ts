@@ -74,10 +74,10 @@ export function layoutHealthChecklistText(
   }
 }
 
-export async function createHealthChecklistImage(
+export function createHealthChecklistImage(
   entry: HealthEntry,
   canvasFactory: CanvasFactory = () => document.createElement('canvas'),
-): Promise<File> {
+): File {
   const text = buildHealthChecklistText(entry)
   const canvas = canvasFactory()
   canvas.width = HEALTH_CHECKLIST_IMAGE_WIDTH
@@ -102,7 +102,7 @@ export async function createHealthChecklistImage(
     drawingContext.fillText(line.text, line.x, line.y)
   })
 
-  const blob = await canvasToPngBlob(canvas)
+  const blob = dataUrlToPngBlob(canvas.toDataURL('image/png'))
   return new File([blob], `health-checklist-${entry.date}.png`, {
     type: 'image/png',
   })
@@ -199,11 +199,16 @@ function splitLongWord(
   return fragments
 }
 
-function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob)
-      else reject(new Error('Не удалось создать PNG-изображение отчёта'))
-    }, 'image/png')
-  })
+function dataUrlToPngBlob(dataUrl: string): Blob {
+  const prefix = 'data:image/png;base64,'
+  if (!dataUrl.startsWith(prefix)) {
+    throw new Error('Не удалось создать PNG-изображение отчёта')
+  }
+
+  const binary = atob(dataUrl.slice(prefix.length))
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return new Blob([bytes], { type: 'image/png' })
 }

@@ -129,10 +129,10 @@ export function formatFinanceFeedItem(item: FinanceCalendarItem): string[] {
     lines.push(
       `${formatMoney(item.balanceBeforeKopecks)} ${sign} ${formatMoney(operation.amountKopecks ?? 0)} = ${formatMoney(item.balanceAfterKopecks)}`,
     )
-  } else if (operation.amountKopecks === null) {
-    lines.push('сумма пока недоступна — остаток не изменён')
   } else if (item.includedInAnchor) {
     lines.push('операция уже учтена в фактическом остатке')
+  } else if (operation.amountKopecks === null) {
+    lines.push('сумма пока недоступна — остаток не изменён')
   } else {
     lines.push(`операция не проведена = ${formatMoney(item.balanceBeforeKopecks)}`)
   }

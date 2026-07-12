@@ -204,7 +204,7 @@ function HealthToday({
     setShowDownloadActions(false)
   }, [selectedDate])
 
-  async function sendToChatGpt(): Promise<void> {
+  async function prepareForChatGpt(): Promise<void> {
     const result = await shareHealthReport({
       entry,
       attachments,
@@ -661,14 +661,20 @@ function HealthToday({
           type="button"
           className="health-share-action"
           disabled={!hasSavedEntry}
-          aria-label="Отправить отчёт здоровья в ChatGPT через системное меню"
-          onClick={() => void sendToChatGpt()}
+          aria-label="Подготовить отчёт здоровья для ChatGPT"
+          onClick={() => void prepareForChatGpt()}
         >
-          Отправить в ChatGPT
+          Подготовить для ChatGPT
         </button>
+        <p className="health-share-hint">
+          Текст скопируется, а изображения можно будет сохранить в Фото
+        </p>
         <button type="button" className="health-copy-action" onClick={onCopy}>
           Скопировать только текст
         </button>
+        {shareResult?.checklistImage && (
+          <HealthChecklistDownload file={shareResult.checklistImage} />
+        )}
         {showDownloadActions && attachments.length > 0 && (
           <button
             type="button"
@@ -686,9 +692,32 @@ function HealthToday({
             {shareResult.message}
           </p>
         )}
+        {shareResult?.status === 'shared' &&
+          shareResult.message === 'Готово: текст скопирован, изображения подготовлены' && (
+          <p className="health-share-instruction">
+            Откройте нужный чат ChatGPT, выберите последние изображения и вставьте текст
+          </p>
+          )}
         {copyMessage && <p className="health-copy-message" role="status">{copyMessage}</p>}
       </div>
     </div>
+  )
+}
+
+function HealthChecklistDownload({ file }: { file: File }) {
+  const [url, setUrl] = useState('')
+
+  useEffect(() => {
+    const nextUrl = URL.createObjectURL(file)
+    setUrl(nextUrl)
+    return () => URL.revokeObjectURL(nextUrl)
+  }, [file])
+
+  if (!url) return null
+  return (
+    <a className="health-checklist-download" href={url} download={file.name}>
+      Скачать PNG чек-листа
+    </a>
   )
 }
 

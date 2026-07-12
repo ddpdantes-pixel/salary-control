@@ -72,7 +72,9 @@ export function HealthAttachmentsSection({
 
   async function addFiles(files: File[]): Promise<void> {
     const selection = selectAttachmentFiles(files, attachments.length)
-    if (selection.rejectedForLimit > 0) setMessage('Максимум 3 скриншота')
+    if (selection.rejectedForLimit > 0) {
+      setMessage('Можно добавить не больше 4 скриншотов')
+    }
     if (selection.accepted.length === 0) return
 
     const prepared: HealthAttachment[] = []
@@ -142,7 +144,7 @@ export function HealthAttachmentsSection({
         <div>
           <h2>Скриншоты тренировки и пульса</h2>
           <p>
-            Можно добавить до 3 изображений. После успешной отправки они автоматически удалятся
+            Можно добавить до 4 изображений. После успешной подготовки они автоматически удалятся
           </p>
         </div>
         <strong>Добавлено: {attachments.length} из {MAX_HEALTH_ATTACHMENTS}</strong>
@@ -181,7 +183,7 @@ export function HealthAttachmentsSection({
       >
         Добавить скриншот
       </button>
-      <p className="health-attachment-limit">Максимум 3 скриншота</p>
+      <p className="health-attachment-limit">Максимум 4 скриншота</p>
 
       {attachments.length > 0 && (
         <div className="health-attachment-list">

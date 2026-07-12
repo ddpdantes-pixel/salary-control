@@ -10,7 +10,7 @@ import {
 import { WORKOUTS, createHealthEntry } from './healthModel'
 
 describe('PNG ежедневного чек-листа', () => {
-  it('создаёт PNG шириной 1200 px с русским текстом отчёта', async () => {
+  it('синхронно создаёт PNG шириной 1200 px с русским текстом отчёта', () => {
     const { canvas, drawnText } = makeCanvas()
     const entry = {
       ...createHealthEntry('2026-07-12'),
@@ -22,7 +22,7 @@ describe('PNG ежедневного чек-листа', () => {
       }],
     }
 
-    const file = await createHealthChecklistImage(entry, () => canvas)
+    const file = createHealthChecklistImage(entry, () => canvas)
 
     expect(file.name).toBe('health-checklist-2026-07-12.png')
     expect(file.type).toBe('image/png')
@@ -31,6 +31,17 @@ describe('PNG ежедневного чек-листа', () => {
     expect(drawnText.join(' ')).toContain('Ежедневный чек-лист')
     expect(drawnText.join(' ')).toContain('Вода: 6 / 6')
     expect(drawnText.join(' ')).toContain('Поза ребёнка')
+  })
+
+  it('не обращается к IndexedDB при создании временного PNG', () => {
+    const { canvas } = makeCanvas()
+    const open = vi.fn()
+    vi.stubGlobal('indexedDB', { open })
+
+    createHealthChecklistImage(createHealthEntry('2026-07-12'), () => canvas)
+
+    expect(open).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 
   it('переносит длинные строки и сохраняет весь исходный текст без обрезки', () => {
@@ -97,7 +108,7 @@ function makeCanvas(): {
     width: 0,
     height: 0,
     getContext: () => context,
-    toBlob: (callback: BlobCallback) => callback(new Blob(['png'], { type: 'image/png' })),
+    toDataURL: () => 'data:image/png;base64,cG5n',
   } as unknown as HTMLCanvasElement
 
   return { canvas, drawnText }

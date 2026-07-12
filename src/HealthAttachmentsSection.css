@@ -91,9 +91,7 @@
 
 .health-attachment-details > strong,
 .health-attachment-details > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .health-attachment-details > span {

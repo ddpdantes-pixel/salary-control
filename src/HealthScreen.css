@@ -236,12 +236,23 @@
 
 .health-secondary-action,
 .health-copy-action,
-.health-delete-temporary {
+.health-delete-temporary,
+.health-checklist-download {
   width: 100%;
   color: var(--accent);
   background: var(--accent-soft);
   box-shadow: none;
   font-weight: 760;
+}
+
+.health-checklist-download {
+  display: grid;
+  min-height: 44px;
+  place-items: center;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  text-align: center;
+  text-decoration: none;
 }
 
 .health-share-action {
@@ -354,6 +365,27 @@
 .health-finish-actions {
   display: grid;
   gap: 8px;
+}
+
+.health-share-hint,
+.health-share-instruction {
+  max-width: 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.health-share-hint {
+  margin-top: -2px;
+}
+
+.health-share-instruction {
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  background: var(--surface-muted);
 }
 
 .health-complete-action {

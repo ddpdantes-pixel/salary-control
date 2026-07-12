@@ -30,7 +30,7 @@ const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string }> = [
 ]
 
 const ANCHOR_EXPLANATION =
-  'Сумма станет точкой начала расчёта. Все операции до этой даты будут считаться уже учтёнными.'
+  'Сумма станет точкой начала расчёта. Все завершённые до момента подтверждения операции будут считаться уже учтёнными.'
 
 export interface FinanceAnchorInput {
   balanceKopecks: number

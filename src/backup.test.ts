@@ -93,6 +93,7 @@ describe('резервная копия', () => {
       date: '2026-07-11',
       title: 'Контрольный остаток',
       balanceKopecks: rublesToKopecks('8 145,63'),
+      confirmedAt: '2026-07-11T12:00:00.000Z',
       createdAt: '2026-07-11T12:00:00.000Z',
     })
     completed.personalExpenses.find(

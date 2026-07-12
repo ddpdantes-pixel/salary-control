@@ -26,6 +26,25 @@ describe('IndexedDB временных скриншотов', () => {
     expect(await secondRead[0].blob.text()).toBe('first')
   })
 
+  it('сохраняет и восстанавливает четыре изображения в исходном порядке', async () => {
+    for (const [index, id] of ['one', 'two', 'three', 'four'].entries()) {
+      await saveHealthAttachment({
+        ...makeAttachment(id, '2026-07-12', id),
+        addedAt: `2026-07-12T12:00:0${index}.000Z`,
+      })
+    }
+
+    const restored = await listHealthAttachments('2026-07-12')
+
+    expect(restored.map((attachment) => attachment.id)).toEqual([
+      'one',
+      'two',
+      'three',
+      'four',
+    ])
+    expect(await restored[3].blob.text()).toBe('four')
+  })
+
   it('удаляет изображение вручную', async () => {
     await saveHealthAttachment(makeAttachment('one', '2026-07-12', 'first'))
     await deleteHealthAttachment('one')

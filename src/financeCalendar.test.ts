@@ -55,6 +55,58 @@ describe('финансовый календарь', () => {
 
     expect(items[0].sourceLabel).toBe('Сплит')
   })
+
+  it('показывает остаток 0 ₽ после Яндекс Сплит, оплаченного позже контрольной точки', () => {
+    const anchor = {
+      ...INITIAL_CREDIT_ACCOUNT_ANCHOR,
+      date: '2026-07-11',
+      balanceKopecks: rublesToKopecks(9_783),
+      confirmedAt: '2026-07-11T08:00:00.000Z',
+      createdAt: '2026-07-11T08:00:00.000Z',
+    }
+    const split = {
+      ...operation('yandex-split', '2026-07-11', 'expense', 9_783),
+      status: 'completed' as const,
+      actualDate: '2026-07-11',
+      completedDate: '2026-07-11',
+      completedAt: '2026-07-11T10:00:00.000Z',
+    }
+
+    const item = buildFinanceCalendarTimeline({
+      anchors: [anchor],
+      operations: [split],
+      todayIsoDate: '2026-07-11',
+    })[0]
+
+    expect(item.affectsBalance).toBe(true)
+    expect(item.balanceAfterKopecks).toBe(0)
+  })
+
+  it('не показывает ложный повторный остаток для операции внутри контрольной точки', () => {
+    const anchor = {
+      ...INITIAL_CREDIT_ACCOUNT_ANCHOR,
+      date: '2026-07-11',
+      balanceKopecks: rublesToKopecks(5_000),
+      confirmedAt: '2026-07-11T10:00:00.000Z',
+      createdAt: '2026-07-11T10:00:00.000Z',
+    }
+    const oldOperation = {
+      ...operation('old-payment', '2026-07-11', 'expense', 1_000),
+      status: 'completed' as const,
+      actualDate: '2026-07-11',
+      completedAt: '2026-07-11T08:00:00.000Z',
+    }
+
+    const item = buildFinanceCalendarTimeline({
+      anchors: [anchor],
+      operations: [oldOperation],
+      todayIsoDate: '2026-07-11',
+    })[0]
+
+    expect(item.includedInAnchor).toBe(true)
+    expect(item.affectsBalance).toBe(false)
+    expect(item.balanceAfterKopecks).toBeNull()
+  })
 })
 
 function operation(id: string, date: string, direction: FinanceOperation['direction'], amountRubles: number): FinanceOperation {

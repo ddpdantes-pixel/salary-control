@@ -390,7 +390,9 @@ function CalendarOperationCard({
       <div className="finance-calendar-balance">
         <span>Остаток после операции</span>
         <b>
-          {item.balanceAfterKopecks === null
+          {item.includedInAnchor
+            ? 'Учтено в подтверждённом остатке'
+            : item.balanceAfterKopecks === null
             ? 'Расчёт предварительный'
             : formatMoney(item.balanceAfterKopecks)}
         </b>
@@ -526,6 +528,15 @@ function ManualOperationForm({
     onSave({
       id: operation?.id ?? `manual-${Date.now()}`,
       date,
+      scheduledDate: operation?.scheduledDate,
+      actualDate: status === 'completed' ? date : undefined,
+      completedDate: status === 'completed' ? date : undefined,
+      completedAt:
+        status === 'completed'
+          ? operation?.status === 'completed'
+            ? operation.completedAt ?? nowIso
+            : nowIso
+          : undefined,
       title: title.trim(),
       amountKopecks,
       direction,

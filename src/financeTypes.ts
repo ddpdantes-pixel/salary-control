@@ -106,6 +106,7 @@ export interface BalanceAnchor {
   title: string
   balanceKopecks: Kopecks
   note?: string
+  confirmedAt: string
   createdAt: string
 }
 
@@ -113,7 +114,9 @@ export interface FinanceOperation {
   id: string
   date: string
   scheduledDate?: string
+  actualDate?: string
   completedDate?: string
+  completedAt?: string
   title: string
   amountKopecks: Kopecks | null
   direction: FinanceOperationDirection
@@ -162,7 +165,9 @@ export interface Obligation {
 export interface ObligationPayment {
   id: string
   date: string | null
+  actualDate?: string
   completedDate?: string
+  completedAt?: string
   amountKopecks: Kopecks | null
   status: FinanceOperationStatus
   amountSource: FinanceAmountSource

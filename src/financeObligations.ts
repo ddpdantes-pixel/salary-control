@@ -72,7 +72,9 @@ export function generateObligationOperations(input: {
         date: operationDate,
         scheduledDate:
           payment.status === 'completed' ? payment.date : undefined,
+        actualDate: payment.actualDate,
         completedDate: payment.completedDate,
+        completedAt: payment.completedAt,
         operationIdDate: payment.date,
         amountKopecks: payment.amountKopecks,
         amountSource: payment.amountSource,
@@ -119,7 +121,9 @@ export function createObligationFromDraft(
             return {
               id: payment.id ?? `${id}-payment-${index + 1}`,
               date: payment.date,
+              actualDate: previousPayment?.actualDate,
               completedDate: previousPayment?.completedDate,
+              completedAt: previousPayment?.completedAt,
               amountKopecks: payment.amountKopecks,
               status: previousPayment?.status ?? 'planned',
               amountSource: 'explicit',
@@ -169,15 +173,24 @@ export function setFinanceOperationStatus(input: {
   actualDate?: string
 }): FinanceState {
   const scheduledDate = input.operation.scheduledDate ?? input.operation.date
+  const becomesCompleted = input.nextStatus === 'completed'
+  const isNewCompletion = becomesCompleted && input.operation.status !== 'completed'
   const recordsActualPayment =
-    input.nextStatus === 'completed' &&
+    becomesCompleted &&
     input.operation.direction === 'expense'
-  const completedDate = recordsActualPayment
+  const actualDate = recordsActualPayment
     ? input.actualDate ?? input.todayIsoDate
+    : becomesCompleted
+      ? input.operation.actualDate ?? input.operation.completedDate ?? input.operation.date
+      : undefined
+  const completedAt = becomesCompleted
+    ? isNewCompletion
+      ? input.nowIso
+      : input.operation.completedAt ?? input.nowIso
     : undefined
   const date =
     recordsActualPayment
-      ? completedDate!
+      ? actualDate!
       : input.nextStatus !== 'completed' && input.operation.scheduledDate
         ? scheduledDate
         : input.operation.date
@@ -188,7 +201,9 @@ export function setFinanceOperationStatus(input: {
       recordsActualPayment || input.operation.scheduledDate
         ? scheduledDate
         : undefined,
-    completedDate,
+    actualDate,
+    completedDate: actualDate,
+    completedAt,
     status: input.nextStatus,
     updatedAt: input.nowIso,
   }
@@ -212,8 +227,10 @@ export function setFinanceOperationStatus(input: {
             ? {
                 ...payment,
                 status: input.nextStatus,
+                actualDate: recordsActualPayment ? actualDate : undefined,
                 completedDate:
-                  recordsActualPayment ? completedDate : undefined,
+                  recordsActualPayment ? actualDate : undefined,
+                completedAt: becomesCompleted ? completedAt : undefined,
                 updatedAt: input.nowIso,
               }
             : payment,
@@ -412,7 +429,9 @@ function createOperation(input: {
   obligation: Obligation
   date: string
   scheduledDate?: string
+  actualDate?: string
   completedDate?: string
+  completedAt?: string
   operationIdDate?: string
   amountKopecks: number | null
   amountSource: FinanceOperation['amountSource']
@@ -425,7 +444,9 @@ function createOperation(input: {
     id: `${input.obligation.id}-${input.operationIdDate ?? input.date}`,
     date: input.date,
     scheduledDate: input.scheduledDate,
+    actualDate: input.actualDate,
     completedDate: input.completedDate,
+    completedAt: input.completedAt,
     title: input.obligation.title,
     amountKopecks: input.amountKopecks,
     direction: 'expense',
