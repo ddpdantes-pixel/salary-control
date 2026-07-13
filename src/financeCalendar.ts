@@ -9,6 +9,7 @@ import {
   sortFinanceOperations,
 } from './financeCalculations'
 import { getObligationCategoryLabel } from './financeObligations'
+import { resolveSalaryLinkedIncome } from './financeSalaryLinks'
 import type {
   BalanceAnchor,
   FinanceDisplayStatus,
@@ -16,6 +17,9 @@ import type {
   FinanceOperationSource,
   Obligation,
 } from './financeTypes'
+import type { SalaryMonth } from './types'
+
+export type FinanceBalanceTone = 'positive' | 'negative' | 'neutral'
 
 export type CalendarDirectionFilter = 'all' | 'income' | 'expense'
 export type CalendarStatusFilter =
@@ -33,6 +37,7 @@ export interface FinanceCalendarItem {
   affectsBalance: boolean
   includedInAnchor: boolean
   sourceLabel: string
+  salaryForecastSourceDate: string | null
 }
 
 export interface FinanceCalendarFilters {
@@ -46,10 +51,12 @@ export function buildFinanceCalendarTimeline(input: {
   anchors: BalanceAnchor[]
   operations: FinanceOperation[]
   obligations?: Obligation[]
+  salaryMonths?: SalaryMonth[]
   todayIsoDate: string
 }): FinanceCalendarItem[] {
   const anchor = getLatestBalanceAnchor(input.anchors)
   let balanceKopecks = anchor?.balanceKopecks ?? 0
+  let balanceIsKnown = true
 
   return sortFinanceOperations(input.operations).map((operation) => {
     const balanceBeforeKopecks = balanceKopecks
@@ -59,11 +66,10 @@ export function buildFinanceCalendarTimeline(input: {
       anchor,
       input.todayIsoDate,
     )
-    let balanceAfterKopecks: number | null = includedInAnchor
-      ? null
-      : balanceKopecks
+    let balanceAfterKopecks: number | null =
+      includedInAnchor || !balanceIsKnown ? null : balanceKopecks
 
-    if (affectsBalance && operation.amountKopecks !== null) {
+    if (balanceIsKnown && affectsBalance && operation.amountKopecks !== null) {
       balanceKopecks =
         operation.direction === 'income'
           ? balanceKopecks + operation.amountKopecks
@@ -72,10 +78,23 @@ export function buildFinanceCalendarTimeline(input: {
     } else if (
       !includedInAnchor &&
       operation.status !== 'cancelled' &&
-      operation.amountKopecks === null
+      operation.amountKopecks === null &&
+      (!anchor || operation.date >= anchor.date)
     ) {
       balanceAfterKopecks = null
+      balanceIsKnown = false
     }
+
+    const linkedIncome =
+      operation.source === 'salary' &&
+      operation.salaryField &&
+      input.salaryMonths
+        ? resolveSalaryLinkedIncome(
+            operation.date,
+            operation.salaryField,
+            input.salaryMonths,
+          )
+        : null
 
     return {
       operation,
@@ -95,8 +114,19 @@ export function buildFinanceCalendarTimeline(input: {
             )
           : undefined,
       ),
+      salaryForecastSourceDate:
+        linkedIncome?.kind === 'forecast'
+          ? linkedIncome.forecastSourceIncomeDate ?? null
+          : null,
     }
   })
+}
+
+export function getFinanceBalanceTone(
+  balanceAfterKopecks: number | null,
+): FinanceBalanceTone {
+  if (balanceAfterKopecks === null) return 'neutral'
+  return balanceAfterKopecks >= 0 ? 'positive' : 'negative'
 }
 
 export function filterFinanceCalendarItems(

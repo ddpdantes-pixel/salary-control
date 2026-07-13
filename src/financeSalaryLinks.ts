@@ -1,10 +1,12 @@
 import { calculateMonthSummary } from './calculations'
 import {
+  addMonthsToYearMonth,
   formatYearMonthLabel,
   getDateYearMonth,
   getPreviousYearMonth,
 } from './financeDates'
 import { rublesToKopecks } from './financeMoney'
+import { formatShortDateLabel } from './format'
 import type {
   FinanceOperation,
   SalaryIncomeField,
@@ -33,51 +35,83 @@ export function resolveSalaryLinkedIncome(
   const sourceSalesMonth = getSalarySourceMonthId(incomeDate, field)
   const sourceMonth = salaryMonths.find((month) => month.id === sourceSalesMonth)
 
-  if (!sourceMonth) {
-    return {
-      kind: 'missing',
-      field,
-      sourceSalesMonth,
-      amountKopecks: null,
-      message: `Нет расчёта зарплаты за ${formatYearMonthLabel(sourceSalesMonth)}.`,
+  if (sourceMonth) {
+    const amountRubles = getExactSalaryFieldAmountRubles(sourceMonth, field)
+
+    if (amountRubles !== null) {
+      return {
+        kind: 'resolved',
+        field,
+        sourceSalesMonth,
+        amountKopecks: rublesToKopecks(amountRubles),
+        message: `Сумма взята из расчёта зарплаты за ${formatYearMonthLabel(sourceSalesMonth)}.`,
+      }
     }
   }
 
-  const amountRubles = getSalaryFieldAmountRubles(sourceMonth, field)
+  const forecastSource = findPreviousExactSalaryIncome(
+    incomeDate,
+    field,
+    salaryMonths,
+  )
 
-  if (
-    field === 'day15Expected' &&
-    amountRubles === 0 &&
-    !hasMeaningfulSalaryCalculation(sourceMonth)
-  ) {
+  if (forecastSource) {
     return {
-      kind: 'unavailable',
+      kind: 'forecast',
       field,
       sourceSalesMonth,
-      amountKopecks: null,
-      message: `Выплата 15-го пока не рассчитана за ${formatYearMonthLabel(sourceSalesMonth)}.`,
+      amountKopecks: rublesToKopecks(forecastSource.amountRubles),
+      forecastSourceIncomeDate: forecastSource.incomeDate,
+      message: `Прогноз по выплате ${formatShortDateLabel(forecastSource.incomeDate)}.`,
     }
   }
 
   return {
-    kind: 'resolved',
+    kind: sourceMonth ? 'unavailable' : 'missing',
     field,
     sourceSalesMonth,
-    amountKopecks: rublesToKopecks(amountRubles),
-    message: `Сумма взята из расчёта зарплаты за ${formatYearMonthLabel(sourceSalesMonth)}.`,
+    amountKopecks: null,
+    message: sourceMonth
+      ? `Выплата ${getSalaryFieldDayLabel(field)} пока не рассчитана за ${formatYearMonthLabel(sourceSalesMonth)}.`
+      : `Нет расчёта зарплаты за ${formatYearMonthLabel(sourceSalesMonth)}.`,
   }
 }
 
-function hasMeaningfulSalaryCalculation(month: SalaryMonth): boolean {
-  return (
-    month.isClosed ||
-    month.salesTotal > 0 ||
-    month.salesArtkera > 0 ||
-    month.salesLaparet > 0 ||
-    month.programBonus > 0 ||
-    month.payments.day25 > 0 ||
-    month.payments.day10 > 0
-  )
+function getSalaryFieldDayLabel(field: SalaryIncomeField): string {
+  if (field === 'day01') return '1-го'
+  if (field === 'day10') return '10-го'
+  if (field === 'day15Expected') return '15-го'
+  return '25-го'
+}
+
+function findPreviousExactSalaryIncome(
+  incomeDate: string,
+  field: SalaryIncomeField,
+  salaryMonths: SalaryMonth[],
+): { incomeDate: string; amountRubles: number } | null {
+  return salaryMonths
+    .map((month) => ({
+      incomeDate: getIncomeDateForSalaryMonth(month.id, field),
+      amountRubles: getExactSalaryFieldAmountRubles(month, field),
+    }))
+    .filter(
+      (candidate): candidate is { incomeDate: string; amountRubles: number } =>
+        candidate.incomeDate < incomeDate && candidate.amountRubles !== null,
+    )
+    .sort((first, second) => second.incomeDate.localeCompare(first.incomeDate))[0] ?? null
+}
+
+function getIncomeDateForSalaryMonth(
+  salesMonth: SalesMonthId,
+  field: SalaryIncomeField,
+): string {
+  if (field === 'day25') {
+    return `${salesMonth}-25`
+  }
+
+  const incomeMonth = addMonthsToYearMonth(salesMonth, 1)
+  const day = field === 'day01' ? '01' : field === 'day10' ? '10' : '15'
+  return `${incomeMonth}-${day}`
 }
 
 export function syncSalaryLinkedOperationAmount(
@@ -110,4 +144,17 @@ function getSalaryFieldAmountRubles(
   }
 
   return month.payments[field]
+}
+
+function getExactSalaryFieldAmountRubles(
+  month: SalaryMonth,
+  field: SalaryIncomeField,
+): number | null {
+  const amountRubles = getSalaryFieldAmountRubles(month, field)
+
+  if (amountRubles <= 0) {
+    return null
+  }
+
+  return amountRubles
 }

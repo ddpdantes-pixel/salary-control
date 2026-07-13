@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { createSalaryMonth } from './calculations'
 import { buildFinanceCalendarTimeline } from './financeCalendar'
 import { createDefaultFinanceState } from './financeDefaults'
-import { buildFinanceOverview } from './financeOverview'
+import { rublesToKopecks } from './financeMoney'
+import { buildFinanceOverview, buildOverviewOperations } from './financeOverview'
 import { setFinanceOperationStatus } from './financeObligations'
 import { buildFinanceReport, formatFinanceFeedItem } from './financeReport'
 
@@ -113,6 +115,40 @@ describe('финансовый отчёт', () => {
 
     expect(formatFinanceFeedItem(item).join('\n')).toContain(
       'операция уже учтена в фактическом остатке',
+    )
+  })
+
+  it('указывает фактическую дату источника прогноза в ленте', () => {
+    const state = createDefaultFinanceState()
+    const july = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    july.payments.day25 = 12_000
+    const operations = buildOverviewOperations({
+      state,
+      salaryMonths: [july],
+      todayIsoDate: '2026-08-01',
+      rangeStartDate: '2026-08-01',
+      rangeEndDate: '2026-08-31',
+    })
+    const item = buildFinanceCalendarTimeline({
+      anchors: [
+        {
+          ...state.anchors[0],
+          date: '2026-08-01',
+          balanceKopecks: rublesToKopecks(20_000),
+        },
+      ],
+      operations,
+      obligations: state.obligations,
+      salaryMonths: [july],
+      todayIsoDate: '2026-08-01',
+    }).find(
+      (candidate) =>
+        candidate.operation.id === 'salary-transfer-2026-08-25',
+    )!
+
+    expect(item.salaryForecastSourceDate).toBe('2026-07-25')
+    expect(formatFinanceFeedItem(item).join('\n')).toContain(
+      'Прогноз по выплате 25 июля',
     )
   })
 })

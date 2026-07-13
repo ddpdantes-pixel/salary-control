@@ -232,9 +232,10 @@ export interface BalanceForecast {
 }
 
 export interface SalaryLinkedIncomeResult {
-  kind: 'resolved' | 'missing' | 'unavailable'
+  kind: 'resolved' | 'forecast' | 'missing' | 'unavailable'
   field: SalaryIncomeField
   sourceSalesMonth: SalesMonthId
   amountKopecks: Kopecks | null
+  forecastSourceIncomeDate?: string
   message: string
 }

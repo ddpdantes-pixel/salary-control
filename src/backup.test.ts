@@ -4,13 +4,14 @@ import { createBackupData, parseBackupData } from './backup'
 import { createDefaultFinanceState } from './financeDefaults'
 import { rublesToKopecks } from './financeMoney'
 import { setFinanceOperationStatus } from './financeObligations'
+import { createDefaultDailySalesState } from './dailySalesStorage'
 
 describe('резервная копия', () => {
   it('сохраняет версию структуры, дату, месяцы и настройки', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backup = createBackupData([month], month.id)
 
-    expect(backup.structureVersion).toBe(4)
+    expect(backup.structureVersion).toBe(5)
     expect(backup.createdAt).toEqual(expect.any(String))
     expect(backup.months).toHaveLength(1)
     expect(backup.settings.selectedMonthId).toBe('2026-07')
@@ -110,7 +111,7 @@ describe('резервная копия', () => {
       (operation) => operation.id === splitOperation.id,
     )
 
-    expect(backup.structureVersion).toBe(4)
+    expect(backup.structureVersion).toBe(5)
     expect(restored.months).toHaveLength(1)
     expect(restored.financeState?.operations).toHaveLength(
       completed.operations.length,
@@ -136,6 +137,55 @@ describe('резервная копия', () => {
         (expense) => expense.id === 'rent',
       )?.monthOverrides[0].amountKopecks,
     ).toBe(rublesToKopecks(28_000))
+  })
+
+  it('экспортирует и импортирует независимые ежедневные продажи', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const dailySalesState = createDefaultDailySalesState()
+    dailySalesState.settings.cycleAnchorDate = '2026-07-10'
+    dailySalesState.entries['2026-07-10'] = {
+      date: '2026-07-10',
+      amountKopecks: 123_456,
+      note: 'Из резервной копии',
+      createdAt: '2026-07-10T10:00:00.000Z',
+      updatedAt: '2026-07-10T10:00:00.000Z',
+    }
+
+    const backup = createBackupData([month], month.id, null, dailySalesState)
+    const restored = parseBackupData(JSON.stringify(backup))
+
+    expect(restored.dailySalesState).toEqual(dailySalesState)
+    expect(JSON.stringify(backup)).not.toContain('attachments')
+    expect(JSON.stringify(backup)).not.toContain('imageData')
+  })
+
+  it.each([2, 3, 4])(
+    'читает старую резервную копию версии %s без ежедневных продаж',
+    (structureVersion) => {
+      const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+      const backup = {
+        ...createBackupData([month], month.id),
+        structureVersion,
+      }
+      delete (backup as { dailySalesState?: unknown }).dailySalesState
+
+      const restored = parseBackupData(JSON.stringify(backup))
+
+      expect(restored.dailySalesState).toBeNull()
+      expect(restored.months).toHaveLength(1)
+    },
+  )
+
+  it('отклоняет повреждённый блок ежедневных продаж', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const backup = {
+      ...createBackupData([month], month.id),
+      dailySalesState: { schemaVersion: 999 },
+    }
+
+    expect(() => parseBackupData(JSON.stringify(backup))).toThrow(
+      'В резервной копии повреждены данные ежедневных продаж.',
+    )
   })
 
   it('отклоняет несовместимую версию резервной копии', () => {

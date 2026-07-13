@@ -2,10 +2,12 @@ import { normalizeStoredMonth, sortMonthsDesc } from './storage'
 import { normalizeFinanceState } from './financeStorage'
 import type { FinanceState } from './financeTypes'
 import type { SalaryMonth } from './types'
+import { normalizeDailySalesState } from './dailySalesStorage'
+import type { DailySalesState } from './dailySalesTypes'
 
 const BACKUP_APP_ID = 'kontrol-zarplaty'
-const BACKUP_STRUCTURE_VERSION = 4
-const SUPPORTED_BACKUP_VERSIONS = new Set([2, 3, BACKUP_STRUCTURE_VERSION])
+const BACKUP_STRUCTURE_VERSION = 5
+const SUPPORTED_BACKUP_VERSIONS = new Set([2, 3, 4, BACKUP_STRUCTURE_VERSION])
 
 export interface BackupData {
   app: typeof BACKUP_APP_ID
@@ -16,6 +18,7 @@ export interface BackupData {
     selectedMonthId: string | null
   }
   financeState?: FinanceState
+  dailySalesState?: DailySalesState
 }
 
 export interface ParsedBackup {
@@ -23,12 +26,14 @@ export interface ParsedBackup {
   months: SalaryMonth[]
   selectedMonthId: string | null
   financeState: FinanceState | null
+  dailySalesState: DailySalesState | null
 }
 
 export function createBackupData(
   months: SalaryMonth[],
   selectedMonthId: string | null,
   financeState?: FinanceState | null,
+  dailySalesState?: DailySalesState | null,
 ): BackupData {
   return {
     app: BACKUP_APP_ID,
@@ -39,6 +44,7 @@ export function createBackupData(
       selectedMonthId,
     },
     ...(financeState ? { financeState } : {}),
+    ...(dailySalesState ? { dailySalesState } : {}),
   }
 }
 
@@ -83,9 +89,17 @@ export function parseBackupData(text: string): ParsedBackup {
     parsed.financeState === undefined
       ? null
       : normalizeFinanceState(parsed.financeState)
+  const dailySalesState =
+    parsed.dailySalesState === undefined
+      ? null
+      : normalizeDailySalesState(parsed.dailySalesState)
 
   if (parsed.financeState !== undefined && financeState === null) {
     throw new Error('В резервной копии повреждены финансовые данные.')
+  }
+
+  if (parsed.dailySalesState !== undefined && dailySalesState === null) {
+    throw new Error('В резервной копии повреждены данные ежедневных продаж.')
   }
 
   return {
@@ -96,6 +110,7 @@ export function parseBackupData(text: string): ParsedBackup {
     months: sortMonthsDesc(normalizedMonths),
     selectedMonthId,
     financeState,
+    dailySalesState,
   }
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   buildFinanceCalendarTimeline,
   filterFinanceCalendarItems,
+  getFinanceBalanceTone,
   getOperationStatusLabel,
   type CalendarDirectionFilter,
   type CalendarStatusFilter,
@@ -19,7 +20,11 @@ import {
   isFinalObligationPayment,
   setFinanceOperationStatus,
 } from './financeObligations'
-import { formatDateLabel, formatMoneyInputText } from './format'
+import {
+  formatDateLabel,
+  formatMoneyInputText,
+  formatShortDateLabel,
+} from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import type {
   FinanceOperation,
@@ -83,6 +88,7 @@ export function FinanceCalendarScreen({
       anchors: state.anchors,
       operations,
       obligations: state.obligations,
+      salaryMonths,
       todayIsoDate,
     })
   }, [monthId, rangeEndDate, rangeStartDate, salaryMonths, state, todayIsoDate])
@@ -381,19 +387,31 @@ function CalendarOperationCard({
             </small>
           )}
         </span>
-        <strong>
-          {operation.amountKopecks === null
-            ? '—'
-            : `${operation.direction === 'income' ? '+' : '−'}${formatMoney(operation.amountKopecks)}`}
-        </strong>
+        <span className="finance-calendar-amount">
+          <strong>
+            {operation.amountKopecks === null
+              ? '—'
+              : `${operation.direction === 'income' ? '+' : '−'}${formatMoney(operation.amountKopecks)}`}
+          </strong>
+          {item.salaryForecastSourceDate && (
+            <small className="finance-forecast-source">
+              Прогноз по выплате{' '}
+              {formatShortDateLabel(item.salaryForecastSourceDate)}
+            </small>
+          )}
+        </span>
       </button>
-      <div className="finance-calendar-balance">
+      <div
+        className={`finance-calendar-balance balance-${getFinanceBalanceTone(
+          item.includedInAnchor ? null : item.balanceAfterKopecks,
+        )}`}
+      >
         <span>Остаток после операции</span>
         <b>
           {item.includedInAnchor
             ? 'Учтено в подтверждённом остатке'
             : item.balanceAfterKopecks === null
-            ? 'Расчёт предварительный'
+            ? 'Остаток не рассчитан'
             : formatMoney(item.balanceAfterKopecks)}
         </b>
       </div>

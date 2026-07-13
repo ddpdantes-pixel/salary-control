@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -11,6 +11,11 @@ import {
   saveStoredMonths,
   saveStoredSelectedMonthId,
 } from './storage'
+import { createDefaultFinanceState } from './financeDefaults'
+import { saveStoredFinanceState } from './financeStorage'
+import { createEmptyHealthState } from './healthModel'
+import { HEALTH_STATE_KEY, saveStoredHealthState } from './healthStorage'
+import { DAILY_SALES_STATE_KEY } from './dailySalesStorage'
 
 vi.mock('virtual:pwa-register', () => ({
   registerSW: vi.fn(() => vi.fn()),
@@ -41,12 +46,13 @@ describe('оболочка приложения', () => {
     expect(buttons).toHaveLength(5)
     expect(buttons.map((button) => button.textContent)).toEqual([
       'Главная',
+      'Зарплата',
       'Продажи',
-      'Выплаты',
       'Деньги',
       'Здоровье',
     ])
     expect(within(navigation).queryByRole('button', { name: 'История' })).toBeNull()
+    expect(within(navigation).queryByRole('button', { name: 'Выплаты' })).toBeNull()
   })
 
   it('открывает каркас здоровья с вкладкой «Сегодня» по умолчанию', async () => {
@@ -66,20 +72,34 @@ describe('оболочка приложения', () => {
     expect(screen.getByText('Выбрать дату')).not.toBeNull()
   })
 
-  it('переключает текущий расчёт и историю внутри выплат', async () => {
+  it('открывает новую самостоятельную вкладку продаж', async () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: 'Выплаты' }))
+    await user.click(screen.getByRole('button', { name: 'Продажи' }))
+
+    expect(screen.getByRole('heading', { name: 'Продажи' })).not.toBeNull()
+    expect(screen.getByText('Независимый учёт ежедневных продаж')).not.toBeNull()
+    expect(screen.getByDisplayValue('87 000')).not.toBeNull()
+  })
+
+  it('показывает текущий расчёт, авансы и историю внутри зарплаты', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     expect(
       screen
         .getByRole('tab', { name: 'Текущий расчёт' })
         .getAttribute('aria-selected'),
     ).toBe('true')
+    expect(document.getElementById('sales-total')).not.toBeNull()
+
+    await user.click(screen.getByRole('tab', { name: 'Авансы' }))
     expect(document.getElementById('salary')).not.toBeNull()
 
     await user.click(screen.getByRole('tab', { name: 'История' }))
-    expect(document.getElementById('salary')).toBeNull()
+    expect(document.getElementById('sales-total')).toBeNull()
     expect(
       screen.getByRole('button', { name: 'Скачать резервную копию' }),
     ).not.toBeNull()
@@ -88,7 +108,7 @@ describe('оболочка приложения', () => {
     ).not.toBeNull()
 
     await user.click(screen.getByRole('tab', { name: 'Текущий расчёт' }))
-    expect(document.getElementById('salary')).not.toBeNull()
+    expect(document.getElementById('sales-total')).not.toBeNull()
   })
 
   it('открывает выбранный месяц из истории в текущем расчёте без потери месяцев', async () => {
@@ -103,7 +123,7 @@ describe('оболочка приложения', () => {
     saveStoredSelectedMonthId(july.id)
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: 'Выплаты' }))
+    await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'История' }))
 
     const juneCard = screen.getByRole('heading', { name: 'Июнь 2026' }).closest('article')
@@ -116,8 +136,8 @@ describe('оболочка приложения', () => {
         .getAttribute('aria-selected'),
     ).toBe('true')
     expect(screen.getByRole('heading', { name: 'Июнь 2026' })).not.toBeNull()
-    expect((document.getElementById('salary') as HTMLInputElement).value).toBe(
-      '34 567',
+    expect((document.getElementById('sales-total') as HTMLInputElement).value).toBe(
+      '765 432',
     )
     expect(window.scrollTo).toHaveBeenCalledWith({
       top: 0,
@@ -128,5 +148,44 @@ describe('оболочка приложения', () => {
       '2026-07',
       '2026-06',
     ])
+  })
+
+  it('новая продажа не меняет зарплату, финансы или здоровье', async () => {
+    const user = userEvent.setup()
+    const salaryMonth = {
+      ...createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z'),
+      salesTotal: 777_000,
+      salary: 45_000,
+    }
+    saveStoredMonths([salaryMonth])
+    saveStoredSelectedMonthId(salaryMonth.id)
+    saveStoredFinanceState(createDefaultFinanceState('2026-07-13T10:00:00.000Z'))
+    saveStoredHealthState(createEmptyHealthState())
+    const salaryBefore = window.localStorage.getItem(
+      'kontrol-zarplaty.month.2026-07',
+    )
+    const financeBefore = window.localStorage.getItem(
+      'kontrol-zarplaty.finance-state.v1',
+    )
+    const healthBefore = window.localStorage.getItem(HEALTH_STATE_KEY)
+
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Продажи' }))
+    await user.click(screen.getAllByRole('button', { name: /Добавить продажу/ })[0])
+    await user.type(screen.getByLabelText('Сумма продажи'), '1234,56')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(DAILY_SALES_STATE_KEY)).toContain(
+        '123456',
+      )
+    })
+    expect(window.localStorage.getItem('kontrol-zarplaty.month.2026-07')).toBe(
+      salaryBefore,
+    )
+    expect(
+      window.localStorage.getItem('kontrol-zarplaty.finance-state.v1'),
+    ).toBe(financeBefore)
+    expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toBe(healthBefore)
   })
 })

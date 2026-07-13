@@ -48,16 +48,24 @@ import {
 import type { BalanceAnchor, FinanceState } from './financeTypes'
 import {
   APP_NAME,
-  PAYMENT_TABS,
+  SALARY_TABS,
   TABS,
   getHistoryMonthOpenTarget,
 } from './appNavigation'
 import type {
-  PaymentsView,
+  SalaryView,
   TabIcon,
   TabId,
 } from './appNavigation'
 import { HealthScreen } from './HealthScreen'
+import { DailySalesScreen } from './DailySalesScreen'
+import {
+  consumeDailySalesStorageIssues,
+  loadStoredDailySalesState,
+  saveStoredDailySalesState,
+} from './dailySalesStorage'
+import type { DailySalesState } from './dailySalesTypes'
+import { getLocalIsoDate as getDailySalesLocalIsoDate } from './dailySalesCalculations'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
@@ -84,6 +92,7 @@ interface RestorePreview {
   months: SalaryMonth[]
   selectedMonthId: string | null
   financeState: FinanceState | null
+  dailySalesState: DailySalesState | null
 }
 
 function App() {
@@ -92,15 +101,21 @@ function App() {
   const [financeState, setFinanceState] = useState<FinanceState | null>(
     loadStoredFinanceState,
   )
+  const [dailySalesState, setDailySalesState] = useState(
+    loadStoredDailySalesState,
+  )
   const [selectedMonthId, setSelectedMonthId] = useState(
     initialState.selectedMonthId,
   )
   const [activeTab, setActiveTab] = useState<TabId>('home')
-  const [paymentsView, setPaymentsView] =
-    useState<PaymentsView>('current')
+  const [salaryView, setSalaryView] = useState<SalaryView>('current')
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [storageMessage, setStorageMessage] = useState(() =>
-    [...initialState.storageIssues, ...consumeFinanceStorageIssues()].join(' '),
+    [
+      ...initialState.storageIssues,
+      ...consumeFinanceStorageIssues(),
+      ...consumeDailySalesStorageIssues(),
+    ].join(' '),
   )
   const [pwaMessage, setPwaMessage] = useState<string | null>(null)
   const [updateServiceWorker, setUpdateServiceWorker] =
@@ -112,6 +127,8 @@ function App() {
   const saveTimerRef = useRef<number | undefined>(undefined)
   const financeDidMountRef = useRef(false)
   const financeSaveTimerRef = useRef<number | undefined>(undefined)
+  const dailySalesDidMountRef = useRef(false)
+  const dailySalesSaveTimerRef = useRef<number | undefined>(undefined)
   const restoreInputRef = useRef<HTMLInputElement>(null)
 
   const currentMonth = useMemo(
@@ -197,10 +214,29 @@ function App() {
     return () => window.clearTimeout(financeSaveTimerRef.current)
   }, [financeState])
 
+  useEffect(() => {
+    if (!dailySalesDidMountRef.current) {
+      dailySalesDidMountRef.current = true
+      return
+    }
+
+    setSaveState('saving')
+    window.clearTimeout(dailySalesSaveTimerRef.current)
+    dailySalesSaveTimerRef.current = window.setTimeout(() => {
+      saveStoredDailySalesState(dailySalesState)
+      if (!showStorageIssues()) {
+        setSaveState('saved')
+      }
+    }, SAVE_DELAY_MS)
+
+    return () => window.clearTimeout(dailySalesSaveTimerRef.current)
+  }, [dailySalesState])
+
   function showStorageIssues(): boolean {
     const issues = [
       ...consumeStorageIssues().map((issue) => issue.message),
       ...consumeFinanceStorageIssues(),
+      ...consumeDailySalesStorageIssues(),
     ]
 
     if (issues.length === 0) {
@@ -250,7 +286,8 @@ function App() {
     const newMonth = createSalaryMonth(newMonthId)
     setMonths((previousMonths) => sortMonthsDesc([...previousMonths, newMonth]))
     setSelectedMonthId(newMonth.id)
-    setActiveTab('home')
+    setSalaryView('current')
+    setActiveTab('salary')
   }
 
   function deleteMonth(monthId: string): void {
@@ -333,7 +370,12 @@ function App() {
   }
 
   function downloadBackup(): void {
-    const backup = createBackupData(months, selectedMonthId, financeState)
+    const backup = createBackupData(
+      months,
+      selectedMonthId,
+      financeState,
+      dailySalesState,
+    )
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: 'application/json',
     })
@@ -365,6 +407,7 @@ function App() {
           months: parsedBackup.months,
           selectedMonthId: parsedBackup.selectedMonthId,
           financeState: parsedBackup.financeState,
+          dailySalesState: parsedBackup.dailySalesState,
         })
       })
       .catch((error: unknown) => {
@@ -404,12 +447,21 @@ function App() {
     if (pendingRestore.financeState) {
       setFinanceState(pendingRestore.financeState)
     }
-    setActiveTab('payments')
-    setPaymentsView('history')
+    if (pendingRestore.dailySalesState) {
+      setDailySalesState(pendingRestore.dailySalesState)
+    }
+    setActiveTab('salary')
+    setSalaryView('history')
     setStorageMessage(
-      pendingRestore.financeState
-        ? `Восстановлено месяцев: ${restoredMonths.length}. Финансовые данные восстановлены.`
-        : `Восстановлено месяцев: ${restoredMonths.length}. Финансовые данные не изменялись.`,
+      `Восстановлено месяцев: ${restoredMonths.length}. ${
+        pendingRestore.financeState
+          ? 'Финансовые данные восстановлены.'
+          : 'Финансовые данные не изменялись.'
+      } ${
+        pendingRestore.dailySalesState
+          ? 'Ежедневные продажи восстановлены.'
+          : 'Ежедневные продажи не изменялись.'
+      }`,
     )
     setPendingRestore(null)
   }
@@ -478,13 +530,13 @@ function App() {
   function openMonthFromHistory(monthId: string): void {
     const target = getHistoryMonthOpenTarget(monthId)
     setSelectedMonthId(target.selectedMonthId)
-    setPaymentsView(target.paymentsView)
+    setSalaryView(target.salaryView)
     setActiveTab(target.activeTab)
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
   return (
-    <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''}`}>
+    <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''} ${activeTab === 'daily-sales' ? 'daily-sales-active' : ''}`}>
       <header className="top-bar">
         <div>
           <p className="eyebrow">
@@ -492,6 +544,8 @@ function App() {
               ? 'Личные финансы'
               : activeTab === 'health'
                 ? 'Ежедневный контроль'
+                : activeTab === 'daily-sales'
+                  ? 'Личный контроль'
                 : APP_NAME}
           </p>
           <h1>
@@ -499,6 +553,8 @@ function App() {
               ? 'Деньги'
               : activeTab === 'health'
                 ? 'Здоровье'
+                : activeTab === 'daily-sales'
+                  ? 'Продажи'
               : formatMonthLabel(currentMonth.salesMonth)}
           </h1>
         </div>
@@ -556,22 +612,22 @@ function App() {
           }
         />
       )}
-      {activeTab === 'sales' && (
-        <SalesScreen
-          month={currentMonth}
-          summary={summary}
-          onChange={updateCurrentMonth}
-        />
-      )}
-      {activeTab === 'payments' && (
+      {activeTab === 'salary' && (
         <section className="section-with-tabs">
           <SectionTabs
-            label="Раздел выплат"
-            tabs={PAYMENT_TABS}
-            activeTab={paymentsView}
-            onChange={setPaymentsView}
+            label="Раздел зарплаты"
+            tabs={SALARY_TABS}
+            activeTab={salaryView}
+            onChange={setSalaryView}
           />
-          {paymentsView === 'current' ? (
+          {salaryView === 'current' && (
+            <SalesScreen
+              month={currentMonth}
+              summary={summary}
+              onChange={updateCurrentMonth}
+            />
+          )}
+          {salaryView === 'advances' && (
             <PaymentsScreen
               month={currentMonth}
               summary={summary}
@@ -580,7 +636,8 @@ function App() {
               onClose={closeCurrentMonth}
               onReopen={reopenCurrentMonth}
             />
-          ) : (
+          )}
+          {salaryView === 'history' && (
             <HistoryScreen
               months={months}
               selectedMonthId={currentMonth.id}
@@ -593,6 +650,13 @@ function App() {
           )}
         </section>
       )}
+      {activeTab === 'daily-sales' && (
+        <DailySalesScreen
+          state={dailySalesState}
+          todayIsoDate={getDailySalesLocalIsoDate()}
+          onChange={(updater) => setDailySalesState((current) => updater(current))}
+        />
+      )}
       {activeTab === 'money' && (
         <FinanceScreen
           state={financeState}
@@ -603,7 +667,8 @@ function App() {
           onChangeState={updateFinanceState}
           onOpenSalaryMonth={(monthId) => {
             selectOrCreateMonth(monthId)
-            setActiveTab('home')
+            setSalaryView('current')
+            setActiveTab('salary')
           }}
         />
       )}
@@ -616,7 +681,7 @@ function App() {
           <button
             key={tab.id}
             type="button"
-            className={`${tab.id === activeTab ? 'active' : ''} ${tab.id === 'money' ? 'money-tab' : ''}`}
+            className={`${tab.id === activeTab ? 'active' : ''} ${tab.id === 'money' ? 'money-tab' : ''} ${tab.id === 'daily-sales' ? 'daily-sales-tab' : ''}`}
             aria-current={tab.id === activeTab ? 'page' : undefined}
             onClick={() => setActiveTab(tab.id)}
           >
@@ -1439,10 +1504,12 @@ function RestoreDialog({
           <div><dt>Обязательства</dt><dd>{preview.financeState?.obligations.length ?? 0}</dd></div>
           <div><dt>Фактические остатки</dt><dd>{preview.financeState?.anchors.length ?? 0}</dd></div>
           <div><dt>Регулярные личные расходы</dt><dd>{preview.financeState?.personalExpenses.length ?? 0}</dd></div>
+          <div><dt>Ежедневные продажи</dt><dd>{Object.keys(preview.dailySalesState?.entries ?? {}).length}</dd></div>
         </dl>
         <p>
           Текущие данные будут заменены данными из резервной копии.
           {!preview.financeState && ' Финансовый раздел в этом файле отсутствует и изменён не будет.'}
+          {!preview.dailySalesState && ' Ежедневные продажи в этом файле отсутствуют и изменены не будут.'}
         </p>
         <div className="dialog-actions">
           <button type="button" className="primary-action" onClick={onConfirm}>
@@ -1523,7 +1590,7 @@ function NavIcon({ icon }: { icon: TabIcon }) {
     )
   }
 
-  if (icon === 'sales') {
+  if (icon === 'salary') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 18h16M7 15V9m5 6V6m5 9v-4" />
@@ -1531,10 +1598,11 @@ function NavIcon({ icon }: { icon: TabIcon }) {
     )
   }
 
-  if (icon === 'payments') {
+  if (icon === 'daily-sales') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 7h16v10H4zM7 10h5m5 4h.01" />
+        <path d="M5 18.5 9.5 14l3 2.5L19 9" />
+        <path d="M14 9h5v5" />
       </svg>
     )
   }

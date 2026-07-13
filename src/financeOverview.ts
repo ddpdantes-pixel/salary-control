@@ -57,7 +57,7 @@ export interface FinanceOverviewObligation {
 }
 
 export interface FinanceCoverageSummary {
-  tone: 'neutral' | 'success' | 'warning' | 'danger'
+  tone: 'neutral' | 'success' | 'danger'
   headline: string
   detail: string
 }
@@ -210,11 +210,18 @@ export function buildOverviewOperations(input: {
         title: `Перевод из выплаты ${income.day}-го числа`,
         amountKopecks: plan?.transferToCreditKopecks ?? null,
         direction: 'income',
-        status: existing?.status ?? 'planned',
+        status:
+          linkedIncome.kind === 'resolved'
+            ? existing?.status ?? 'planned'
+            : 'planned',
         source: 'salary',
         category: 'salaryTransfer',
         amountSource: 'salaryLinked',
         salaryField: income.field,
+        scheduledDate: existing?.scheduledDate,
+        actualDate: existing?.actualDate,
+        completedDate: existing?.completedDate,
+        completedAt: existing?.completedAt,
         sortOrder: 100 + income.day,
         note: existing?.note,
         grossIncomeKopecks: linkedIncome.amountKopecks,
@@ -281,14 +288,14 @@ function buildCoverageSummary(
     )
     const clarification = unknownOperation
       ? unknownOperation.source === 'salary'
-        ? 'Не все связанные выплаты доступны в расчётах зарплаты.'
+        ? 'Сумма связанной выплаты пока неизвестна.'
         : getAmountClarificationMessage(unknownOperation)
       : null
 
     return {
-      tone: 'warning',
-      headline: 'Расчёт предварительный',
-      detail: clarification ?? 'Не все будущие суммы пока известны.',
+      tone: 'neutral',
+      headline: 'Остаток пока не рассчитан',
+      detail: clarification ?? 'Уточните неизвестные будущие суммы.',
     }
   }
 

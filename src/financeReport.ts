@@ -1,5 +1,5 @@
 import { formatMoney } from './financeMoney'
-import { formatDateLabel } from './format'
+import { formatDateLabel, formatShortDateLabel } from './format'
 import type { FinanceCalendarItem } from './financeCalendar'
 import type { FinanceOverviewData } from './financeOverview'
 import type { BalanceAnchor } from './financeTypes'
@@ -78,6 +78,12 @@ export function formatFinanceFeedItem(item: FinanceCalendarItem): string[] {
     `📅 ${formatCompactDate(operation.date)} — ${operation.title}`,
     '',
   ]
+  if (item.salaryForecastSourceDate) {
+    lines.push(
+      `Прогноз по выплате ${formatShortDateLabel(item.salaryForecastSourceDate)}`,
+      '',
+    )
+  }
   if (
     operation.status === 'completed' &&
     operation.completedDate &&

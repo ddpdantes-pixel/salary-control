@@ -371,11 +371,10 @@ describe('финансовые расчёты', () => {
       forecastUntilIsoDate: '2026-07-31',
     })
 
-    expect(forecast.forecastBalanceKopecks).toBe(rublesToKopecks(9_000))
-    expect(forecast.timeline.map((item) => item.operation.id)).toEqual([
-      'known-expense',
-    ])
+    expect(forecast.forecastBalanceKopecks).toBe(rublesToKopecks(10_000))
+    expect(forecast.timeline).toEqual([])
     expect(forecast.hasUnknownRequiredAmounts).toBe(true)
+    expect(forecast.coverageStatus).toBe('unknown')
   })
 
   it('просит уточнить сумму, скопированную из прошлого месяца', () => {

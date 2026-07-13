@@ -271,7 +271,7 @@ export function calculateForecastBalance(input: {
 
     if (operation.amountKopecks === null) {
       hasUnknownRequiredAmounts = true
-      continue
+      break
     }
 
     const balanceBeforeKopecks = forecastBalanceKopecks

@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react'
 import { FinanceCalendarScreen } from './FinanceCalendarScreen'
 import { FinanceObligationsScreen } from './FinanceObligationsScreen'
 import { FinanceSettingsScreen } from './FinanceSettingsScreen'
-import { buildFinanceCalendarTimeline } from './financeCalendar'
+import {
+  buildFinanceCalendarTimeline,
+  getFinanceBalanceTone,
+} from './financeCalendar'
 import { getDateYearMonth } from './financeDates'
 import {
   formatDateLabel,
@@ -470,7 +473,11 @@ function NextPaymentCard({
             </strong>
           </div>
           <p className="finance-date">{formatDateLabel(payment.operation.date)}</p>
-          <div className="finance-card-result">
+          <div
+            className={`finance-card-result balance-${getFinanceBalanceTone(
+              payment.balanceAfterKopecks,
+            )}`}
+          >
             <span>После платежа останется</span>
             <b>
               {payment.balanceAfterKopecks === null
@@ -509,6 +516,11 @@ function NextIncomeCard({
             </strong>
           </div>
           <p className="finance-date">{formatDateLabel(income.operation.date)}</p>
+          {income.linkedIncome.kind === 'forecast' && (
+            <p className="finance-forecast-source">
+              {income.linkedIncome.message}
+            </p>
+          )}
           {income.plan ? (
             <dl className="finance-breakdown">
               <div>
@@ -602,6 +614,7 @@ function FinanceReportDialog({
       anchors: state.anchors,
       operations,
       obligations: state.obligations,
+      salaryMonths,
       todayIsoDate,
     })
     const text = buildFinanceReport({
@@ -698,15 +711,6 @@ function CoverageIcon({
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="9" />
         <path d="m8 12 2.6 2.6L16.5 9" />
-      </svg>
-    )
-  }
-
-  if (tone === 'warning') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v6M12 17h.01" />
       </svg>
     )
   }

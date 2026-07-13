@@ -93,7 +93,116 @@ describe('данные финансового обзора', () => {
     expect(overview.nextIncome?.operation.amountKopecks).toBeNull()
     expect(overview.nextIncome?.plan).toBeNull()
     expect(overview.nextIncome?.plan?.shortageKopecks).toBeUndefined()
-    expect(overview.coverage.headline).toBe('Расчёт предварительный')
+    expect(overview.coverage).toMatchObject({
+      tone: 'neutral',
+      headline: 'Остаток пока не рассчитан',
+    })
+    expect(overview.coverage.detail).toBe(
+      'Сумма связанной выплаты пока неизвестна.',
+    )
+  })
+
+  it('использует прогноз виртуально и не добавляет его в FinanceState', () => {
+    const state = createDefaultFinanceState()
+    const storedOperationIds = state.operations.map((operation) => operation.id)
+    const june = createSalaryMonth('2026-06', '2026-06-01T00:00:00.000Z')
+    june.payments.day01 = 6_500
+    const overview = buildFinanceOverview({
+      state,
+      salaryMonths: [june],
+      todayIsoDate: '2026-07-31',
+    })
+
+    expect(overview.nextIncome?.linkedIncome).toMatchObject({
+      kind: 'forecast',
+      amountKopecks: rublesToKopecks(6_500),
+      forecastSourceIncomeDate: '2026-07-01',
+    })
+    expect(overview.nextIncome?.operation.status).toBe('planned')
+    expect(state.operations.map((operation) => operation.id)).toEqual(
+      storedOperationIds,
+    )
+    expect(state.operations).not.toContainEqual(
+      expect.objectContaining({ id: 'salary-transfer-2026-08-01' }),
+    )
+  })
+
+  it('создаёт одну операцию на дату и заменяет в ней прогноз точной суммой', () => {
+    const state = createDefaultFinanceState()
+    const july = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    july.payments.day25 = 12_000
+    const forecastOperations = buildOverviewOperations({
+      state,
+      salaryMonths: [july],
+      todayIsoDate: '2026-08-01',
+      rangeStartDate: '2026-08-01',
+      rangeEndDate: '2026-08-31',
+    })
+    const august = createSalaryMonth('2026-08', '2026-08-01T00:00:00.000Z')
+    august.payments.day25 = 15_000
+    const exactOperations = buildOverviewOperations({
+      state,
+      salaryMonths: [july, august],
+      todayIsoDate: '2026-08-01',
+      rangeStartDate: '2026-08-01',
+      rangeEndDate: '2026-08-31',
+    })
+    const forecast = forecastOperations.filter(
+      (operation) => operation.id === 'salary-transfer-2026-08-25',
+    )
+    const exact = exactOperations.filter(
+      (operation) => operation.id === 'salary-transfer-2026-08-25',
+    )
+
+    expect(forecast).toHaveLength(1)
+    expect(exact).toHaveLength(1)
+    expect(forecast[0].grossIncomeKopecks).toBe(rublesToKopecks(12_000))
+    expect(exact[0].grossIncomeKopecks).toBe(rublesToKopecks(15_000))
+  })
+
+  it('не проводит прогноз как полученную выплату и сохраняет факт в FinanceState', () => {
+    const state = createDefaultFinanceState()
+    const baselineState = structuredClone(state)
+    const completedAt = '2026-08-25T09:30:00.000Z'
+    state.operations.push({
+      id: 'salary-transfer-2026-08-25',
+      date: '2026-08-25',
+      title: 'Перевод из выплаты 25-го числа',
+      amountKopecks: rublesToKopecks(5_000),
+      direction: 'income',
+      status: 'completed',
+      source: 'salary',
+      category: 'salaryTransfer',
+      amountSource: 'salaryLinked',
+      salaryField: 'day25',
+      sortOrder: 125,
+      completedAt,
+      createdAt: completedAt,
+      updatedAt: completedAt,
+    })
+    const storedBefore = structuredClone(state.operations.at(-1))
+    const july = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    july.payments.day25 = 10_500
+    const overview = buildFinanceOverview({
+      state,
+      salaryMonths: [july],
+      todayIsoDate: '2026-08-26',
+    })
+    const baseline = buildFinanceOverview({
+      state: baselineState,
+      salaryMonths: [july],
+      todayIsoDate: '2026-08-26',
+    })
+    const forecastOperation = overview.operations.find(
+      (operation) => operation.id === 'salary-transfer-2026-08-25',
+    )!
+
+    expect(forecastOperation.status).toBe('planned')
+    expect(forecastOperation.completedAt).toBe(completedAt)
+    expect(overview.current.balanceKopecks).toBe(
+      baseline.current.balanceKopecks,
+    )
+    expect(state.operations.at(-1)).toEqual(storedBefore)
   })
 
   it('формирует зелёное состояние, если платежи обеспечены', () => {
@@ -117,11 +226,11 @@ describe('данные финансового обзора', () => {
     const months = createSalaryMonths().map((month) => ({
       ...month,
       salesTotal: 1,
-      programBonus: 0,
+      programBonus: 1,
       payments: {
-        day01: 0,
-        day10: 0,
-        day25: 0,
+        day01: 1,
+        day10: 1,
+        day25: 1,
       },
     }))
 

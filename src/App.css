@@ -176,6 +176,10 @@ button:active {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.section-tabs-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .section-tabs-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -755,6 +759,16 @@ button.danger {
   background: #e7f1fc;
 }
 
+.bottom-nav button.daily-sales-tab.active {
+  color: #a85c00;
+  background: #fff1dc;
+}
+
+.daily-sales-active .save-status.saving {
+  color: #a85c00;
+  background: #fff1dc;
+}
+
 .finance-active .save-status.saving {
   color: #2768ad;
   background: #e7f1fc;
@@ -889,6 +903,12 @@ button.danger {
     padding-left: 2px;
     font-size: 12px;
   }
+
+  .section-tabs-3 button {
+    padding-right: 1px;
+    padding-left: 1px;
+    font-size: 11px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -913,6 +933,7 @@ button.danger {
   }
 
   .bottom-nav button.money-tab.active,
+  .bottom-nav button.daily-sales-tab.active,
   .finance-active .save-status.saving {
     color: #8bc1f3;
     background: #18334e;
