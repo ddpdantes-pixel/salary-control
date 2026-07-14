@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { registerSW } from 'virtual:pwa-register'
-import { createBackupData, parseBackupData } from './backup'
+import {
+  createBackupData,
+  createBackupFileName,
+  parseBackupData,
+} from './backup'
 import {
   calculateArtkeraProgress,
   calculateLaparetProgress,
@@ -58,6 +62,8 @@ import type {
   TabId,
 } from './appNavigation'
 import { HealthScreen } from './HealthScreen'
+import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
+import type { HealthState } from './healthTypes'
 import { DailySalesScreen } from './DailySalesScreen'
 import {
   consumeDailySalesStorageIssues,
@@ -93,6 +99,7 @@ interface RestorePreview {
   selectedMonthId: string | null
   financeState: FinanceState | null
   dailySalesState: DailySalesState | null
+  healthState: HealthState | null
 }
 
 function App() {
@@ -118,6 +125,7 @@ function App() {
     ].join(' '),
   )
   const [pwaMessage, setPwaMessage] = useState<string | null>(null)
+  const [backupMessage, setBackupMessage] = useState('')
   const [updateServiceWorker, setUpdateServiceWorker] =
     useState<UpdateServiceWorker | null>(null)
   const [pendingRestore, setPendingRestore] = useState<RestorePreview | null>(
@@ -370,11 +378,13 @@ function App() {
   }
 
   function downloadBackup(): void {
+    const healthState = loadStoredHealthState().state
     const backup = createBackupData(
       months,
       selectedMonthId,
       financeState,
       dailySalesState,
+      healthState,
     )
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: 'application/json',
@@ -382,11 +392,14 @@ function App() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `kontrol-zarplaty-backup-${new Date().toISOString().slice(0, 10)}.json`
+    link.download = createBackupFileName()
     document.body.append(link)
     link.click()
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    setBackupMessage(
+      'Резервная копия создана. Зарплата, продажи, деньги и здоровье включены. Временные изображения не включены.',
+    )
   }
 
   function openRestorePicker(): void {
@@ -408,6 +421,7 @@ function App() {
           selectedMonthId: parsedBackup.selectedMonthId,
           financeState: parsedBackup.financeState,
           dailySalesState: parsedBackup.dailySalesState,
+          healthState: parsedBackup.healthState,
         })
       })
       .catch((error: unknown) => {
@@ -450,17 +464,24 @@ function App() {
     if (pendingRestore.dailySalesState) {
       setDailySalesState(pendingRestore.dailySalesState)
     }
+    if (pendingRestore.healthState) {
+      saveStoredHealthState(pendingRestore.healthState)
+    }
     setActiveTab('salary')
     setSalaryView('history')
-    setStorageMessage(
-      `Восстановлено месяцев: ${restoredMonths.length}. ${
-        pendingRestore.financeState
-          ? 'Финансовые данные восстановлены.'
-          : 'Финансовые данные не изменялись.'
-      } ${
+    setBackupMessage(
+      `Резервная копия восстановлена. Зарплата: восстановлена. ${
         pendingRestore.dailySalesState
-          ? 'Ежедневные продажи восстановлены.'
-          : 'Ежедневные продажи не изменялись.'
+          ? 'Продажи: восстановлены.'
+          : 'Продажи: в этой копии отсутствовали.'
+      } ${
+        pendingRestore.financeState
+          ? 'Деньги: восстановлены.'
+          : 'Деньги: в этой копии отсутствовали.'
+      } ${
+        pendingRestore.healthState
+          ? 'Здоровье: восстановлено.'
+          : 'Здоровье: в этой копии отсутствовало.'
       }`,
     )
     setPendingRestore(null)
@@ -574,6 +595,13 @@ function App() {
           tone="danger"
           message={storageMessage}
           onDismiss={() => setStorageMessage('')}
+        />
+      )}
+      {backupMessage && (
+        <AppNotice
+          tone="success"
+          message={backupMessage}
+          onDismiss={() => setBackupMessage('')}
         />
       )}
       {pwaMessage && (
@@ -1505,11 +1533,13 @@ function RestoreDialog({
           <div><dt>Фактические остатки</dt><dd>{preview.financeState?.anchors.length ?? 0}</dd></div>
           <div><dt>Регулярные личные расходы</dt><dd>{preview.financeState?.personalExpenses.length ?? 0}</dd></div>
           <div><dt>Ежедневные продажи</dt><dd>{Object.keys(preview.dailySalesState?.entries ?? {}).length}</dd></div>
+          <div><dt>Дни здоровья</dt><dd>{Object.keys(preview.healthState?.entries ?? {}).length}</dd></div>
         </dl>
         <p>
-          Текущие данные будут заменены данными из резервной копии.
+          Зарплатные данные будут заменены данными из резервной копии.
           {!preview.financeState && ' Финансовый раздел в этом файле отсутствует и изменён не будет.'}
           {!preview.dailySalesState && ' Ежедневные продажи в этом файле отсутствуют и изменены не будут.'}
+          {!preview.healthState && ' Данные здоровья в этом файле отсутствуют и изменены не будут.'}
         </p>
         <div className="dialog-actions">
           <button type="button" className="primary-action" onClick={onConfirm}>

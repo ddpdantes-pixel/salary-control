@@ -593,7 +593,11 @@
 
 .daily-sales-dialog-backdrop {
   position: fixed;
-  inset: 0;
+  top: var(--daily-sales-dialog-viewport-offset, 0px);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--daily-sales-dialog-viewport-height, 100dvh);
   z-index: 45;
   display: grid;
   place-items: end center;
@@ -604,9 +608,11 @@
 .daily-sales-dialog {
   display: grid;
   width: min(100%, 430px);
-  max-height: calc(100vh - 32px - env(safe-area-inset-bottom));
+  max-height: calc(var(--daily-sales-dialog-viewport-height, 100dvh) - 32px - env(safe-area-inset-bottom));
   gap: 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   border-radius: var(--radius);
   padding: 17px;
   background: var(--surface);

@@ -4,6 +4,9 @@ import type { FinanceState } from './financeTypes'
 import type { SalaryMonth } from './types'
 import { normalizeDailySalesState } from './dailySalesStorage'
 import type { DailySalesState } from './dailySalesTypes'
+import { APP_NAME } from './appNavigation'
+import { migrateHealthState } from './healthStorage'
+import type { HealthState } from './healthTypes'
 
 const BACKUP_APP_ID = 'kontrol-zarplaty'
 const BACKUP_STRUCTURE_VERSION = 5
@@ -11,6 +14,8 @@ const SUPPORTED_BACKUP_VERSIONS = new Set([2, 3, 4, BACKUP_STRUCTURE_VERSION])
 
 export interface BackupData {
   app: typeof BACKUP_APP_ID
+  appName: typeof APP_NAME
+  schemaVersion: typeof BACKUP_STRUCTURE_VERSION
   structureVersion: typeof BACKUP_STRUCTURE_VERSION
   createdAt: string
   months: SalaryMonth[]
@@ -19,6 +24,7 @@ export interface BackupData {
   }
   financeState?: FinanceState
   dailySalesState?: DailySalesState
+  healthState?: HealthState
 }
 
 export interface ParsedBackup {
@@ -27,6 +33,7 @@ export interface ParsedBackup {
   selectedMonthId: string | null
   financeState: FinanceState | null
   dailySalesState: DailySalesState | null
+  healthState: HealthState | null
 }
 
 export function createBackupData(
@@ -34,9 +41,12 @@ export function createBackupData(
   selectedMonthId: string | null,
   financeState?: FinanceState | null,
   dailySalesState?: DailySalesState | null,
+  healthState?: HealthState | null,
 ): BackupData {
   return {
     app: BACKUP_APP_ID,
+    appName: APP_NAME,
+    schemaVersion: BACKUP_STRUCTURE_VERSION,
     structureVersion: BACKUP_STRUCTURE_VERSION,
     createdAt: new Date().toISOString(),
     months: sortMonthsDesc(months),
@@ -45,7 +55,15 @@ export function createBackupData(
     },
     ...(financeState ? { financeState } : {}),
     ...(dailySalesState ? { dailySalesState } : {}),
+    ...(healthState ? { healthState } : {}),
   }
+}
+
+export function createBackupFileName(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `moi-ritm-backup-${year}-${month}-${day}.json`
 }
 
 export function parseBackupData(text: string): ParsedBackup {
@@ -93,6 +111,10 @@ export function parseBackupData(text: string): ParsedBackup {
     parsed.dailySalesState === undefined
       ? null
       : normalizeDailySalesState(parsed.dailySalesState)
+  const healthState =
+    parsed.healthState === undefined
+      ? null
+      : normalizeHealthState(parsed.healthState)
 
   if (parsed.financeState !== undefined && financeState === null) {
     throw new Error('В резервной копии повреждены финансовые данные.')
@@ -100,6 +122,10 @@ export function parseBackupData(text: string): ParsedBackup {
 
   if (parsed.dailySalesState !== undefined && dailySalesState === null) {
     throw new Error('В резервной копии повреждены данные ежедневных продаж.')
+  }
+
+  if (parsed.healthState !== undefined && healthState === null) {
+    throw new Error('В резервной копии повреждены данные здоровья.')
   }
 
   return {
@@ -111,6 +137,15 @@ export function parseBackupData(text: string): ParsedBackup {
     selectedMonthId,
     financeState,
     dailySalesState,
+    healthState,
+  }
+}
+
+function normalizeHealthState(value: unknown): HealthState | null {
+  try {
+    return migrateHealthState(value)
+  } catch {
+    return null
   }
 }
 

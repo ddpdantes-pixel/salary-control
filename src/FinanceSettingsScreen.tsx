@@ -24,7 +24,7 @@ export function FinanceSettingsScreen({
   return (
     <section className="finance-settings-workspace">
       <header className="finance-section-heading">
-        <p className="finance-kicker">Настройки</p>
+        <p className="finance-kicker">Расходы</p>
         <h2>Регулярные личные расходы</h2>
       </header>
 

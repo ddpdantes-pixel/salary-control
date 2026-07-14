@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { createSalaryMonth } from './calculations'
-import { createBackupData, parseBackupData } from './backup'
+import {
+  createBackupData,
+  createBackupFileName,
+  parseBackupData,
+} from './backup'
 import { createDefaultFinanceState } from './financeDefaults'
 import { rublesToKopecks } from './financeMoney'
 import { setFinanceOperationStatus } from './financeObligations'
 import { createDefaultDailySalesState } from './dailySalesStorage'
+import { createEmptyHealthState, createHealthEntry } from './healthModel'
 
 describe('резервная копия', () => {
   it('сохраняет версию структуры, дату, месяцы и настройки', () => {
@@ -12,9 +17,20 @@ describe('резервная копия', () => {
     const backup = createBackupData([month], month.id)
 
     expect(backup.structureVersion).toBe(5)
+    expect(backup.schemaVersion).toBe(5)
+    expect(backup.appName).toBe('Мой ритм')
     expect(backup.createdAt).toEqual(expect.any(String))
     expect(backup.months).toHaveLength(1)
     expect(backup.settings.selectedMonthId).toBe('2026-07')
+  })
+
+  it('создаёт имя файла «Мой ритм» по локальной дате', () => {
+    const localDate = new Date(2026, 6, 14, 23, 30)
+
+    expect(createBackupFileName(localDate)).toBe(
+      'moi-ritm-backup-2026-07-14.json',
+    )
+    expect(createBackupFileName(localDate)).not.toContain('kontrol-zarplaty')
   })
 
   it('читает корректную резервную копию', () => {
@@ -159,6 +175,116 @@ describe('резервная копия', () => {
     expect(JSON.stringify(backup)).not.toContain('imageData')
   })
 
+  it('полностью восстанавливает все пользовательские разделы без временных изображений и дубликатов', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    Object.assign(month, {
+      isClosed: true,
+      closedAt: '2026-08-10T12:00:00.000Z',
+      salary: 45_000,
+      salesTotal: 870_000,
+      salesArtkera: 300_000,
+      salesLaparet: 250_000,
+      programBonus: 12_000,
+      payments: { day25: 18_000, day01: 20_000, day10: 15_000 },
+    })
+
+    const dailySalesState = createDefaultDailySalesState()
+    dailySalesState.settings.monthlyPlanKopecks = 8_700_000
+    dailySalesState.settings.cycleAnchorDate = '2026-07-01'
+    dailySalesState.dayOverrides['2026-07-03'] = 'rest'
+    dailySalesState.dayOverrides['2026-07-04'] = 'work'
+    dailySalesState.entries['2026-07-04'] = {
+      date: '2026-07-04',
+      amountKopecks: 345_600,
+      note: 'Продажа с заметкой',
+      createdAt: '2026-07-04T10:00:00.000Z',
+      updatedAt: '2026-07-04T10:00:00.000Z',
+    }
+
+    const financeState = createDefaultFinanceState('2026-07-14T10:00:00.000Z')
+    financeState.anchors[0].balanceKopecks = rublesToKopecks('12 345,67')
+    financeState.settings.forecastDays = 120
+    financeState.obligations[0].status = 'closed'
+    financeState.personalExpenses[0].monthOverrides.push({
+      monthId: '2026-08',
+      amountKopecks: rublesToKopecks(31_000),
+      createdAt: '2026-07-14T10:00:00.000Z',
+    })
+
+    const healthState = createEmptyHealthState()
+    healthState.entries['2026-07-14'] = {
+      ...createHealthEntry('2026-07-14', '2026-07-14T20:00:00.000Z'),
+      waterCups: 6,
+      coffeeCups: 2,
+      psyllium: true,
+      fruit: true,
+      toiletWithoutStraining: true,
+      morningSquats: true,
+      selectedWorkouts: [{
+        workoutId: 'lera-full-body-20',
+        completedDate: '2026-07-14',
+        plannedDay: 'monday',
+      }],
+      workoutWellbeing: true,
+      relaxation: {
+        ninetyNinety: true,
+        childPose: true,
+        butterfly: true,
+        figureFour: true,
+      },
+      bloating: 2,
+      urges: 0.5,
+      bristolType: 4,
+      shampoo: true,
+      minoxidil: true,
+      scalpNotes: ['itching'],
+      alcoholChoice: 'beer',
+      beerAmountChoice: '2',
+      alcoholAmount: '2',
+      completed: true,
+      updatedAt: '2026-07-14T21:00:00.000Z',
+    }
+
+    const backup = createBackupData(
+      [month],
+      month.id,
+      financeState,
+      dailySalesState,
+      healthState,
+    )
+    const json = JSON.stringify(backup)
+    const restored = parseBackupData(json)
+    const restoredAgain = parseBackupData(json)
+
+    expect(restored.months).toEqual([month])
+    expect(restored.financeState).toMatchObject({
+      schemaVersion: financeState.schemaVersion,
+      settings: financeState.settings,
+      anchors: [{ balanceKopecks: rublesToKopecks('12 345,67') }],
+    })
+    expect(restored.financeState?.operations).toHaveLength(
+      financeState.operations.length,
+    )
+    expect(restored.financeState?.operations.map((item) => item.id)).toEqual(
+      financeState.operations.map((item) => item.id),
+    )
+    expect(restored.financeState?.obligations).toHaveLength(
+      financeState.obligations.length,
+    )
+    expect(restored.financeState?.obligations[0]).toMatchObject({
+      status: 'closed',
+      closedAt: expect.any(String),
+    })
+    expect(restored.financeState?.personalExpenses[0].monthOverrides).toEqual(
+      financeState.personalExpenses[0].monthOverrides,
+    )
+    expect(restored.dailySalesState).toEqual(dailySalesState)
+    expect(restored.healthState).toEqual(healthState)
+    expect(restoredAgain).toEqual(restored)
+    expect(restored.months).toHaveLength(1)
+    expect(json).not.toMatch(/attachments|imageData|private-image|Blob|\.png/i)
+  })
+
   it.each([2, 3, 4])(
     'читает старую резервную копию версии %s без ежедневных продаж',
     (structureVersion) => {
@@ -172,6 +298,7 @@ describe('резервная копия', () => {
       const restored = parseBackupData(JSON.stringify(backup))
 
       expect(restored.dailySalesState).toBeNull()
+      expect(restored.healthState).toBeNull()
       expect(restored.months).toHaveLength(1)
     },
   )
@@ -185,6 +312,18 @@ describe('резервная копия', () => {
 
     expect(() => parseBackupData(JSON.stringify(backup))).toThrow(
       'В резервной копии повреждены данные ежедневных продаж.',
+    )
+  })
+
+  it('отклоняет повреждённый блок здоровья', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const backup = {
+      ...createBackupData([month], month.id),
+      healthState: { schemaVersion: 999 },
+    }
+
+    expect(() => parseBackupData(JSON.stringify(backup))).toThrow(
+      'В резервной копии повреждены данные здоровья.',
     )
   })
 

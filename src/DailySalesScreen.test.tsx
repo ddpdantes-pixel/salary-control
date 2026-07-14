@@ -65,6 +65,26 @@ describe('экран независимых ежедневных продаж', 
     expect(screen.getAllByText('1 234,56 ₽').length).toBeGreaterThan(0)
   })
 
+  it('держит мобильную форму в видимой области и полностью снимает scroll lock', async () => {
+    const user = userEvent.setup()
+    render(<TestScreen />)
+
+    await user.click(screen.getAllByRole('button', { name: /Добавить продажу/ })[0])
+
+    const amount = screen.getByLabelText('Сумма продажи') as HTMLInputElement
+    const backdrop = screen.getByRole('dialog').parentElement!
+    expect(amount.inputMode).toBe('decimal')
+    expect(document.activeElement).not.toBe(amount)
+    expect(document.body.style.overflow).toBe('hidden')
+    expect(backdrop.style.getPropertyValue('--daily-sales-dialog-viewport-height')).toBe(
+      `${window.innerHeight}px`,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Отмена' }))
+
+    expect(document.body.style.overflow).toBe('')
+  })
+
   it('изменяет и удаляет ежедневную продажу', async () => {
     const user = userEvent.setup()
     let latestState = createDefaultDailySalesState()

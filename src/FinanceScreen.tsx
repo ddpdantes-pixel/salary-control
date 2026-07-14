@@ -29,7 +29,7 @@ const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string }> = [
   { id: 'overview', label: 'Обзор' },
   { id: 'calendar', label: 'Календарь' },
   { id: 'obligations', label: 'Обязательства' },
-  { id: 'settings', label: 'Настройки' },
+  { id: 'settings', label: 'Расходы' },
 ]
 
 const ANCHOR_EXPLANATION =

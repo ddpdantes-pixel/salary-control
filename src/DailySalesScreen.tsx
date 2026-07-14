@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   addMonths,
   buildDailySalesWorkBlocks,
@@ -326,6 +326,7 @@ function DailySaleDialog({
   onChange: (updater: (state: DailySalesState) => DailySalesState) => void
   onClose: () => void
 }) {
+  const backdropRef = useRef<HTMLDivElement>(null)
   const entry = state.entries[date]
   const [amountText, setAmountText] = useState(() =>
     entry ? formatAmountInput(entry.amountKopecks) : '',
@@ -335,6 +336,34 @@ function DailySaleDialog({
     state.dayOverrides[date] ?? 'automatic',
   )
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const viewport = window.visualViewport
+    const updateViewport = () => {
+      const backdrop = backdropRef.current
+      if (!backdrop) return
+      backdrop.style.setProperty(
+        '--daily-sales-dialog-viewport-height',
+        `${viewport?.height ?? window.innerHeight}px`,
+      )
+      backdrop.style.setProperty(
+        '--daily-sales-dialog-viewport-offset',
+        `${viewport?.offsetTop ?? 0}px`,
+      )
+    }
+
+    updateViewport()
+    viewport?.addEventListener('resize', updateViewport)
+    viewport?.addEventListener('scroll', updateViewport)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      viewport?.removeEventListener('resize', updateViewport)
+      viewport?.removeEventListener('scroll', updateViewport)
+    }
+  }, [])
 
   function save(): void {
     const amountKopecks = amountText.trim() === '' ? 0 : parseMoneyInput(amountText)
@@ -381,7 +410,11 @@ function DailySaleDialog({
   }
 
   return (
-    <div className="daily-sales-dialog-backdrop" role="presentation">
+    <div
+      ref={backdropRef}
+      className="daily-sales-dialog-backdrop"
+      role="presentation"
+    >
       <section
         className="daily-sales-dialog"
         role="dialog"
@@ -399,7 +432,6 @@ function DailySaleDialog({
         <label>
           <span>Сумма продажи</span>
           <input
-            autoFocus
             type="text"
             inputMode="decimal"
             value={amountText}

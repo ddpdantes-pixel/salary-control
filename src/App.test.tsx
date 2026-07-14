@@ -13,9 +13,14 @@ import {
 } from './storage'
 import { createDefaultFinanceState } from './financeDefaults'
 import { saveStoredFinanceState } from './financeStorage'
-import { createEmptyHealthState } from './healthModel'
+import { createEmptyHealthState, createHealthEntry } from './healthModel'
 import { HEALTH_STATE_KEY, saveStoredHealthState } from './healthStorage'
-import { DAILY_SALES_STATE_KEY } from './dailySalesStorage'
+import {
+  DAILY_SALES_STATE_KEY,
+  createDefaultDailySalesState,
+  saveStoredDailySalesState,
+} from './dailySalesStorage'
+import { createBackupData } from './backup'
 
 vi.mock('virtual:pwa-register', () => ({
   registerSW: vi.fn(() => vi.fn()),
@@ -187,5 +192,72 @@ describe('оболочка приложения', () => {
       window.localStorage.getItem('kontrol-zarplaty.finance-state.v1'),
     ).toBe(financeBefore)
     expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toBe(healthBefore)
+  })
+
+  it('показывает понятное подтверждение создания полной резервной копии', async () => {
+    const user = userEvent.setup()
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:backup'),
+      revokeObjectURL: vi.fn(),
+    })
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Зарплата' }))
+    await user.click(screen.getByRole('tab', { name: 'История' }))
+    await user.click(screen.getByRole('button', { name: 'Скачать резервную копию' }))
+
+    expect(clickSpy).toHaveBeenCalledOnce()
+    expect(screen.getByText(/Резервная копия создана/)).not.toBeNull()
+    expect(screen.getByText(/Зарплата, продажи, деньги и здоровье включены/)).not.toBeNull()
+    expect(screen.getByText(/Временные изображения не включены/)).not.toBeNull()
+  })
+
+  it('восстанавливает старую копию с отчётом и не удаляет отсутствующие продажи и здоровье', async () => {
+    const user = userEvent.setup()
+    const currentSales = createDefaultDailySalesState()
+    currentSales.entries['2026-07-14'] = {
+      date: '2026-07-14',
+      amountKopecks: 123_400,
+      note: 'Сохранить при старом импорте',
+      createdAt: '2026-07-14T10:00:00.000Z',
+      updatedAt: '2026-07-14T10:00:00.000Z',
+    }
+    saveStoredDailySalesState(currentSales)
+    const currentHealth = createEmptyHealthState()
+    currentHealth.entries['2026-07-14'] = {
+      ...createHealthEntry('2026-07-14'),
+      waterCups: 6,
+    }
+    saveStoredHealthState(currentHealth)
+
+    const legacyMonth = createSalaryMonth('2026-06', '2026-06-01T00:00:00.000Z')
+    const legacyBackup = {
+      ...createBackupData([legacyMonth], legacyMonth.id),
+      structureVersion: 4,
+    }
+    delete (legacyBackup as { dailySalesState?: unknown }).dailySalesState
+    delete (legacyBackup as { healthState?: unknown }).healthState
+
+    render(<App />)
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(
+      fileInput,
+      new File([JSON.stringify(legacyBackup)], 'legacy.json', {
+        type: 'application/json',
+      }),
+    )
+    await user.click(await screen.findByRole('button', { name: 'Восстановить' }))
+
+    expect(screen.getByText(/Резервная копия восстановлена/)).not.toBeNull()
+    expect(screen.getByText(/Продажи: в этой копии отсутствовали/)).not.toBeNull()
+    expect(screen.getByText(/Здоровье: в этой копии отсутствовало/)).not.toBeNull()
+    expect(window.localStorage.getItem(DAILY_SALES_STATE_KEY)).toContain(
+      'Сохранить при старом импорте',
+    )
+    expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"waterCups":6')
   })
 })
