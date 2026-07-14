@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-const globalCss = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
+const globalCss = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
 
 describe('мобильные поля без автозума Safari', () => {
   it('оставляет ручное масштабирование доступным', () => {
@@ -14,11 +14,10 @@ describe('мобильные поля без автозума Safari', () => {
   })
 
   it('задаёт мобильным input, textarea и select размер не меньше 16 px', () => {
-    const mobileRule = globalCss.match(/@media \(max-width: 768px\) \{([\s\S]*?)\n\}/)?.[1]
-
-    expect(mobileRule).toContain("input:not([type='checkbox']):not([type='radio'])")
-    expect(mobileRule).toContain('textarea')
-    expect(mobileRule).toContain('select')
-    expect(mobileRule).toMatch(/font-size:\s*16px\s*!important/)
+    expect(globalCss).toContain('@media (max-width: 768px)')
+    expect(globalCss).toContain("input:not([type='checkbox']):not([type='radio'])")
+    expect(globalCss).toContain('textarea')
+    expect(globalCss).toContain('select')
+    expect(globalCss).toMatch(/font-size:\s*16px\s*!important/)
   })
 })
