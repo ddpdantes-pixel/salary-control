@@ -1,5 +1,6 @@
 import { buildHealthChecklistText } from './healthExport'
 import type { HealthEntry } from './healthTypes'
+import { DEFAULT_HEALTH_SETTINGS, type HealthSettings } from './healthSettings'
 
 export const HEALTH_CHECKLIST_IMAGE_WIDTH = 1200
 
@@ -77,8 +78,9 @@ export function layoutHealthChecklistText(
 export function createHealthChecklistImage(
   entry: HealthEntry,
   canvasFactory: CanvasFactory = () => document.createElement('canvas'),
+  settings: HealthSettings = DEFAULT_HEALTH_SETTINGS,
 ): File {
-  const text = buildHealthChecklistText(entry)
+  const text = buildHealthChecklistText(entry, settings)
   const canvas = canvasFactory()
   canvas.width = HEALTH_CHECKLIST_IMAGE_WIDTH
 

@@ -205,6 +205,12 @@ button:active {
   box-shadow: var(--shadow-soft);
 }
 
+.salary-section-tabs button {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .month-switcher {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -306,7 +312,6 @@ button:active {
 }
 
 .month-meta-card div,
-.info-card,
 .summary-card,
 .form-card,
 .money-field,
@@ -323,8 +328,7 @@ button:active {
   padding: 12px;
 }
 
-.month-meta-card span,
-.info-card span {
+.month-meta-card span {
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
@@ -335,41 +339,6 @@ button:active {
   font-size: 15px;
   font-weight: 700;
   overflow-wrap: anywhere;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.info-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 10px;
-  min-width: 0;
-  padding: 14px;
-}
-
-.info-card i {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  grid-row: span 2;
-  place-items: center;
-  border-radius: 999px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-style: normal;
-  font-weight: 760;
-}
-
-.info-card strong {
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-  font-size: clamp(20px, 5vw, 25px);
-  font-weight: 740;
-  line-height: 1.08;
 }
 
 .money-field {
@@ -714,7 +683,7 @@ button.danger {
   left: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
   max-width: 780px;
   margin: 0 auto;
@@ -757,11 +726,6 @@ button.danger {
 .bottom-nav button.money-tab.active {
   color: #2768ad;
   background: #e7f1fc;
-}
-
-.bottom-nav button.daily-sales-tab.active {
-  color: #a85c00;
-  background: #fff1dc;
 }
 
 .daily-sales-active .save-status.saving {
@@ -878,10 +842,6 @@ button.danger {
 }
 
 @media (max-width: 340px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-
   .hero-total {
     padding: 18px;
   }
@@ -911,6 +871,12 @@ button.danger {
   }
 }
 
+@media (max-width: 400px) {
+  .salary-section-tabs.section-tabs-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .hero-total {
     color: var(--text-primary);
@@ -933,7 +899,6 @@ button.danger {
   }
 
   .bottom-nav button.money-tab.active,
-  .bottom-nav button.daily-sales-tab.active,
   .finance-active .save-status.saving {
     color: #8bc1f3;
     background: #18334e;

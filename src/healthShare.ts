@@ -2,6 +2,7 @@ import { buildHealthChecklistText } from './healthExport'
 import { createHealthChecklistImage } from './healthChecklistImage'
 import type { HealthAttachment } from './healthAttachments'
 import type { HealthEntry } from './healthTypes'
+import { DEFAULT_HEALTH_SETTINGS, type HealthSettings } from './healthSettings'
 
 export type HealthShareStatus = 'shared' | 'fallback' | 'cancelled' | 'error'
 
@@ -21,8 +22,11 @@ export function createHealthShareFiles(
   entry: HealthEntry,
   attachments: HealthAttachment[],
   createChecklistImage: (entry: HealthEntry) => File = createHealthChecklistImage,
+  settings: HealthSettings = DEFAULT_HEALTH_SETTINGS,
 ): File[] {
-  const checklistImage = createChecklistImage(entry)
+  const checklistImage = createChecklistImage === createHealthChecklistImage
+    ? createHealthChecklistImage(entry, undefined, settings)
+    : createChecklistImage(entry)
   return [
     checklistImage,
     ...attachments.map(
@@ -41,6 +45,7 @@ export function createHealthShareFiles(
 
 export function shareHealthReport({
   entry,
+  settings = DEFAULT_HEALTH_SETTINGS,
   attachments,
   deleteAttachments,
   navigatorLike = navigator,
@@ -49,13 +54,14 @@ export function shareHealthReport({
     copyTextForPreparation(text, navigatorLike.clipboard),
 }: {
   entry: HealthEntry
+  settings?: HealthSettings
   attachments: HealthAttachment[]
   deleteAttachments: () => Promise<void>
   navigatorLike?: ShareNavigator
   createChecklistImage?: (entry: HealthEntry) => File
   copyTextImmediately?: (text: string) => boolean | Promise<boolean>
 }): Promise<HealthShareResult> {
-  const checklistText = buildHealthChecklistText(entry)
+  const checklistText = buildHealthChecklistText(entry, settings)
   const copyResult = copyTextImmediately(checklistText)
   if (copyResult === false) {
     return Promise.resolve({
@@ -66,7 +72,7 @@ export function shareHealthReport({
 
   let files: File[]
   try {
-    files = createHealthShareFiles(entry, attachments, createChecklistImage)
+    files = createHealthShareFiles(entry, attachments, createChecklistImage, settings)
   } catch {
     return resolveCopyResult(copyResult).then((copied) =>
       copied

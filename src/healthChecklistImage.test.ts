@@ -8,6 +8,7 @@ import {
   layoutHealthChecklistText,
 } from './healthChecklistImage'
 import { WORKOUTS, createHealthEntry } from './healthModel'
+import { createDefaultHealthSettings } from './healthSettings'
 
 describe('PNG ежедневного чек-листа', () => {
   it('синхронно создаёт PNG шириной 1200 px с русским текстом отчёта', () => {
@@ -46,6 +47,18 @@ describe('PNG ежедневного чек-листа', () => {
     expect(drawnText).toContain('Распирание: 0')
     expect(drawnText).not.toContain('Распирание: 0/5')
     expect(drawnText).toContain('Позывы: 0,5')
+  })
+
+  it('рисует PNG с действующими настройками, а не с жёсткими целями', () => {
+    const { canvas, drawnText } = makeCanvas()
+    const settings = createDefaultHealthSettings()
+    settings.water = { goalCups: 7, cupVolumeMl: 250 }
+    settings.quickItems.squatsRepetitions = 20
+
+    createHealthChecklistImage(createHealthEntry('2026-07-12'), () => canvas, settings)
+
+    expect(drawnText.join(' ')).toContain('Вода: 0 / 7')
+    expect(drawnText.join(' ')).toContain('Приседания утром 20')
   })
 
   it('не обращается к IndexedDB при создании временного PNG', () => {
@@ -97,6 +110,25 @@ describe('PNG ежедневного чек-листа', () => {
     const lastLine = longLayout.lines.at(-1)
     expect(lastLine).toBeDefined()
     expect(lastLine!.y + lastLine!.lineHeight).toBeLessThanOrEqual(longLayout.height - 84)
+  })
+
+  it('включает обучение после алкоголя и не обрезает длинную заметку', () => {
+    const entry = createHealthEntry('2026-07-12')
+    entry.alcoholChoice = 'nonAlcoholic'
+    entry.nonAlcoholicQuantity = 2
+    entry.learning.speech = {
+      status: 'done',
+      activityType: 'session',
+      number: 5,
+      note: 'Diktum, длинная запись для проверки переноса текста на следующую строку без обрезки последней части заметки',
+    }
+    const text = buildHealthChecklistText(entry)
+    const layout = layoutHealthChecklistText(text, makeMeasuringContext())
+    expect(text.indexOf('Обучение:')).toBeGreaterThan(text.indexOf('Алкоголь:'))
+    expect(layout.sourceText).toContain('Алкоголь: безалкогольное, 2 шт.')
+    expect(layout.sourceText).toContain('Речь и дикция: занятие №5')
+    expect(layout.lines.at(-1)!.y + layout.lines.at(-1)!.lineHeight)
+      .toBeLessThanOrEqual(layout.height - 84)
   })
 })
 

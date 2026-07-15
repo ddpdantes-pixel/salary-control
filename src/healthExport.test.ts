@@ -68,12 +68,30 @@ describe('копирование ежедневного чек-листа', () =
 
     const text = buildHealthChecklistText(entry)
 
-    expect(text).toContain('Что пил: Безалкогольное')
+    expect(text).toContain('Алкоголь: безалкогольное')
     expect(text).not.toContain('Банку заменил')
     expect(text).not.toContain('Чем заменил')
     expect(text).not.toContain('Оценка вечера')
     expect(text).not.toContain('Количество')
     expect(text).not.toContain('Причины:')
+  })
+
+  it('выводит количество безалкогольного и обучение, но не пустые направления', () => {
+    const entry = createHealthEntry('2026-07-11')
+    entry.alcoholChoice = 'nonAlcoholic'
+    entry.nonAlcoholicQuantity = 2
+    entry.learning.speech = { status: 'done', activityType: 'session', number: 5, note: 'Diktum' }
+    entry.learning.cavist = { status: 'done', activityType: 'practice', number: 7, note: '' }
+    entry.learning.porcelain.status = 'not_done'
+    const text = buildHealthChecklistText(entry)
+    expect(text).toContain('Алкоголь: безалкогольное, 2 шт.')
+    expect(text).toContain('Речь и дикция: занятие №5 — Diktum')
+    expect(text).toContain('Кавист: практика №7')
+    expect(text).toContain('Керамогранит: не занимался')
+  })
+
+  it('не выводит пустой блок обучения', () => {
+    expect(buildHealthChecklistText(createHealthEntry('2026-07-11'))).not.toContain('Обучение:')
   })
 
   it('для алкогольного выбора экспортирует только количество и выбранные причины', () => {

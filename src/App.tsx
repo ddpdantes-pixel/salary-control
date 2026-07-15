@@ -54,6 +54,7 @@ import {
   APP_NAME,
   SALARY_TABS,
   TABS,
+  getAppTabTarget,
   getHistoryMonthOpenTarget,
 } from './appNavigation'
 import type {
@@ -64,6 +65,12 @@ import type {
 import { HealthScreen } from './HealthScreen'
 import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
 import type { HealthState } from './healthTypes'
+import {
+  createDefaultHealthSettings,
+  loadStoredHealthSettings,
+  saveStoredHealthSettings,
+  type HealthSettings,
+} from './healthSettings'
 import { DailySalesScreen } from './DailySalesScreen'
 import {
   consumeDailySalesStorageIssues,
@@ -79,11 +86,6 @@ type UpdateServiceWorker = (reloadPage?: boolean) => Promise<void>
 
 const SAVE_DELAY_MS = 400
 const OFFLINE_READY_MESSAGE = 'Приложение готово к работе без интернета.'
-const PLAN_LEVELS = [
-  { threshold: 1_000_000, bonus: 5_000 },
-  { threshold: 2_000_000, bonus: 7_000 },
-  { threshold: 3_000_000, bonus: 10_000 },
-]
 const PRODUCT_GROUP_THRESHOLD = 750_000
 
 interface InitialState {
@@ -100,6 +102,7 @@ interface RestorePreview {
   financeState: FinanceState | null
   dailySalesState: DailySalesState | null
   healthState: HealthState | null
+  healthSettings: HealthSettings | null
 }
 
 function App() {
@@ -131,6 +134,8 @@ function App() {
   const [pendingRestore, setPendingRestore] = useState<RestorePreview | null>(
     null,
   )
+  const [healthSettingsDirty, setHealthSettingsDirty] = useState(false)
+  const [pendingAppTab, setPendingAppTab] = useState<TabId | null>(null)
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
   const financeDidMountRef = useRef(false)
@@ -379,12 +384,14 @@ function App() {
 
   function downloadBackup(): void {
     const healthState = loadStoredHealthState().state
+    const healthSettings = loadStoredHealthSettings()
     const backup = createBackupData(
       months,
       selectedMonthId,
       financeState,
       dailySalesState,
       healthState,
+      healthSettings,
     )
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: 'application/json',
@@ -422,6 +429,7 @@ function App() {
           financeState: parsedBackup.financeState,
           dailySalesState: parsedBackup.dailySalesState,
           healthState: parsedBackup.healthState,
+          healthSettings: parsedBackup.healthSettings,
         })
       })
       .catch((error: unknown) => {
@@ -467,6 +475,9 @@ function App() {
     if (pendingRestore.healthState) {
       saveStoredHealthState(pendingRestore.healthState)
     }
+    saveStoredHealthSettings(
+      pendingRestore.healthSettings ?? createDefaultHealthSettings(),
+    )
     setActiveTab('salary')
     setSalaryView('history')
     setBackupMessage(
@@ -556,8 +567,21 @@ function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
+  function openAppTab(tabId: TabId): void {
+    if (activeTab === 'health' && healthSettingsDirty && tabId !== 'health') {
+      setPendingAppTab(tabId)
+      return
+    }
+    const target = getAppTabTarget(tabId)
+    setActiveTab(target.activeTab)
+    if (target.salaryView) setSalaryView(target.salaryView)
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+
+  const dailySalesActive = activeTab === 'salary' && salaryView === 'sales'
+
   return (
-    <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''} ${activeTab === 'daily-sales' ? 'daily-sales-active' : ''}`}>
+    <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''} ${dailySalesActive ? 'daily-sales-active' : ''}`}>
       <header className="top-bar">
         <div>
           <p className="eyebrow">
@@ -565,7 +589,7 @@ function App() {
               ? 'Личные финансы'
               : activeTab === 'health'
                 ? 'Ежедневный контроль'
-                : activeTab === 'daily-sales'
+                : dailySalesActive
                   ? 'Личный контроль'
                 : APP_NAME}
           </p>
@@ -574,9 +598,11 @@ function App() {
               ? 'Деньги'
               : activeTab === 'health'
                 ? 'Здоровье'
-                : activeTab === 'daily-sales'
+                : dailySalesActive
                   ? 'Продажи'
-              : formatMonthLabel(currentMonth.salesMonth)}
+                  : activeTab === 'home'
+                    ? 'Главное'
+                    : formatMonthLabel(currentMonth.salesMonth)}
           </h1>
         </div>
         {activeTab !== 'health' && (
@@ -631,7 +657,6 @@ function App() {
         <HomeScreen
           month={currentMonth}
           summary={summary}
-          previousMonth={findPreviousCalendarMonth(months, currentMonth.salesMonth)}
           onMonthChange={selectOrCreateMonth}
           onShiftMonth={(offset) =>
             selectOrCreateMonth(
@@ -648,14 +673,15 @@ function App() {
             activeTab={salaryView}
             onChange={setSalaryView}
           />
-          {salaryView === 'current' && (
+          <div role="tabpanel" aria-label="Реализация" hidden={salaryView !== 'current'}>
             <SalesScreen
               month={currentMonth}
               summary={summary}
+              previousMonth={findPreviousCalendarMonth(months, currentMonth.salesMonth)}
               onChange={updateCurrentMonth}
             />
-          )}
-          {salaryView === 'advances' && (
+          </div>
+          <div role="tabpanel" aria-label="Авансы" hidden={salaryView !== 'advances'}>
             <PaymentsScreen
               month={currentMonth}
               summary={summary}
@@ -664,8 +690,15 @@ function App() {
               onClose={closeCurrentMonth}
               onReopen={reopenCurrentMonth}
             />
-          )}
-          {salaryView === 'history' && (
+          </div>
+          <div role="tabpanel" aria-label="Продажи" hidden={salaryView !== 'sales'}>
+            <DailySalesScreen
+              state={dailySalesState}
+              todayIsoDate={getDailySalesLocalIsoDate()}
+              onChange={(updater) => setDailySalesState((current) => updater(current))}
+            />
+          </div>
+          <div role="tabpanel" aria-label="История" hidden={salaryView !== 'history'}>
             <HistoryScreen
               months={months}
               selectedMonthId={currentMonth.id}
@@ -675,15 +708,8 @@ function App() {
               onRestoreRequest={openRestorePicker}
               onOpen={openMonthFromHistory}
             />
-          )}
+          </div>
         </section>
-      )}
-      {activeTab === 'daily-sales' && (
-        <DailySalesScreen
-          state={dailySalesState}
-          todayIsoDate={getDailySalesLocalIsoDate()}
-          onChange={(updater) => setDailySalesState((current) => updater(current))}
-        />
       )}
       {activeTab === 'money' && (
         <FinanceScreen
@@ -701,7 +727,7 @@ function App() {
         />
       )}
       {activeTab === 'health' && (
-        <HealthScreen />
+        <HealthScreen onSettingsDirtyChange={setHealthSettingsDirty} />
       )}
 
       <nav className="bottom-nav" aria-label="Разделы приложения">
@@ -709,9 +735,10 @@ function App() {
           <button
             key={tab.id}
             type="button"
-            className={`${tab.id === activeTab ? 'active' : ''} ${tab.id === 'money' ? 'money-tab' : ''} ${tab.id === 'daily-sales' ? 'daily-sales-tab' : ''}`}
+            className={`${tab.id === activeTab ? 'active' : ''} ${tab.id === 'money' ? 'money-tab' : ''}`}
             aria-current={tab.id === activeTab ? 'page' : undefined}
-            onClick={() => setActiveTab(tab.id)}
+            aria-label={tab.label}
+            onClick={() => openAppTab(tab.id)}
           >
             <NavIcon icon={tab.icon} />
             {tab.label}
@@ -725,6 +752,24 @@ function App() {
           onConfirm={confirmRestore}
           onCancel={() => setPendingRestore(null)}
         />
+      )}
+      {pendingAppTab && (
+        <div className="dialog-backdrop" role="presentation">
+          <section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="app-health-unsaved-title">
+            <h2 id="app-health-unsaved-title">Настройки не сохранены. Выйти без сохранения?</h2>
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setPendingAppTab(null)}>Остаться</button>
+              <button type="button" className="primary-action" onClick={() => {
+                const target = getAppTabTarget(pendingAppTab)
+                setHealthSettingsDirty(false)
+                setActiveTab(target.activeTab)
+                if (target.salaryView) setSalaryView(target.salaryView)
+                setPendingAppTab(null)
+                window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+              }}>Выйти без сохранения</button>
+            </div>
+          </section>
+        </div>
       )}
     </main>
   )
@@ -743,7 +788,7 @@ function SectionTabs<T extends string>({
 }) {
   return (
     <div
-      className={`section-tabs section-tabs-${tabs.length}`}
+      className={`section-tabs salary-section-tabs section-tabs-${tabs.length}`}
       role="tablist"
       aria-label={label}
     >
@@ -753,6 +798,7 @@ function SectionTabs<T extends string>({
           type="button"
           role="tab"
           aria-selected={tab.id === activeTab}
+          aria-label={tab.label}
           className={tab.id === activeTab ? 'active' : ''}
           onClick={() => onChange(tab.id)}
         >
@@ -772,20 +818,14 @@ interface ScreenProps {
 function HomeScreen({
   month,
   summary,
-  previousMonth,
   onMonthChange,
   onShiftMonth,
 }: {
   month: SalaryMonth
   summary: CalculationSummary
-  previousMonth: SalaryMonth | undefined
   onMonthChange: (monthId: string) => void
   onShiftMonth: (offset: number) => void
 }) {
-  const previousSummary = previousMonth
-    ? calculateMonthSummary(previousMonth)
-    : undefined
-
   return (
     <section className="screen">
       {month.isClosed && <StatusBadge label="Закрыт" />}
@@ -833,45 +873,21 @@ function HomeScreen({
         </div>
       </section>
 
-      <InfoGrid
-        items={[
-          {
-            label: 'Общие продажи',
-            value: formatRubles(month.salesTotal),
-            icon: '₽',
-          },
-          {
-            label: 'Все начисленные бонусы',
-            value: formatRubles(summary.totalAccruedBonuses),
-            icon: '+',
-          },
-          {
-            label: 'Всего заработано за месяц',
-            value: formatRubles(summary.totalEarned),
-            icon: '∑',
-          },
-          {
-            label: 'Уже выплачено из бонусов',
-            value: formatRubles(summary.advanceBonusPart),
-            icon: '−',
-          },
-        ]}
-      />
-
-      <BonusProgressBlock month={month} summary={summary} />
-      <ComparisonBlock
-        currentMonth={month}
-        currentSummary={summary}
-        previousMonth={previousMonth}
-        previousSummary={previousSummary}
-      />
       <Warnings summary={summary} />
     </section>
   )
 }
 
-function SalesScreen({ month, summary, onChange }: ScreenProps) {
+function SalesScreen({
+  month,
+  summary,
+  previousMonth,
+  onChange,
+}: ScreenProps & { previousMonth: SalaryMonth | undefined }) {
   const editable = isMonthEditable(month)
+  const previousSummary = previousMonth
+    ? calculateMonthSummary(previousMonth)
+    : undefined
 
   return (
     <section className="screen">
@@ -927,26 +943,13 @@ function SalesScreen({ month, summary, onChange }: ScreenProps) {
         }
       />
 
-      <ThresholdCard
-        title="Общий план"
-        value={summary.planBonus}
-        hint={getPlanHint(month.salesTotal)}
-        progress={getPlanProgress(month.salesTotal)}
+      <BonusProgressBlock month={month} summary={summary} />
+      <ComparisonBlock
+        currentMonth={month}
+        currentSummary={summary}
+        previousMonth={previousMonth}
+        previousSummary={previousSummary}
       />
-      <ThresholdCard
-        title="Бонус Арткера"
-        value={summary.artkeraBonus}
-        hint={getProductGroupHint(month.salesArtkera)}
-        progress={getProductGroupProgress(month.salesArtkera)}
-      />
-      <ThresholdCard
-        title="Бонус Лапарет"
-        value={summary.laparetBonus}
-        hint={getProductGroupHint(month.salesLaparet)}
-        progress={getProductGroupProgress(month.salesLaparet)}
-      />
-
-      <Warnings summary={summary} codes={['product_groups_exceed_total']} />
 
       <Breakdown
         title="Начисленные бонусы"
@@ -959,6 +962,8 @@ function SalesScreen({ month, summary, onChange }: ScreenProps) {
         totalLabel="Итого начислено"
         totalValue={summary.totalAccruedBonuses}
       />
+
+      <Warnings summary={summary} codes={['product_groups_exceed_total']} />
     </section>
   )
 }
@@ -1534,12 +1539,14 @@ function RestoreDialog({
           <div><dt>Регулярные личные расходы</dt><dd>{preview.financeState?.personalExpenses.length ?? 0}</dd></div>
           <div><dt>Ежедневные продажи</dt><dd>{Object.keys(preview.dailySalesState?.entries ?? {}).length}</dd></div>
           <div><dt>Дни здоровья</dt><dd>{Object.keys(preview.healthState?.entries ?? {}).length}</dd></div>
+          <div><dt>Настройки здоровья</dt><dd>{preview.healthSettings ? 'Включены' : 'Стандартные'}</dd></div>
         </dl>
         <p>
           Зарплатные данные будут заменены данными из резервной копии.
           {!preview.financeState && ' Финансовый раздел в этом файле отсутствует и изменён не будет.'}
           {!preview.dailySalesState && ' Ежедневные продажи в этом файле отсутствуют и изменены не будут.'}
           {!preview.healthState && ' Данные здоровья в этом файле отсутствуют и изменены не будут.'}
+          {!preview.healthSettings && ' Настройки здоровья будут восстановлены стандартными.'}
         </p>
         <div className="dialog-actions">
           <button type="button" className="primary-action" onClick={onConfirm}>
@@ -1551,31 +1558,6 @@ function RestoreDialog({
         </div>
       </section>
     </div>
-  )
-}
-
-function ThresholdCard({
-  title,
-  value,
-  hint,
-  progress,
-}: {
-  title: string
-  value: number
-  hint: string
-  progress: number
-}) {
-  return (
-    <section className="summary-card">
-      <div className="summary-card-top">
-        <h2>{title}</h2>
-        <strong>{formatRubles(value)}</strong>
-      </div>
-      <p>{hint}</p>
-      <div className="progress-track" aria-hidden="true">
-        <span style={{ width: `${progress}%` }} />
-      </div>
-    </section>
   )
 }
 
@@ -1658,24 +1640,6 @@ function NavIcon({ icon }: { icon: TabIcon }) {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 5h12M6 12h12M6 19h12" />
     </svg>
-  )
-}
-
-function InfoGrid({
-  items,
-}: {
-  items: Array<{ label: string; value: string; icon: string }>
-}) {
-  return (
-    <section className="info-grid">
-      {items.map((item) => (
-        <div key={item.label} className="info-card">
-          <i aria-hidden="true">{item.icon}</i>
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
-        </div>
-      ))}
-    </section>
   )
 }
 
@@ -1766,28 +1730,6 @@ function getNextAvailableMonthId(months: SalaryMonth[]): string {
   }
 
   return nextMonthId
-}
-
-function getPlanHint(salesTotal: number): string {
-  const nextLevel = PLAN_LEVELS.find((level) => salesTotal < level.threshold)
-
-  if (!nextLevel) {
-    return 'Максимальная ступень выполнена'
-  }
-
-  return `До бонуса ${formatRubles(nextLevel.bonus)} осталось ${formatRubles(nextLevel.threshold - salesTotal)}`
-}
-
-function getPlanProgress(salesTotal: number): number {
-  if (salesTotal >= PLAN_LEVELS[2].threshold) {
-    return 100
-  }
-
-  const nextThreshold =
-    PLAN_LEVELS.find((level) => salesTotal < level.threshold)?.threshold ??
-    PLAN_LEVELS[2].threshold
-
-  return clampPercent((salesTotal / nextThreshold) * 100)
 }
 
 function getProductGroupHint(sales: number): string {

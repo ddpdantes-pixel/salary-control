@@ -1,5 +1,16 @@
-import { BRISTOL_DESCRIPTIONS, WORKOUTS, formatWaterLiters, parseLocalDate } from './healthModel'
-import type { AlcoholReason, HealthEntry, ScalpNote } from './healthTypes'
+import { BRISTOL_DESCRIPTIONS, formatWaterLiters, parseLocalDate } from './healthModel'
+import {
+  DEFAULT_HEALTH_SETTINGS,
+  WEEKDAYS,
+  getRelaxationSettings,
+  type HealthSettings,
+} from './healthSettings'
+import type {
+  AlcoholReason,
+  HealthEntry,
+  LearningDirection,
+  ScalpNote,
+} from './healthTypes'
 
 const SCALP_LABELS: Record<ScalpNote, string> = {
   none: 'нет',
@@ -26,7 +37,10 @@ const REASON_LABELS: Record<AlcoholReason, string> = {
   other: 'Другое',
 }
 
-export function buildHealthChecklistText(entry: HealthEntry): string {
+export function buildHealthChecklistText(
+  entry: HealthEntry,
+  settings: HealthSettings = DEFAULT_HEALTH_SETTINGS,
+): string {
   const date = parseLocalDate(entry.date)
   const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'long' }).format(date)
   const numericDate = new Intl.DateTimeFormat('ru-RU', {
@@ -35,18 +49,18 @@ export function buildHealthChecklistText(entry: HealthEntry): string {
     year: 'numeric',
   }).format(date)
   const selectedWorkoutTitles = entry.selectedWorkouts
-    .map((selected) => WORKOUTS.find((workout) => workout.id === selected.workoutId)?.title)
+    .map((selected) => settings.workouts.find((workout) => workout.id === selected.workoutId)?.title)
     .filter((title): title is string => Boolean(title))
   const scalpNotes = formatScalpNotes(entry)
   const lines = [
     `Ежедневный чек-лист — ${weekday}, ${numericDate}`,
     '',
-    `Вода: ${entry.waterCups} / 6 — ${formatWaterLiters(entry.waterCups)} л`,
-    `Кофе: ${entry.coffeeCups}`,
-    `Псиллиум: ${yesNo(entry.psyllium)}`,
-    `2 киви/чернослив: ${yesNo(entry.fruit)}`,
-    `Туалет без натуживания: ${yesNo(entry.toiletWithoutStraining)}`,
-    `Приседания утром 15: ${yesNo(entry.morningSquats)}`,
+    `Вода: ${entry.waterCups} / ${settings.water.goalCups} — ${formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л (кружка ${settings.water.cupVolumeMl} мл)`,
+    `Кофе: ${entry.coffeeCups} (цель — не больше ${settings.coffee.maxPerDay})`,
+    ...(settings.quickItems.psyllium || entry.psyllium ? [`Псиллиум: ${yesNo(entry.psyllium)}`] : []),
+    ...(settings.quickItems.fruit || entry.fruit ? [`2 киви/чернослив: ${yesNo(entry.fruit)}`] : []),
+    ...(settings.quickItems.toiletWithoutStraining || entry.toiletWithoutStraining ? [`Туалет без натуживания: ${yesNo(entry.toiletWithoutStraining)}`] : []),
+    ...(settings.quickItems.morningSquats || entry.morningSquats ? [`Приседания утром ${settings.quickItems.squatsRepetitions}: ${yesNo(entry.morningSquats)}`] : []),
     '',
     'Тренировка:',
     ...(selectedWorkoutTitles.length > 0
@@ -58,17 +72,19 @@ export function buildHealthChecklistText(entry: HealthEntry): string {
     lines.push(`Самочувствие после: ${yesNo(entry.workoutWellbeing)}`)
   }
 
+  const relaxationLines = getRelaxationSettings(settings)
+    .filter((item) => item.enabled || entry.relaxation[item.field])
+    .map((item) => `${item.label} (${item.minutes} мин): ${yesNo(entry.relaxation[item.field])}`)
+
   lines.push(
     '',
     'Расслабление:',
-    `90/90: ${yesNo(entry.relaxation.ninetyNinety)}`,
-    `Поза ребёнка: ${yesNo(entry.relaxation.childPose)}`,
-    `Бабочка: ${yesNo(entry.relaxation.butterfly)}`,
-    `Фигура «4»: ${yesNo(entry.relaxation.figureFour)}`,
+    ...relaxationLines,
     '',
     'Симптомы:',
-    `Распирание: ${entry.bloating}`,
-    `Позывы: ${formatNumber(entry.urges)}`,
+    `Распирание: ${entry.bloating === null ? 'Не заполнено' : entry.bloating}`,
+    `Позывы: ${entry.urges === null ? 'Не заполнено' : formatNumber(entry.urges)}`,
+    `Личный ориентир позывов: ${formatNumber(settings.urgeReference)}`,
   )
 
   if (entry.bristolType !== null) {
@@ -76,18 +92,29 @@ export function buildHealthChecklistText(entry: HealthEntry): string {
       `Стул по Бристолю: ${entry.bristolType} — ${BRISTOL_DESCRIPTIONS[entry.bristolType]}`,
     )
   }
+  lines.push(`Норма Бристоля: типы ${settings.bristolNormalTypes.join(', ')}`)
 
   lines.push(
     '',
     'Волосы:',
+    `График шампуня: ${formatDays(settings.shampooDays)}`,
+    `График миноксидила: ${formatMinoxidilSchedule(settings)}`,
     `Шампунь: ${yesNo(entry.shampoo)}`,
     `Миноксидил: ${yesNo(entry.minoxidil)}`,
     `Заметки: ${scalpNotes}`,
+    `Цель по алкоголю: не больше ${settings.alcoholMaxEvenings} ${settings.alcoholMaxEvenings === 1 ? 'вечера' : 'вечеров'} за неделю`,
     '',
-    'Алкоголь:',
   )
 
-  if (entry.alcoholChoice) {
+  if (entry.alcoholChoice === 'nonAlcoholic') {
+    lines.push(
+      `Алкоголь: безалкогольное${entry.nonAlcoholicQuantity === null ? '' : `, ${entry.nonAlcoholicQuantity} шт.`}`,
+    )
+  } else {
+    lines.push('Алкоголь:')
+  }
+
+  if (entry.alcoholChoice && entry.alcoholChoice !== 'nonAlcoholic') {
     lines.push(`Что пил: ${ALCOHOL_LABELS[entry.alcoholChoice]}`)
   }
 
@@ -111,7 +138,45 @@ export function buildHealthChecklistText(entry: HealthEntry): string {
     if (reasons) lines.push(`Причины: ${reasons}`)
   }
 
+  const learningLines = formatLearningLines(entry)
+  if (learningLines.length > 0) {
+    lines.push('', 'Обучение:', ...learningLines)
+  }
+
   return lines.join('\n')
+}
+
+function formatLearningLines(entry: HealthEntry): string[] {
+  return [
+    formatLearningDirection('Речь и дикция', entry.learning.speech, {
+      session: 'занятие',
+      practice: 'практика',
+    }),
+    formatLearningDirection('Кавист', entry.learning.cavist, {
+      lesson: 'урок',
+      practice: 'практика',
+    }),
+    formatLearningDirection('Керамогранит', entry.learning.porcelain, {
+      lesson: 'урок',
+      practice: 'практика',
+    }),
+  ].filter((line): line is string => line !== null)
+}
+
+function formatLearningDirection<TActivityType extends string>(
+  label: string,
+  direction: LearningDirection<TActivityType>,
+  activityLabels: Record<TActivityType, string>,
+): string | null {
+  if (direction.status === null) return null
+  if (direction.status === 'not_done') return `${label}: не занимался`
+
+  const activity = direction.activityType
+    ? activityLabels[direction.activityType]
+    : 'занимался'
+  const number = direction.number === null ? '' : ` №${direction.number}`
+  const note = direction.note.trim() ? ` — ${direction.note.trim()}` : ''
+  return `${label}: ${activity}${number}${note}`
 }
 
 export function formatBeerAmount(value: string): string {
@@ -156,4 +221,15 @@ function yesNo(value: boolean): 'да' | 'нет' {
 
 function formatNumber(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+}
+
+function formatDays(days: HealthSettings['shampooDays']): string {
+  if (days.length === 0) return 'без обязательных дней'
+  return WEEKDAYS.filter((day) => days.includes(day.id)).map((day) => day.short).join(', ')
+}
+
+function formatMinoxidilSchedule(settings: HealthSettings): string {
+  if (settings.minoxidil.mode === 'hidden') return 'не показывать'
+  if (settings.minoxidil.mode === 'daily') return 'ежедневно'
+  return formatDays(settings.minoxidil.days)
 }

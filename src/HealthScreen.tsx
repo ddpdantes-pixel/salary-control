@@ -4,15 +4,17 @@ import { HEALTH_TABS } from './appNavigation'
 import type { HealthView } from './appNavigation'
 import { buildHealthChecklistText } from './healthExport'
 import { HealthAttachmentsSection } from './HealthAttachmentsSection'
+import { HealthHistoryView } from './HealthHistoryView'
+import { HealthSettingsScreen } from './HealthSettingsScreen'
+import { createHealthHistoryNavigationState } from './healthHistory'
+import type { HealthHistoryNavigationState } from './healthHistory'
+import { HealthWeekView } from './HealthWeekView'
 import type { HealthAttachment } from './healthAttachments'
 import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
 import { copyTextToClipboard, shareHealthReport } from './healthShare'
 import type { HealthShareResult } from './healthShare'
 import {
   BRISTOL_DESCRIPTIONS,
-  COFFEE_GOAL,
-  WATER_GOAL,
-  WORKOUTS,
   createHealthEntry,
   formatHealthDate,
   formatWaterLiters,
@@ -20,23 +22,34 @@ import {
   getLocalDateId,
   isBristolNorm,
   isCoffeeOverGoal,
-  isPersonalUrgeReference,
   isShampooScheduled,
   isWorkoutPlannedForDate,
   markAllRelaxation,
   normalizePositiveBeerAmount,
+  normalizePositiveInteger,
   selectAlcoholChoice,
   selectBeerAmount,
+  selectLearningStatus,
+  selectNonAlcoholicQuantity,
   toggleScalpNote,
   toggleWorkout,
   updateHealthEntry,
   upsertHealthEntry,
 } from './healthModel'
 import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
+import {
+  getRelaxationMinutes,
+  getRelaxationSettings,
+  isDayScheduled,
+  loadStoredHealthSettings,
+  saveStoredHealthSettings,
+  type HealthSettings,
+} from './healthSettings'
 import type {
   AlcoholChoice,
   AlcoholReason,
   HealthEntry,
+  LearningDirection,
   ScalpNote,
 } from './healthTypes'
 import './HealthScreen.css'
@@ -47,9 +60,9 @@ const SAVE_DELAY_MS = 350
 const SCALE_0_TO_5 = [0, 1, 2, 3, 4, 5]
 const URGE_VALUES = [0, 0.5, 1, 2, 3, 4, 5]
 const BRISTOL_TYPES = [1, 2, 3, 4, 5, 6, 7]
-const ALCOHOL_CHOICES: Array<{ id: AlcoholChoice; label: string }> = [
+const ALCOHOL_CHOICES: Array<{ id: AlcoholChoice; label: string; ariaLabel?: string }> = [
   { id: 'none', label: 'Не пил' },
-  { id: 'nonAlcoholic', label: 'Безалкогольное' },
+  { id: 'nonAlcoholic', label: 'Б/а', ariaLabel: 'Безалкогольное' },
   { id: 'beer', label: 'Пиво' },
   { id: 'wine', label: 'Вино' },
   { id: 'other', label: 'Другое' },
@@ -70,15 +83,39 @@ const ALCOHOL_REASONS: Array<{ id: AlcoholReason; label: string }> = [
   { id: 'other', label: 'Другое' },
 ]
 
-export function HealthScreen() {
+export function HealthScreen({
+  onSettingsDirtyChange,
+}: {
+  onSettingsDirtyChange?: (dirty: boolean) => void
+} = {}) {
   const [loaded] = useState(loadStoredHealthState)
   const [state, setState] = useState(loaded.state)
   const [activeTab, setActiveTab] = useState<HealthView>('today')
+  const [settings, setSettings] = useState(loadStoredHealthSettings)
+  const [settingsDirty, setSettingsDirty] = useState(false)
+  const [pendingHealthTab, setPendingHealthTab] = useState<HealthView | null>(null)
   const [selectedDate, setSelectedDate] = useState(getLocalDateId)
   const [saveState, setSaveState] = useState<HealthSaveState>('saved')
   const [copyMessage, setCopyMessage] = useState('')
+  const [historyNavigation, setHistoryNavigation] = useState(
+    createHealthHistoryNavigationState,
+  )
+  const [canReturnToHistory, setCanReturnToHistory] = useState(false)
   const initialStateRef = useRef(state)
   const saveTimerRef = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    onSettingsDirtyChange?.(settingsDirty)
+  }, [onSettingsDirtyChange, settingsDirty])
+
+  useEffect(() => {
+    if (!settingsDirty) return
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+    }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [settingsDirty])
 
   const entry = useMemo(
     () => state.entries[selectedDate] ?? createHealthEntry(selectedDate),
@@ -112,17 +149,50 @@ export function HealthScreen() {
   }
 
   async function copyChecklist(): Promise<void> {
-    const copied = await copyTextToClipboard(buildHealthChecklistText(entry))
+    const copied = await copyTextToClipboard(buildHealthChecklistText(entry, settings))
     setCopyMessage(copied ? 'Чек-лист скопирован' : 'Не удалось скопировать чек-лист')
+  }
+
+  function openDateFromHistory(dateId: string): void {
+    setHistoryNavigation((current) => ({
+      ...current,
+      selectedDate: dateId,
+      scrollY: window.scrollY,
+    }))
+    setSelectedDate(dateId)
+    setCanReturnToHistory(true)
+    setActiveTab('today')
+    scrollHealthPage(0)
+  }
+
+  function returnToHistory(): void {
+    setActiveTab('history')
+    scrollHealthPage(historyNavigation.scrollY)
+  }
+
+  function changeHealthTab(tab: HealthView): void {
+    if (activeTab === 'settings' && settingsDirty && tab !== 'settings') {
+      setPendingHealthTab(tab)
+      return
+    }
+    setActiveTab(tab)
+  }
+
+  function saveSettings(nextSettings: HealthSettings): boolean {
+    if (!saveStoredHealthSettings(nextSettings)) return false
+    setSettings(nextSettings)
+    setSettingsDirty(false)
+    return true
   }
 
   return (
     <section className="health-screen">
-      <HealthTabs activeTab={activeTab} onChange={setActiveTab} />
+      <HealthTabs activeTab={activeTab} onChange={changeHealthTab} />
 
       {activeTab === 'today' ? (
         <HealthToday
           entry={entry}
+          settings={settings}
           hasSavedEntry={Boolean(state.entries[selectedDate])}
           selectedDate={selectedDate}
           saveState={saveState}
@@ -131,12 +201,43 @@ export function HealthScreen() {
           onDateChange={setSelectedDate}
           onChange={changeEntry}
           onCopy={() => void copyChecklist()}
+          onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
+        />
+      ) : activeTab === 'week' ? (
+        <HealthWeekView entries={state.entries} settings={settings} />
+      ) : activeTab === 'history' ? (
+        <HealthHistoryView
+          entries={state.entries}
+          settings={settings}
+          navigation={historyNavigation}
+          onNavigationChange={(next: HealthHistoryNavigationState) => {
+            setHistoryNavigation(next)
+          }}
+          onEditDate={openDateFromHistory}
         />
       ) : (
-        <section className="health-placeholder">
-          <h2>{HEALTH_TABS.find((tab) => tab.id === activeTab)?.label}</h2>
-          <p>Раздел готовится</p>
-        </section>
+        <HealthSettingsScreen
+          settings={settings}
+          entries={state.entries}
+          onSave={saveSettings}
+          onDirtyChange={setSettingsDirty}
+        />
+      )}
+
+      {pendingHealthTab && (
+        <div className="dialog-backdrop" role="presentation">
+          <section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="health-unsaved-title">
+            <h2 id="health-unsaved-title">Настройки не сохранены. Выйти без сохранения?</h2>
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setPendingHealthTab(null)}>Остаться</button>
+              <button type="button" className="primary" onClick={() => {
+                setSettingsDirty(false)
+                setActiveTab(pendingHealthTab)
+                setPendingHealthTab(null)
+              }}>Выйти без сохранения</button>
+            </div>
+          </section>
+        </div>
       )}
     </section>
   )
@@ -169,6 +270,7 @@ function HealthTabs({
 
 function HealthToday({
   entry,
+  settings,
   hasSavedEntry,
   selectedDate,
   saveState,
@@ -177,8 +279,10 @@ function HealthToday({
   onDateChange,
   onChange,
   onCopy,
+  onBackToHistory,
 }: {
   entry: HealthEntry
+  settings: HealthSettings
   hasSavedEntry: boolean
   selectedDate: string
   saveState: HealthSaveState
@@ -187,9 +291,25 @@ function HealthToday({
   onDateChange: (date: string) => void
   onChange: (updater: (current: HealthEntry) => HealthEntry) => void
   onCopy: () => void
+  onBackToHistory?: () => void
 }) {
   const dateHeading = formatHealthDate(selectedDate)
   const alcoholVisibility = getAlcoholFieldVisibility(entry.alcoholChoice)
+  const waterValues = Array.from(
+    { length: Math.max(settings.water.goalCups, entry.waterCups) + 1 },
+    (_, index) => index,
+  )
+  const coffeeValues = Array.from(
+    { length: Math.max(5, settings.coffee.maxPerDay, entry.coffeeCups) + 1 },
+    (_, index) => index,
+  )
+  const urgeValues = [...new Set([...URGE_VALUES, settings.urgeReference])].sort((a, b) => a - b)
+  const visibleWorkouts = settings.workouts
+    .filter((workout) => workout.active || entry.selectedWorkouts.some((item) => item.workoutId === workout.id))
+    .sort((left, right) => left.order - right.order)
+  const visibleRelaxation = getRelaxationSettings(settings).filter(
+    (item) => item.enabled || entry.relaxation[item.field],
+  )
   const [attachments, setAttachments] = useState<HealthAttachment[]>([])
   const [attachmentRefreshToken, setAttachmentRefreshToken] = useState(0)
   const [shareResult, setShareResult] = useState<HealthShareResult | null>(null)
@@ -207,6 +327,7 @@ function HealthToday({
   async function prepareForChatGpt(): Promise<void> {
     const result = await shareHealthReport({
       entry,
+      settings,
       attachments,
       deleteAttachments: async () => {
         await deleteHealthAttachmentsForDate(selectedDate)
@@ -229,6 +350,15 @@ function HealthToday({
 
   return (
     <div className="health-today">
+      {onBackToHistory && (
+        <button
+          type="button"
+          className="health-back-to-history"
+          onClick={onBackToHistory}
+        >
+          ← Назад в историю
+        </button>
+      )}
       <section className="health-date-panel">
         <div>
           <span>{dateHeading.relativeLabel}</span>
@@ -253,44 +383,44 @@ function HealthToday({
 
       {storageIssue && <p className="health-storage-issue">{storageIssue}</p>}
 
-      <HealthBlock title="Вода — кружки по 300 мл">
+      <HealthBlock title={`Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
         <NumberChoices
-          values={[0, 1, 2, 3, 4, 5, 6]}
+          values={waterValues}
           selected={entry.waterCups}
           label="Количество кружек воды"
           onSelect={(waterCups) => onChange((current) => ({ ...current, waterCups }))}
         />
         <p className="health-result">
-          {entry.waterCups} из {WATER_GOAL} — {formatWaterLiters(entry.waterCups)} л
+          {entry.waterCups} из {settings.water.goalCups} — {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л
         </p>
       </HealthBlock>
 
       <HealthBlock title="Кофе">
         <NumberChoices
-          values={SCALE_0_TO_5}
+          values={coffeeValues}
           selected={entry.coffeeCups}
           label="Количество кружек кофе"
           onSelect={(coffeeCups) => onChange((current) => ({ ...current, coffeeCups }))}
         />
-        <p className="health-muted">Цель — не больше {COFFEE_GOAL}</p>
-        {isCoffeeOverGoal(entry.coffeeCups) && (
+        <p className="health-muted">Цель — не больше {settings.coffee.maxPerDay}</p>
+        {isCoffeeOverGoal(entry.coffeeCups, settings.coffee.maxPerDay) && (
           <p className="health-amber-note">Сегодня кофе больше выбранной цели</p>
         )}
       </HealthBlock>
 
       <HealthBlock title="Быстрые пункты">
         <div className="health-toggle-list">
-          <ToggleButton
+          {(settings.quickItems.psyllium || entry.psyllium) && <ToggleButton
             label="Псиллиум"
             checked={entry.psyllium}
             onToggle={() => onChange((current) => ({ ...current, psyllium: !current.psyllium }))}
-          />
-          <ToggleButton
+          />}
+          {(settings.quickItems.fruit || entry.fruit) && <ToggleButton
             label="2 киви / чернослив"
             checked={entry.fruit}
             onToggle={() => onChange((current) => ({ ...current, fruit: !current.fruit }))}
-          />
-          <ToggleButton
+          />}
+          {(settings.quickItems.toiletWithoutStraining || entry.toiletWithoutStraining) && <ToggleButton
             label="Туалет без натуживания"
             checked={entry.toiletWithoutStraining}
             onToggle={() =>
@@ -299,20 +429,20 @@ function HealthToday({
                 toiletWithoutStraining: !current.toiletWithoutStraining,
               }))
             }
-          />
-          <ToggleButton
-            label="Приседания утром — 15 раз"
+          />}
+          {(settings.quickItems.morningSquats || entry.morningSquats) && <ToggleButton
+            label={`Приседания утром — ${settings.quickItems.squatsRepetitions} раз`}
             checked={entry.morningSquats}
             onToggle={() =>
               onChange((current) => ({ ...current, morningSquats: !current.morningSquats }))
             }
-          />
+          />}
         </div>
       </HealthBlock>
 
       <HealthBlock title="Тренировки">
         <div className="workout-list">
-          {WORKOUTS.map((workout) => {
+          {visibleWorkouts.map((workout) => {
             const selected = entry.selectedWorkouts.some(
               (item) => item.workoutId === workout.id,
             )
@@ -353,65 +483,27 @@ function HealthToday({
         onAttachmentsChange={handleAttachmentsChange}
       />
 
-      <HealthBlock title="Расслабление — 14 минут">
+      <HealthBlock title={`Расслабление — ${getRelaxationMinutes(settings)} минут`}>
         <div className="health-toggle-list">
-          <ToggleButton
-            label="90/90 — 5 минут"
-            checked={entry.relaxation.ninetyNinety}
-            onToggle={() =>
-              onChange((current) => ({
+          {visibleRelaxation.map((item) => (
+            <ToggleButton
+              key={item.field}
+              label={`${item.label} — ${item.minutes} минут`}
+              checked={entry.relaxation[item.field]}
+              onToggle={() => onChange((current) => ({
                 ...current,
                 relaxation: {
                   ...current.relaxation,
-                  ninetyNinety: !current.relaxation.ninetyNinety,
+                  [item.field]: !current.relaxation[item.field],
                 },
-              }))
-            }
-          />
-          <ToggleButton
-            label="Поза ребёнка — 5 минут"
-            checked={entry.relaxation.childPose}
-            onToggle={() =>
-              onChange((current) => ({
-                ...current,
-                relaxation: {
-                  ...current.relaxation,
-                  childPose: !current.relaxation.childPose,
-                },
-              }))
-            }
-          />
-          <ToggleButton
-            label="Бабочка — 2 минуты"
-            checked={entry.relaxation.butterfly}
-            onToggle={() =>
-              onChange((current) => ({
-                ...current,
-                relaxation: {
-                  ...current.relaxation,
-                  butterfly: !current.relaxation.butterfly,
-                },
-              }))
-            }
-          />
-          <ToggleButton
-            label="Фигура «4» — 2 минуты"
-            checked={entry.relaxation.figureFour}
-            onToggle={() =>
-              onChange((current) => ({
-                ...current,
-                relaxation: {
-                  ...current.relaxation,
-                  figureFour: !current.relaxation.figureFour,
-                },
-              }))
-            }
-          />
+              }))}
+            />
+          ))}
         </div>
         <button
           type="button"
           className="health-secondary-action"
-          onClick={() => onChange(markAllRelaxation)}
+          onClick={() => onChange((current) => markAllRelaxation(current, settings))}
         >
           Отметить всё выполненным
         </button>
@@ -426,9 +518,9 @@ function HealthToday({
         />
         <ScaleField
           title="Позывы"
-          values={URGE_VALUES}
+          values={urgeValues}
           selected={entry.urges}
-          personalReference={0.5}
+          personalReference={settings.urgeReference}
           onSelect={(urges) => onChange((current) => ({ ...current, urges }))}
         />
       </HealthBlock>
@@ -439,12 +531,12 @@ function HealthToday({
             <button
               key={type}
               type="button"
-              className={`${entry.bristolType === type ? 'selected' : ''} ${isBristolNorm(type) ? 'norm' : ''}`}
+              className={`${entry.bristolType === type ? 'selected' : ''} ${isBristolNorm(type, settings) ? 'norm' : ''}`}
               aria-pressed={entry.bristolType === type}
               onClick={() => onChange((current) => ({ ...current, bristolType: type }))}
             >
               <strong>{type}</strong>
-              {isBristolNorm(type) && <small>Норма</small>}
+              {isBristolNorm(type, settings) && <small>Норма</small>}
             </button>
           ))}
         </div>
@@ -461,14 +553,15 @@ function HealthToday({
           <ToggleButton
             label="Шампунь"
             checked={entry.shampoo}
-            hint={isShampooScheduled(selectedDate) ? 'По графику сегодня' : 'Можно отметить перенос'}
+            hint={isShampooScheduled(selectedDate, settings) ? 'По графику сегодня' : 'Можно отметить перенос'}
             onToggle={() => onChange((current) => ({ ...current, shampoo: !current.shampoo }))}
           />
-          <ToggleButton
+          {(settings.minoxidil.mode !== 'hidden' || entry.minoxidil) && <ToggleButton
             label="Миноксидил — на сухую кожу"
             checked={entry.minoxidil}
+            hint={settings.minoxidil.mode === 'selected' && isDayScheduled(selectedDate, settings.minoxidil.days) ? 'По графику сегодня' : undefined}
             onToggle={() => onChange((current) => ({ ...current, minoxidil: !current.minoxidil }))}
-          />
+          />}
         </div>
         <FieldTitle>Заметки о коже головы</FieldTitle>
         <div className="health-chip-grid" role="group" aria-label="Заметки о коже головы">
@@ -504,7 +597,7 @@ function HealthToday({
       </HealthBlock>
 
       <HealthBlock title="Алкоголь">
-        <p className="health-muted">Не больше 2 вечеров из 7</p>
+        <p className="health-muted">Не больше {settings.alcoholMaxEvenings} {settings.alcoholMaxEvenings === 1 ? 'вечера' : 'вечеров'} из 7</p>
         <div className="health-chip-grid alcohol-choices" role="group" aria-label="Что пил">
           {ALCOHOL_CHOICES.map((choice) => (
             <button
@@ -512,6 +605,7 @@ function HealthToday({
               type="button"
               className={entry.alcoholChoice === choice.id ? 'selected' : ''}
               aria-pressed={entry.alcoholChoice === choice.id}
+              aria-label={choice.ariaLabel}
               onClick={() =>
                 onChange((current) => selectAlcoholChoice(current, choice.id))
               }
@@ -520,6 +614,46 @@ function HealthToday({
             </button>
           ))}
         </div>
+
+        {alcoholVisibility.nonAlcoholicDetails && (
+          <div className="conditional-fields">
+            <FieldTitle>Количество</FieldTitle>
+            <div
+              className="health-chip-grid beer-amount-choices"
+              role="group"
+              aria-label="Количество безалкогольного"
+            >
+              {(['1', '2', 'other'] as const).map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  className={entry.nonAlcoholicQuantityChoice === choice ? 'selected' : ''}
+                  aria-pressed={entry.nonAlcoholicQuantityChoice === choice}
+                  onClick={() => onChange((current) => selectNonAlcoholicQuantity(current, choice))}
+                >
+                  {choice === 'other' ? 'Другое' : choice}
+                </button>
+              ))}
+            </div>
+            {entry.nonAlcoholicQuantityChoice === null && (
+              <p className="health-muted">Не указано</p>
+            )}
+            {entry.nonAlcoholicQuantityChoice === 'other' && (
+              <TextField
+                label="Количество напитков"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={entry.nonAlcoholicQuantity?.toString() ?? ''}
+                onChange={(value) => onChange((current) => ({
+                  ...current,
+                  nonAlcoholicQuantity: normalizePositiveInteger(value),
+                }))}
+              />
+            )}
+          </div>
+        )}
 
         {alcoholVisibility.replacement && (
           <div className="conditional-fields">
@@ -646,6 +780,38 @@ function HealthToday({
             )}
           </div>
         )}
+      </HealthBlock>
+
+      <HealthBlock title="Обучение">
+        <div className="health-learning-list">
+          <LearningDirectionField
+            title="Речь и дикция"
+            direction={entry.learning.speech}
+            activityTypes={[['session', 'Занятие'], ['practice', 'Практика']]}
+            onChange={(speech) => onChange((current) => ({
+              ...current,
+              learning: { ...current.learning, speech },
+            }))}
+          />
+          <LearningDirectionField
+            title="Кавист"
+            direction={entry.learning.cavist}
+            activityTypes={[['lesson', 'Урок'], ['practice', 'Практика']]}
+            onChange={(cavist) => onChange((current) => ({
+              ...current,
+              learning: { ...current.learning, cavist },
+            }))}
+          />
+          <LearningDirectionField
+            title="Керамогранит"
+            direction={entry.learning.porcelain}
+            activityTypes={[['lesson', 'Урок'], ['practice', 'Практика']]}
+            onChange={(porcelain) => onChange((current) => ({
+              ...current,
+              learning: { ...current.learning, porcelain },
+            }))}
+          />
+        </div>
       </HealthBlock>
 
       <div className="health-finish-actions">
@@ -790,14 +956,14 @@ function ScaleField({
             onClick={() => onSelect(value)}
           >
             <strong>{formatChoiceNumber(value)}</strong>
-            {personalReference === value && isPersonalUrgeReference(value) && (
+            {personalReference === value && (
               <span className="personal-reference-mark" aria-hidden="true" />
             )}
           </button>
         ))}
       </div>
-      {personalReference !== undefined && isPersonalUrgeReference(personalReference) && (
-        <p className="scale-reference-note">0,5 — личный ориентир</p>
+      {personalReference !== undefined && (
+        <p className="scale-reference-note">{formatChoiceNumber(personalReference)} — личный ориентир</p>
       )}
     </div>
   )
@@ -838,6 +1004,7 @@ function TextField({
   inputMode,
   min,
   step,
+  maxLength,
   onChange,
 }: {
   label: string
@@ -847,6 +1014,7 @@ function TextField({
   inputMode?: 'text' | 'numeric' | 'decimal'
   min?: number
   step?: number
+  maxLength?: number
   onChange: (value: string) => void
 }) {
   return (
@@ -857,11 +1025,79 @@ function TextField({
         inputMode={inputMode}
         min={min}
         step={step}
+        maxLength={maxLength}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.currentTarget.value)}
       />
     </label>
+  )
+}
+
+function LearningDirectionField<TActivityType extends string>({
+  title,
+  direction,
+  activityTypes,
+  onChange,
+}: {
+  title: string
+  direction: LearningDirection<TActivityType>
+  activityTypes: ReadonlyArray<readonly [TActivityType, string]>
+  onChange: (direction: LearningDirection<TActivityType>) => void
+}) {
+  return (
+    <section className="health-learning-direction" aria-label={title}>
+      <h3>{title}</h3>
+      <div className="binary-choice learning-status-choice" role="group" aria-label={`Статус обучения: ${title}`}>
+        {([['not_done', 'Не занимался'], ['done', 'Занимался']] as const).map(([status, label]) => (
+          <button
+            key={status}
+            type="button"
+            className={direction.status === status ? 'selected' : ''}
+            aria-pressed={direction.status === status}
+            onClick={() => onChange(selectLearningStatus(direction, status))}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {direction.status === 'done' && (
+        <div className="conditional-fields health-learning-details">
+          <FieldTitle>Тип</FieldTitle>
+          <div className="binary-choice" role="group" aria-label={`Тип обучения: ${title}`}>
+            {activityTypes.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={direction.activityType === value ? 'selected' : ''}
+                aria-pressed={direction.activityType === value}
+                onClick={() => onChange({ ...direction, activityType: value })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <TextField
+            label="Номер"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            value={direction.number?.toString() ?? ''}
+            onChange={(value) => onChange({
+              ...direction,
+              number: normalizePositiveInteger(value),
+            })}
+          />
+          <TextField
+            label="Заметка"
+            value={direction.note}
+            maxLength={250}
+            onChange={(note) => onChange({ ...direction, note })}
+          />
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -871,4 +1107,10 @@ function FieldTitle({ children }: { children: ReactNode }) {
 
 function formatChoiceNumber(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+}
+
+function scrollHealthPage(top: number): void {
+  window.requestAnimationFrame(() => {
+    window.scrollTo({ top, behavior: 'auto' })
+  })
 }

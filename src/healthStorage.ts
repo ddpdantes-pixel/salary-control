@@ -5,6 +5,7 @@ import type {
   BeerAmountChoice,
   HealthEntry,
   HealthState,
+  LearningDirection,
   ScalpNote,
 } from './healthTypes'
 
@@ -52,31 +53,47 @@ export function saveStoredHealthState(state: HealthState): boolean {
 export function migrateHealthState(value: unknown): HealthState {
   if (!isRecord(value)) throw new Error('Invalid health state')
 
+  if (value.schemaVersion === 4 && isRecord(value.entries)) {
+    return normalizeEntries(Object.values(value.entries), false, true)
+  }
+
+  if (value.schemaVersion === 3 && isRecord(value.entries)) {
+    return normalizeEntries(Object.values(value.entries), false, true)
+  }
+
   if (value.schemaVersion === 2 && isRecord(value.entries)) {
-    return normalizeEntries(Object.values(value.entries), false)
+    return normalizeEntries(Object.values(value.entries), false, false)
   }
 
   if (value.schemaVersion === 1 && isRecord(value.entries)) {
-    return normalizeEntries(Object.values(value.entries), true)
+    return normalizeEntries(Object.values(value.entries), true, false)
   }
 
   if (value.schemaVersion === undefined && Array.isArray(value.entries)) {
-    return normalizeEntries(value.entries, true)
+    return normalizeEntries(value.entries, true, false)
   }
 
   throw new Error('Unsupported health state version')
 }
 
-function normalizeEntries(values: unknown[], migrateBeerAmount: boolean): HealthState {
+function normalizeEntries(
+  values: unknown[],
+  migrateBeerAmount: boolean,
+  preserveEmptySymptoms: boolean,
+): HealthState {
   const state = createEmptyHealthState()
   for (const value of values) {
-    const entry = normalizeEntry(value, migrateBeerAmount)
+    const entry = normalizeEntry(value, migrateBeerAmount, preserveEmptySymptoms)
     if (entry) state.entries[entry.date] = entry
   }
   return state
 }
 
-function normalizeEntry(value: unknown, migrateBeerAmount: boolean): HealthEntry | null {
+function normalizeEntry(
+  value: unknown,
+  migrateBeerAmount: boolean,
+  preserveEmptySymptoms: boolean,
+): HealthEntry | null {
   if (!isRecord(value) || typeof value.date !== 'string') return null
 
   const fallback = createHealthEntry(
@@ -84,16 +101,24 @@ function normalizeEntry(value: unknown, migrateBeerAmount: boolean): HealthEntry
     typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
   )
   const relaxation = isRecord(value.relaxation) ? value.relaxation : {}
+  const learning = isRecord(value.learning) ? value.learning : {}
 
   const alcoholChoice = nullableEnum<AlcoholChoice>(value.alcoholChoice, [
     'none', 'nonAlcoholic', 'beer', 'wine', 'other',
   ])
   const alcoholAmount = stringValue(value.alcoholAmount)
+  const nonAlcoholicQuantity = alcoholChoice === 'nonAlcoholic'
+    ? positiveIntegerOrNull(value.nonAlcoholicQuantity)
+    : null
+  const storedNonAlcoholicChoice = nullableEnum<BeerAmountChoice>(
+    value.nonAlcoholicQuantityChoice,
+    ['1', '2', 'other'],
+  )
 
   return {
     ...fallback,
-    waterCups: boundedNumber(value.waterCups, 0, 6, fallback.waterCups),
-    coffeeCups: boundedNumber(value.coffeeCups, 0, 5, fallback.coffeeCups),
+    waterCups: boundedNumber(value.waterCups, 0, 100, fallback.waterCups),
+    coffeeCups: boundedNumber(value.coffeeCups, 0, 100, fallback.coffeeCups),
     psyllium: Boolean(value.psyllium),
     fruit: Boolean(value.fruit),
     toiletWithoutStraining: Boolean(value.toiletWithoutStraining),
@@ -108,10 +133,14 @@ function normalizeEntry(value: unknown, migrateBeerAmount: boolean): HealthEntry
       butterfly: Boolean(relaxation.butterfly),
       figureFour: Boolean(relaxation.figureFour),
     },
-    bloating: boundedNumber(value.bloating, 0, 5, 0),
-    urges: [0, 0.5, 1, 2, 3, 4, 5].includes(Number(value.urges))
-      ? Number(value.urges)
-      : 0,
+    bloating: preserveEmptySymptoms && value.bloating === null
+      ? null
+      : boundedNumber(value.bloating, 0, 5, 0),
+    urges: preserveEmptySymptoms && value.urges === null
+      ? null
+      : [0, 0.5, 1, 2, 3, 4, 5].includes(Number(value.urges))
+        ? Number(value.urges)
+        : 0,
     bristolType: [1, 2, 3, 4, 5, 6, 7].includes(Number(value.bristolType))
       ? Number(value.bristolType)
       : null,
@@ -125,6 +154,10 @@ function normalizeEntry(value: unknown, migrateBeerAmount: boolean): HealthEntry
     beerAmountChoice: migrateBeerAmount
       ? inferBeerAmountChoice(alcoholChoice, alcoholAmount)
       : nullableEnum<BeerAmountChoice>(value.beerAmountChoice, ['1', '2', 'other']),
+    nonAlcoholicQuantityChoice: alcoholChoice === 'nonAlcoholic'
+      ? storedNonAlcoholicChoice ?? inferQuantityChoice(nonAlcoholicQuantity)
+      : null,
+    nonAlcoholicQuantity,
     alcoholAmount,
     alcoholReasons: normalizeStringArray<AlcoholReason>(value.alcoholReasons, [
       'relax', 'habit', 'stress', 'taste', 'company', 'other',
@@ -133,10 +166,45 @@ function normalizeEntry(value: unknown, migrateBeerAmount: boolean): HealthEntry
     replacedCan: typeof value.replacedCan === 'boolean' ? value.replacedCan : null,
     replacement: stringValue(value.replacement),
     soberEveningRating: boundedNullableNumber(value.soberEveningRating, 1, 10),
+    learning: {
+      speech: normalizeLearningDirection(learning.speech, ['session', 'practice']),
+      cavist: normalizeLearningDirection(learning.cavist, ['lesson', 'practice']),
+      porcelain: normalizeLearningDirection(learning.porcelain, ['lesson', 'practice']),
+    },
     completed: Boolean(value.completed),
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : fallback.createdAt,
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : fallback.updatedAt,
   }
+}
+
+function normalizeLearningDirection<TActivityType extends string>(
+  value: unknown,
+  activityTypes: TActivityType[],
+): LearningDirection<TActivityType> {
+  if (!isRecord(value)) {
+    return { status: null, activityType: null, number: null, note: '' }
+  }
+  const status = nullableEnum(value.status, ['not_done', 'done'])
+  if (status === 'not_done') {
+    return { status, activityType: null, number: null, note: '' }
+  }
+  return {
+    status,
+    activityType: nullableEnum(value.activityType, activityTypes),
+    number: positiveIntegerOrNull(value.number),
+    note: stringValue(value.note).slice(0, 250),
+  }
+}
+
+function positiveIntegerOrNull(value: unknown): number | null {
+  const number = Number(value)
+  return value !== null && Number.isSafeInteger(number) && number > 0 ? number : null
+}
+
+function inferQuantityChoice(value: number | null): BeerAmountChoice | null {
+  if (value === null) return null
+  if (value === 1 || value === 2) return String(value) as '1' | '2'
+  return 'other'
 }
 
 function inferBeerAmountChoice(
@@ -153,7 +221,15 @@ function isSelectedWorkout(value: unknown): value is HealthEntry['selectedWorkou
     isRecord(value) &&
     typeof value.workoutId === 'string' &&
     typeof value.completedDate === 'string' &&
-    ['monday', 'wednesday', 'friday'].includes(String(value.plannedDay))
+    [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday',
+    ].includes(String(value.plannedDay))
   )
 }
 

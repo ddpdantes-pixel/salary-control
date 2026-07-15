@@ -16,8 +16,8 @@ describe('резервная копия', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backup = createBackupData([month], month.id)
 
-    expect(backup.structureVersion).toBe(5)
-    expect(backup.schemaVersion).toBe(5)
+    expect(backup.structureVersion).toBe(6)
+    expect(backup.schemaVersion).toBe(6)
     expect(backup.appName).toBe('Мой ритм')
     expect(backup.createdAt).toEqual(expect.any(String))
     expect(backup.months).toHaveLength(1)
@@ -127,7 +127,7 @@ describe('резервная копия', () => {
       (operation) => operation.id === splitOperation.id,
     )
 
-    expect(backup.structureVersion).toBe(5)
+    expect(backup.structureVersion).toBe(6)
     expect(restored.months).toHaveLength(1)
     expect(restored.financeState?.operations).toHaveLength(
       completed.operations.length,
@@ -244,6 +244,17 @@ describe('резервная копия', () => {
       completed: true,
       updatedAt: '2026-07-14T21:00:00.000Z',
     }
+    healthState.entries['2026-07-15'] = {
+      ...createHealthEntry('2026-07-15', '2026-07-15T20:00:00.000Z'),
+      alcoholChoice: 'nonAlcoholic',
+      nonAlcoholicQuantityChoice: '2',
+      nonAlcoholicQuantity: 2,
+      learning: {
+        speech: { status: 'done', activityType: 'session', number: 5, note: 'Diktum' },
+        cavist: { status: 'done', activityType: 'practice', number: 7, note: 'Белые сорта' },
+        porcelain: { status: 'not_done', activityType: null, number: null, note: '' },
+      },
+    }
 
     const backup = createBackupData(
       [month],
@@ -280,6 +291,15 @@ describe('резервная копия', () => {
     )
     expect(restored.dailySalesState).toEqual(dailySalesState)
     expect(restored.healthState).toEqual(healthState)
+    expect(restored.healthState?.entries['2026-07-15']).toMatchObject({
+      alcoholChoice: 'nonAlcoholic',
+      nonAlcoholicQuantity: 2,
+      learning: {
+        speech: { status: 'done', activityType: 'session', number: 5, note: 'Diktum' },
+        cavist: { status: 'done', activityType: 'practice', number: 7 },
+        porcelain: { status: 'not_done' },
+      },
+    })
     expect(restoredAgain).toEqual(restored)
     expect(restored.months).toHaveLength(1)
     expect(json).not.toMatch(/attachments|imageData|private-image|Blob|\.png/i)

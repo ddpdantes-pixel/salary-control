@@ -12,11 +12,15 @@ import {
   isBristolNorm,
   isCoffeeOverGoal,
   isPersonalUrgeReference,
+  isMeaningfulHealthEntry,
   isShampooScheduled,
   markAllRelaxation,
   normalizePositiveBeerAmount,
+  normalizePositiveInteger,
   selectAlcoholChoice,
   selectBeerAmount,
+  selectLearningStatus,
+  selectNonAlcoholicQuantity,
   toggleScalpNote,
   toggleWorkout,
   updateHealthEntry,
@@ -107,13 +111,49 @@ describe('модель ежедневного здоровья', () => {
       replacement: true,
       soberRating: true,
       alcoholicDetails: false,
+      nonAlcoholicDetails: false,
     })
     expect(getAlcoholFieldVisibility('nonAlcoholic')).toEqual({
       replacement: false,
       soberRating: false,
       alcoholicDetails: false,
+      nonAlcoholicDetails: true,
     })
     expect(getAlcoholFieldVisibility('beer').alcoholicDetails).toBe(true)
+  })
+
+  it('хранит количество безалкогольного отдельно и очищает его при смене выбора', () => {
+    let entry = selectAlcoholChoice(createHealthEntry('2026-07-12'), 'nonAlcoholic')
+    entry = selectNonAlcoholicQuantity(entry, '2')
+    expect(entry).toMatchObject({ nonAlcoholicQuantityChoice: '2', nonAlcoholicQuantity: 2 })
+    entry = selectAlcoholChoice(entry, 'none')
+    expect(entry).toMatchObject({ nonAlcoholicQuantityChoice: null, nonAlcoholicQuantity: null })
+  })
+
+  it('принимает только положительный целый номер', () => {
+    expect(normalizePositiveInteger('7')).toBe(7)
+    expect(normalizePositiveInteger('0')).toBeNull()
+    expect(normalizePositiveInteger('-1')).toBeNull()
+    expect(normalizePositiveInteger('1.5')).toBeNull()
+  })
+
+  it('различает пустое обучение и явный статус', () => {
+    const empty = createHealthEntry('2026-07-12')
+    expect(isMeaningfulHealthEntry(empty)).toBe(false)
+    expect(isMeaningfulHealthEntry({
+      ...empty,
+      learning: {
+        ...empty.learning,
+        speech: selectLearningStatus(empty.learning.speech, 'not_done'),
+      },
+    })).toBe(true)
+  })
+
+  it('очищает скрытые детали обучения при выборе «Не занимался»', () => {
+    const direction = { status: 'done' as const, activityType: 'session' as const, number: 5, note: 'Diktum' }
+    expect(selectLearningStatus(direction, 'not_done')).toEqual({
+      status: 'not_done', activityType: null, number: null, note: '',
+    })
   })
 
   it('не считает безалкогольное алкогольным вечером', () => {
