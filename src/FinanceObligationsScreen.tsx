@@ -387,10 +387,10 @@ function ObligationEditor({
       </div>
 
       <footer className="finance-editor-actions" data-testid="obligation-editor-actions">
-        <FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>Отмена</FinanceDialogAction>
         <FinanceDialogAction type="submit">
           {obligation ? 'Сохранить изменения' : 'Сохранить обязательство'}
         </FinanceDialogAction>
+        <FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>Отмена</FinanceDialogAction>
       </footer>
     </form>
   )
