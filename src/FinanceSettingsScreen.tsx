@@ -9,6 +9,7 @@ import { formatMoney, parseMoneyInput } from './financeMoney'
 import { formatMoneyInputText, formatMonthLabel } from './format'
 import type { FinanceState, PersonalExpense } from './financeTypes'
 import { PaymentNotificationsPanel } from './PaymentNotificationsPanel'
+import { FinanceDialog } from './FinanceDialog'
 import type { PaymentNotificationSettings } from './paymentNotifications'
 
 export function FinanceSettingsScreen({
@@ -57,13 +58,7 @@ export function FinanceSettingsScreen({
       />
 
       {editingExpense && (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            className="finance-dialog finance-editor-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="personal-expense-editor-title"
-          >
+        <FinanceDialog className="finance-editor-dialog" labelledBy="personal-expense-editor-title">
             <PersonalExpenseEditor
               expense={editingExpense}
               currentMonth={currentMonth}
@@ -79,8 +74,7 @@ export function FinanceSettingsScreen({
               }}
               onCancel={() => setEditingExpense(null)}
             />
-          </section>
-        </div>
+        </FinanceDialog>
       )}
     </section>
   )

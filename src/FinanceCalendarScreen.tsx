@@ -27,6 +27,7 @@ import {
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { sendOperationTestPaymentNotification } from './paymentNotifications'
 import { markAppStage } from './appPerformance'
+import { FinanceDialog } from './FinanceDialog'
 import type {
   FinanceOperation,
   FinanceOperationCategory,
@@ -72,6 +73,16 @@ export function FinanceCalendarScreen({
   const [showOperationDialog, setShowOperationDialog] = useState(false)
   const [pendingCompletion, setPendingCompletion] = useState<{
     item: FinanceCalendarItem
+  } | null>(null)
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    item: FinanceCalendarItem
+    nextStatus: FinanceOperation['status']
+  } | null>(null)
+  const [pendingDeletion, setPendingDeletion] = useState<FinanceOperation | null>(null)
+  const [pendingFinalClose, setPendingFinalClose] = useState<{
+    item: FinanceCalendarItem
+    actualDate?: string
+    obligationId: string
   } | null>(null)
   const [testingOperationId, setTestingOperationId] = useState<string | null>(
     null,
@@ -192,24 +203,25 @@ export function FinanceCalendarScreen({
     item: FinanceCalendarItem,
     nextStatus: FinanceOperation['status'],
   ): void {
-    if (
-      nextStatus === 'completed' &&
-      item.operation.direction === 'expense'
-    ) {
+    if (nextStatus === 'completed' && item.operation.direction === 'expense') {
       setPendingCompletion({ item })
       return
     }
-
-    applyOperationStatus(item, nextStatus)
+    setPendingStatusChange({ item, nextStatus })
   }
 
   function applyOperationStatus(
     item: FinanceCalendarItem,
     nextStatus: FinanceOperation['status'],
     actualDate?: string,
+    closeFinalObligation?: boolean,
   ): void {
     if (nextStatus === 'completed') {
-      setNavigationMessage('Операция перемещена в выполненные')
+      setNavigationMessage(
+        item.operation.direction === 'expense'
+          ? 'Платёж отмечен оплаченным'
+          : 'Поступление отмечено полученным',
+      )
     } else if (nextStatus === 'planned') {
       setNavigationMessage('Операция возвращена в предстоящие')
     } else {
@@ -227,11 +239,11 @@ export function FinanceCalendarScreen({
         obligation,
         item.operation.scheduledDate ?? item.operation.date,
       )
-    const shouldClose =
-      shouldOfferClosing &&
-      window.confirm(
-        `Это последний платёж по обязательству «${obligation.title}». Закрыть обязательство?`,
-      )
+    if (shouldOfferClosing && closeFinalObligation === undefined && obligation) {
+      setPendingFinalClose({ item, actualDate, obligationId: obligation.id })
+      return
+    }
+    const shouldClose = shouldOfferClosing && closeFinalObligation === true
     const nowIso = new Date().toISOString()
 
     onChangeState((current) => {
@@ -250,7 +262,10 @@ export function FinanceCalendarScreen({
   }
 
   function deleteManualOperation(operation: FinanceOperation): void {
-    if (!window.confirm(`Удалить операцию «${operation.title}»?`)) return
+    setPendingDeletion(operation)
+  }
+
+  function confirmManualOperationDeletion(operation: FinanceOperation): void {
     onChangeState((current) => ({
       ...current,
       operations: current.operations.filter((item) => item.id !== operation.id),
@@ -388,13 +403,7 @@ export function FinanceCalendarScreen({
       </section>
 
       {showOperationDialog && (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            className="finance-dialog finance-editor-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="operation-editor-title"
-          >
+        <FinanceDialog className="finance-editor-dialog" labelledBy="operation-editor-title">
             <ManualOperationForm
               operation={editingOperation}
               initialDate={`${monthId}-01`}
@@ -404,17 +413,10 @@ export function FinanceCalendarScreen({
               }}
               onCancel={() => setShowOperationDialog(false)}
             />
-          </section>
-        </div>
+        </FinanceDialog>
       )}
       {pendingCompletion && (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            className="finance-dialog finance-payment-confirmation"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="payment-confirmation-title"
-          >
+        <FinanceDialog className="finance-payment-confirmation" labelledBy="payment-confirmation-title">
             <PaymentCompletionDialog
               item={pendingCompletion.item}
               todayIsoDate={todayIsoDate}
@@ -428,11 +430,43 @@ export function FinanceCalendarScreen({
               }}
               onCancel={() => setPendingCompletion(null)}
             />
+        </FinanceDialog>
+      )}
+      {pendingStatusChange && (
+        <FinanceDialog labelledBy="operation-status-confirmation-title">
+          <section className="finance-edit-form">
+            <h2 id="operation-status-confirmation-title">{getStatusConfirmationTitle(pendingStatusChange.nextStatus)}</h2>
+            <p className="finance-form-note">{pendingStatusChange.item.operation.title}</p>
+            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { applyOperationStatus(pendingStatusChange.item, pendingStatusChange.nextStatus); setPendingStatusChange(null) }}>Подтвердить</button><button type="button" onClick={() => setPendingStatusChange(null)}>Отмена</button></div>
           </section>
-        </div>
+        </FinanceDialog>
+      )}
+      {pendingDeletion && (
+        <FinanceDialog labelledBy="operation-delete-confirmation-title">
+          <section className="finance-edit-form">
+            <h2 id="operation-delete-confirmation-title">Удалить операцию?</h2>
+            <p className="finance-form-note">{pendingDeletion.title}</p>
+            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { confirmManualOperationDeletion(pendingDeletion); setPendingDeletion(null) }}>Удалить</button><button type="button" onClick={() => setPendingDeletion(null)}>Отмена</button></div>
+          </section>
+        </FinanceDialog>
+      )}
+      {pendingFinalClose && (
+        <FinanceDialog labelledBy="final-obligation-confirmation-title">
+          <section className="finance-edit-form">
+            <h2 id="final-obligation-confirmation-title">Закрыть обязательство?</h2>
+            <p className="finance-form-note">Это последний платёж по обязательству. Будущие платежи больше создаваться не будут.</p>
+            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { const pending = pendingFinalClose; setPendingFinalClose(null); applyOperationStatus(pending.item, 'completed', pending.actualDate, true) }}>Закрыть обязательство</button><button type="button" onClick={() => { const pending = pendingFinalClose; setPendingFinalClose(null); applyOperationStatus(pending.item, 'completed', pending.actualDate, false) }}>Оставить открытым</button></div>
+          </section>
+        </FinanceDialog>
       )}
     </section>
   )
+}
+
+function getStatusConfirmationTitle(status: FinanceOperation['status']): string {
+  if (status === 'completed') return 'Отметить поступление полученным?'
+  if (status === 'cancelled') return 'Отменить операцию?'
+  return 'Вернуть операцию в предстоящие?'
 }
 
 interface CalendarGroupProps {

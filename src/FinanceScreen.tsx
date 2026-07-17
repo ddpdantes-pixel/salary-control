@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { FinanceCalendarScreen } from './FinanceCalendarScreen'
 import { FinanceCashAtHomeScreen } from './FinanceCashAtHomeScreen'
+import { FinanceDialog } from './FinanceDialog'
 import { FinanceObligationsScreen } from './FinanceObligationsScreen'
 import { FinanceSettingsScreen } from './FinanceSettingsScreen'
 import type { CashAtHomeState } from './cashAtHome'
@@ -265,13 +266,7 @@ export function FinanceScreen({
       )}
 
       {showBalanceDialog && (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            className="finance-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="balance-dialog-title"
-          >
+        <FinanceDialog labelledBy="balance-dialog-title">
             <BalanceAnchorForm
               title="Обновить фактический остаток"
               submitLabel="Сохранить остаток"
@@ -283,18 +278,11 @@ export function FinanceScreen({
               }}
               onCancel={() => setShowBalanceDialog(false)}
             />
-          </section>
-        </div>
+        </FinanceDialog>
       )}
 
       {showReportDialog && (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            className="finance-dialog finance-editor-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="report-dialog-title"
-          >
+        <FinanceDialog className="finance-editor-dialog" labelledBy="report-dialog-title">
             <FinanceReportDialog
               state={state}
               salaryMonths={salaryMonths}
@@ -306,8 +294,7 @@ export function FinanceScreen({
               }}
               onCancel={() => setShowReportDialog(false)}
             />
-          </section>
-        </div>
+        </FinanceDialog>
       )}
     </section>
   )

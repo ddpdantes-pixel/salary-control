@@ -67,7 +67,7 @@ describe('Кубышка', () => {
     expect(finance.operations.some((operation) => operation.title === 'Кубышка')).toBe(false)
   })
 
-  it('сохраняет сумму и комментарий через форму без создания финансовой операции', async () => {
+  it('открывает сумму в портальном окне и сохраняет её без финансовой операции', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(
@@ -77,19 +77,21 @@ describe('Кубышка', () => {
       />,
     )
 
-    await user.type(screen.getByRole('textbox', { name: 'Сумма наличных дома' }), '1 234,56')
-    await user.type(screen.getByRole('textbox', { name: /Комментарий/ }), 'На непредвиденные расходы')
-    await user.click(screen.getByRole('button', { name: 'Сохранить сумму' }))
+    await user.click(screen.getByRole('button', { name: 'Изменить сумму' }))
+    const dialog = screen.getByRole('dialog', { name: 'Изменить деньги дома' })
+    expect(dialog.parentElement?.parentElement).toBe(document.body)
+    expect(document.body.style.position).toBe('fixed')
+    await user.type(screen.getByRole('textbox', { name: 'Текущая сумма' }), '1 234,56')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       balanceKopecks: 123_456,
-      note: 'На непредвиденные расходы',
       updatedAt: expect.any(String),
     }))
-    expect(screen.getByRole('status').textContent).toContain('Кубышка и вклад сохранены')
+    expect(screen.getByRole('status').textContent).toContain('Сумма денег дома сохранена')
   })
 
-  it('сохраняет вклад только как справочную информацию', async () => {
+  it('сохраняет вклад только как справочную информацию в отдельном сценарии', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(
@@ -99,12 +101,12 @@ describe('Кубышка', () => {
       />,
     )
 
-    await user.type(screen.getByRole('textbox', { name: 'Сумма наличных дома' }), '1 000')
-    await user.click(screen.getByRole('radio', { name: 'Есть вклад' }))
+    await user.click(screen.getByRole('button', { name: 'Вклад' }))
+    await user.click(screen.getByRole('button', { name: 'Добавить вклад' }))
     await user.type(screen.getByRole('textbox', { name: 'Сумма вклада' }), '100 000')
     await user.type(screen.getByRole('textbox', { name: 'Ставка, процентов годовых' }), '12,5')
     await user.type(screen.getByRole('textbox', { name: 'Получено процентов' }), '1 234,56')
-    await user.click(screen.getByRole('button', { name: 'Сохранить сумму' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       deposit: {
@@ -114,6 +116,23 @@ describe('Кубышка', () => {
         receivedInterestKopecks: 123_456,
       },
     }))
+  })
+
+  it('показывает деньги дома отдельной крупной карточкой без постоянных полей', () => {
+    render(
+      <FinanceCashAtHomeScreen
+        state={{
+          ...createEmptyCashAtHomeState(),
+          balanceKopecks: 8_000_000,
+          updatedAt: '2026-07-17T10:00:00.000Z',
+        }}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('region', { name: 'Деньги дома' }).textContent).toContain('80 000')
+    expect(screen.getByText('Не участвуют в финансовых расчётах')).not.toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Текущая сумма' })).toBeNull()
   })
 
   it('безопасно мигрирует старую Кубышку без вклада', () => {

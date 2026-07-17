@@ -1,9 +1,10 @@
-import { Component, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, useEffect, useMemo, useState } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { addDays } from './financeDates'
 import { formatDateLabel, formatMoneyInputText } from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { ObligationDateField } from './ObligationDateField'
+import { FinanceDialog } from './FinanceDialog'
 import {
   closeObligationInState,
   createObligationFromDraft,
@@ -24,6 +25,13 @@ import type {
 } from './financeTypes'
 
 type ObligationView = 'active' | 'closed'
+
+interface PendingObligationConfirmation {
+  title: string
+  message: string
+  confirmLabel: string
+  onConfirm: () => void
+}
 
 interface PaymentEditorRow {
   draftId: string
@@ -52,7 +60,7 @@ export function FinanceObligationsScreen({
   const [view, setView] = useState<ObligationView>('active')
   const [editing, setEditing] = useState<Obligation | null>(null)
   const [showEditor, setShowEditor] = useState(false)
-  const backdropRef = useRef<HTMLDivElement>(null)
+  const [confirmation, setConfirmation] = useState<PendingObligationConfirmation | null>(null)
 
   useEffect(() => {
     if (!openEditorOnMount) return
@@ -61,34 +69,6 @@ export function FinanceObligationsScreen({
     onEditorOpened?.()
   }, [onEditorOpened, openEditorOnMount])
 
-  useEffect(() => {
-    if (!showEditor) return
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const viewport = window.visualViewport
-    const updateViewport = () => {
-      const backdrop = backdropRef.current
-      if (!backdrop) return
-      backdrop.style.setProperty(
-        '--finance-editor-viewport-height',
-        `${viewport?.height ?? window.innerHeight}px`,
-      )
-      backdrop.style.setProperty(
-        '--finance-editor-viewport-offset',
-        `${viewport?.offsetTop ?? 0}px`,
-      )
-    }
-    updateViewport()
-    viewport?.addEventListener('resize', updateViewport)
-    viewport?.addEventListener('scroll', updateViewport)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      viewport?.removeEventListener('resize', updateViewport)
-      viewport?.removeEventListener('scroll', updateViewport)
-    }
-  }, [showEditor])
   const obligations = state.obligations.filter(
     (obligation) => obligation.status === view,
   )
@@ -103,32 +83,39 @@ export function FinanceObligationsScreen({
   }
 
   function closeObligation(obligation: Obligation): void {
-    if (!window.confirm(`Закрыть обязательство «${obligation.title}»? Будущие платежи больше создаваться не будут.`)) return
-    const nowIso = new Date().toISOString()
-    onChangeState((current) =>
-      closeObligationInState(current, obligation.id, nowIso),
-    )
+    setConfirmation({
+      title: 'Закрыть обязательство?',
+      message: `«${obligation.title}». Будущие платежи больше создаваться не будут.`,
+      confirmLabel: 'Закрыть',
+      onConfirm: () => {
+        const nowIso = new Date().toISOString()
+        onChangeState((current) => closeObligationInState(current, obligation.id, nowIso))
+      },
+    })
   }
 
   function reopenObligation(obligation: Obligation): void {
-    if (!window.confirm(`Вернуть обязательство «${obligation.title}» в активные?`)) return
-    const nowIso = new Date().toISOString()
-    onChangeState((current) =>
-      reopenObligationInState(current, obligation.id, nowIso),
-    )
+    setConfirmation({
+      title: 'Вернуть обязательство в активные?',
+      message: `«${obligation.title}» снова будет создавать будущие платежи.`,
+      confirmLabel: 'Вернуть',
+      onConfirm: () => {
+        const nowIso = new Date().toISOString()
+        onChangeState((current) => reopenObligationInState(current, obligation.id, nowIso))
+      },
+    })
   }
 
   function deleteObligation(obligation: Obligation): void {
-    if (!window.confirm(`Удалить полностью обязательство «${obligation.title}» и его будущие платежи?`)) return
-    if (
-      obligationHasCompletedOperations(state, obligation.id) &&
-      !window.confirm('У обязательства есть проведённые операции. Удалить их из истории тоже?')
-    ) {
-      return
-    }
-    onChangeState((current) =>
-      deleteObligationFromState(current, obligation.id),
-    )
+    const completedNotice = obligationHasCompletedOperations(state, obligation.id)
+      ? ' Проведённые операции также будут удалены из истории.'
+      : ''
+    setConfirmation({
+      title: 'Удалить обязательство?',
+      message: `«${obligation.title}» и его будущие платежи будут удалены.${completedNotice}`,
+      confirmLabel: 'Удалить',
+      onConfirm: () => onChangeState((current) => deleteObligationFromState(current, obligation.id)),
+    })
   }
 
   return (
@@ -174,13 +161,20 @@ export function FinanceObligationsScreen({
       </section>
 
       {showEditor && (
-        <div ref={backdropRef} className="dialog-backdrop finance-editor-backdrop" role="presentation">
-          <section className="finance-dialog finance-editor-dialog finance-obligation-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="obligation-editor-title">
+        <FinanceDialog className="finance-editor-dialog finance-obligation-editor-dialog" labelledBy="obligation-editor-title">
             <ObligationEditorErrorBoundary onBack={() => setShowEditor(false)}>
               <ObligationEditor obligation={editing} todayIsoDate={todayIsoDate} defaultPaymentInstruction={defaultPaymentInstruction} onSave={saveObligation} onCancel={() => setShowEditor(false)} />
             </ObligationEditorErrorBoundary>
+        </FinanceDialog>
+      )}
+      {confirmation && (
+        <FinanceDialog labelledBy="obligation-confirmation-title">
+          <section className="finance-edit-form">
+            <h2 id="obligation-confirmation-title">{confirmation.title}</h2>
+            <p className="finance-form-note">{confirmation.message}</p>
+            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { confirmation.onConfirm(); setConfirmation(null) }}>{confirmation.confirmLabel}</button><button type="button" onClick={() => setConfirmation(null)}>Отмена</button></div>
           </section>
-        </div>
+        </FinanceDialog>
       )}
     </section>
   )
