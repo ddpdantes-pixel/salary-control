@@ -1,5 +1,5 @@
 export const PAYMENT_PUSH_PRODUCTION_CONFIG = {
   apiUrl: 'https://moi-ritm-payment-reminders.ddpdantes.workers.dev',
   vapidPublicKey:
-    'BKvptvb0Z6IrlECJBN0vXBNAUdHccMrxFiiusOd8Fb2AWjin6t4oZrrItPX_2SM-fTlhcycDS9r0onQB4EALfBI',
+    'BMqnkazcQHCxi94QIPYhABbWAo6cVi6lqGEwIdY8KuWVJ1kxXQIMCnDMUjgSdBUQrb7MM2uI7mKnfz9x7Bv3tw8',
 } as const

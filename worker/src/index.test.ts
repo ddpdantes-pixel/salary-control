@@ -13,11 +13,13 @@ import type {
   WorkerEnv,
 } from './types'
 import { PushDeliveryError } from './types'
+import webpush from 'web-push'
 
+const testVapidKeys = webpush.generateVAPIDKeys()
 const env = {
   DB: {} as D1Database,
-  VAPID_PUBLIC_KEY: 'public-key',
-  VAPID_PRIVATE_KEY: 'private-key-not-for-responses',
+  VAPID_PUBLIC_KEY: testVapidKeys.publicKey,
+  VAPID_PRIVATE_KEY: testVapidKeys.privateKey,
   VAPID_SUBJECT: 'mailto:test@example.test',
   DEVICE_SECRET_PEPPER: 'test-pepper',
 } satisfies WorkerEnv
@@ -162,6 +164,41 @@ describe('Worker уведомлений о платежах', () => {
       }),
       env,
     )
+  })
+
+  it('безопасно описывает ошибку доставки и публикует только public VAPID-конфигурацию', async () => {
+    const repository = new MemoryRepository()
+    const secret = 'known-secret'
+    repository.devices.set('device-1', {
+      ...storedDevice(),
+      secretHash: await hash(secret),
+    })
+    const sender: PushSender = {
+      send: async () => { throw new PushDeliveryError('upstream rejected', 401) },
+    }
+
+    const failed = await handleRequest(
+      post('/api/reminders/test', { requestedAt: now().toISOString() }, `Device device-1.${secret}`),
+      env,
+      { createRepository: () => repository, pushSender: sender, now },
+    )
+    expect(failed.status).toBe(502)
+    expect(await failed.json()).toEqual({ error: 'Ошибка авторизации push-подписки' })
+
+    const config = await handleRequest(
+      new Request('https://worker.example.test/api/push/config', {
+        headers: { Origin: 'https://ddpdantes-pixel.github.io' },
+      }),
+      env,
+      { createRepository: () => repository, pushSender: sender, now },
+    )
+    const configBody = await config.json() as { vapidPublicKey: string, vapidKeyPairValid: boolean }
+    expect(config.status).toBe(200)
+    expect(configBody).toEqual({
+      vapidPublicKey: env.VAPID_PUBLIC_KEY,
+      vapidKeyPairValid: true,
+    })
+    expect(JSON.stringify(configBody)).not.toContain(env.VAPID_PRIVATE_KEY)
   })
 
   it('экспортирует обработчик Cloudflare с fetch и scheduled', () => {

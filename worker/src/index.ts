@@ -1,5 +1,5 @@
 import { D1ReminderRepository } from './repository'
-import { webPushSender } from './push'
+import { hasMatchingVapidKeyPair, webPushSender } from './push'
 import {
   PushDeliveryError,
   type PushPayload,
@@ -68,7 +68,19 @@ export async function handleRequest(
 
   try {
     if (request.method === 'GET' && url.pathname === '/api/health') {
-      return jsonResponse({ ok: true, service: 'moi-ritm-payment-reminders' }, 200, origin)
+      return jsonResponse({
+        ok: true,
+        service: 'moi-ritm-payment-reminders',
+        vapidKeyPairValid: hasMatchingVapidKeyPair(env),
+      }, 200, origin)
+    }
+
+    if (request.method === 'GET' && url.pathname === '/api/push/config') {
+      const vapidKeyPairValid = hasMatchingVapidKeyPair(env)
+      return jsonResponse({
+        vapidPublicKey: env.VAPID_PUBLIC_KEY,
+        vapidKeyPairValid,
+      }, vapidKeyPairValid ? 200 : 503, origin)
     }
 
     if (
@@ -140,6 +152,13 @@ export async function handleRequest(
       request.method === 'POST' &&
       url.pathname === '/api/reminders/test'
     ) {
+      if (!hasMatchingVapidKeyPair(env)) {
+        return jsonResponse(
+          { error: 'Конфигурация уведомлений на сервере недействительна' },
+          503,
+          origin,
+        )
+      }
       await enforceRateLimit(repository, `test:${device.id}`, nowIso, 5)
       await readJsonWithLimit(request)
       await dependencies.pushSender.send(
@@ -176,6 +195,11 @@ export async function handleRequest(
     }
     if (error instanceof RateLimitError) {
       return jsonResponse({ error: 'Too many requests' }, 429, origin)
+    }
+    if (error instanceof PushDeliveryError) {
+      const { status, message } = describePushDeliveryError(error)
+      console.warn(`push_delivery_failed status=${error.statusCode ?? 'unknown'}`)
+      return jsonResponse({ error: message }, status, origin)
     }
     return jsonResponse({ error: 'Request failed' }, 500, origin)
   }
@@ -365,6 +389,28 @@ function corsHeaders(origin: string | null): Record<string, string> {
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   }
+}
+
+function describePushDeliveryError(error: PushDeliveryError): {
+  status: number
+  message: string
+} {
+  if (error.statusCode === 400) {
+    return { status: 502, message: 'Подписка отклонена сервисом уведомлений' }
+  }
+  if (error.statusCode === 401 || error.statusCode === 403) {
+    return { status: 502, message: 'Ошибка авторизации push-подписки' }
+  }
+  if (error.statusCode === 404 || error.statusCode === 410) {
+    return {
+      status: 409,
+      message: 'Подписка больше не действительна. Включите уведомления повторно',
+    }
+  }
+  if (error.statusCode === 429 || (error.statusCode !== null && error.statusCode >= 500)) {
+    return { status: 503, message: 'Сервис уведомлений временно недоступен' }
+  }
+  return { status: 503, message: 'Сервер уведомлений недоступен' }
 }
 
 class AuthenticationError extends Error {}

@@ -9,6 +9,7 @@ import {
   createDefaultPaymentNotificationSettings,
   getPaymentNotificationUiState,
   getPaymentPushConfig,
+  hasCurrentPaymentPushDevice,
   loadQueuedPaymentReminderSync,
   parsePaymentNotificationNavigation,
   saveStoredPaymentPushDevice,
@@ -39,8 +40,20 @@ describe('напоминания о платежах', () => {
     expect(getPaymentPushConfig()).toEqual({
       apiUrl: 'https://moi-ritm-payment-reminders.ddpdantes.workers.dev',
       vapidPublicKey:
-        'BKvptvb0Z6IrlECJBN0vXBNAUdHccMrxFiiusOd8Fb2AWjin6t4oZrrItPX_2SM-fTlhcycDS9r0onQB4EALfBI',
+        'BMqnkazcQHCxi94QIPYhABbWAo6cVi6lqGEwIdY8KuWVJ1kxXQIMCnDMUjgSdBUQrb7MM2uI7mKnfz9x7Bv3tw8',
     })
+  })
+
+  it('требует повторного включения при смене VAPID public key', () => {
+    saveStoredPaymentPushDevice({
+      schemaVersion: 1,
+      deviceId: 'device-1',
+      deviceSecret: 'secret-1',
+      endpoint: 'https://push.example.test/subscription',
+      connectedAt: '2026-07-10T08:00:00.000Z',
+    })
+
+    expect(hasCurrentPaymentPushDevice(config)).toBe(false)
   })
 
   it('создаёт не более трёх будущих напоминаний с инструкцией обязательства', () => {
@@ -124,6 +137,22 @@ describe('напоминания о платежах', () => {
     expect(fetch).toHaveBeenCalledOnce()
     expect(loadQueuedPaymentReminderSync()).toBeNull()
     if (originalOnline) Object.defineProperty(Navigator.prototype, 'onLine', originalOnline)
+  })
+
+  it('показывает безопасную причину ошибки тестового уведомления', async () => {
+    saveStoredPaymentPushDevice({
+      schemaVersion: 1,
+      deviceId: 'device-1',
+      deviceSecret: 'secret-1',
+      endpoint: 'https://push.example.test/subscription',
+      connectedAt: '2026-07-10T08:00:00.000Z',
+    })
+    vi.mocked(fetch).mockResolvedValue(new Response('', { status: 503 }))
+
+    const { sendTestPaymentNotification } = await import('./paymentNotifications')
+    await expect(sendTestPaymentNotification(config)).rejects.toThrow(
+      'Сервер уведомлений недоступен',
+    )
   })
 
   it('разбирает безопасный переход из уведомления к операции', () => {

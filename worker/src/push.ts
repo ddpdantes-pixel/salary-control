@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer'
+import { createECDH } from 'node:crypto'
 import webpush from 'web-push'
 import {
   PushDeliveryError,
@@ -41,4 +43,14 @@ export const webPushSender: PushSender = {
       throw new PushDeliveryError('Web Push delivery failed', statusCode)
     }
   },
+}
+
+export function hasMatchingVapidKeyPair(env: WorkerEnv): boolean {
+  try {
+    const keyPair = createECDH('prime256v1')
+    keyPair.setPrivateKey(Buffer.from(env.VAPID_PRIVATE_KEY, 'base64url'))
+    return keyPair.getPublicKey().toString('base64url') === env.VAPID_PUBLIC_KEY
+  } catch {
+    return false
+  }
 }

@@ -37,6 +37,7 @@ export interface PaymentPushDevice {
   deviceSecret: string
   endpoint: string
   connectedAt: string
+  vapidPublicKey?: string
 }
 
 export type PaymentReminderType = 'day-before' | 'due-day' | 'evening'
@@ -195,7 +196,13 @@ export function getPaymentNotificationUiState(
   if (requiresHomeScreenInstall()) return 'needs-install'
   if (Notification.permission === 'denied') return 'denied'
   if (Notification.permission === 'default') return 'permission-default'
-  return loadStoredPaymentPushDevice() ? 'enabled' : 'disabled'
+  return hasCurrentPaymentPushDevice(config) ? 'enabled' : 'disabled'
+}
+
+export function hasCurrentPaymentPushDevice(
+  config: PaymentPushConfig,
+): boolean {
+  return loadStoredPaymentPushDevice()?.vapidPublicKey === config.vapidPublicKey
 }
 
 export function supportsPaymentNotifications(): boolean {
@@ -336,16 +343,22 @@ export async function enablePaymentNotifications(input: {
 
   const registration = await navigator.serviceWorker.ready
   const existingSubscription = await registration.pushManager.getSubscription()
+  const existingDevice = loadStoredPaymentPushDevice()
+  const shouldReplaceSubscription =
+    existingDevice?.vapidPublicKey !== config.vapidPublicKey
+  if (shouldReplaceSubscription && existingSubscription) {
+    await existingSubscription.unsubscribe()
+  }
   const subscription =
-    existingSubscription ??
-    (await registration.pushManager.subscribe({
+    !shouldReplaceSubscription && existingSubscription
+      ? existingSubscription
+      : await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: base64UrlToUint8Array(
         config.vapidPublicKey,
       ).buffer as ArrayBuffer,
-    }))
+    })
   const subscriptionPayload = serializeSubscription(subscription)
-  const existingDevice = loadStoredPaymentPushDevice()
   const response = await fetchJson<{
     deviceId: string
     deviceSecret?: string
@@ -353,7 +366,7 @@ export async function enablePaymentNotifications(input: {
     `${config.apiUrl}/api/push/subscribe`,
     {
       method: 'POST',
-      headers: authHeaders(existingDevice),
+      headers: authHeaders(shouldReplaceSubscription ? null : existingDevice),
       body: JSON.stringify({
         subscription: subscriptionPayload,
       }),
@@ -367,6 +380,7 @@ export async function enablePaymentNotifications(input: {
     deviceSecret,
     endpoint: subscriptionPayload.endpoint,
     connectedAt: existingDevice?.connectedAt ?? new Date().toISOString(),
+    vapidPublicKey: config.vapidPublicKey,
   }
   saveStoredPaymentPushDevice(device)
   await syncPaymentReminders({ ...input, config })
@@ -723,10 +737,21 @@ async function fetchJson<T = unknown>(
     const message =
       isRecord(payload) && typeof payload.error === 'string'
         ? payload.error
-        : 'Сервис уведомлений временно недоступен'
+        : getPaymentPushErrorMessage(response.status)
     throw new Error(message)
   }
   return payload as T
+}
+
+function getPaymentPushErrorMessage(status: number): string {
+  if (status === 401) return 'Ошибка авторизации устройства'
+  if (status === 403) return 'Доступ к серверу уведомлений запрещён'
+  if (status === 404) return 'Сервис уведомлений не найден'
+  if (status === 409) return 'Подписка не найдена или больше не действительна'
+  if (status === 429 || status >= 500) {
+    return 'Сервер уведомлений недоступен'
+  }
+  return 'Сервер уведомлений ответил с ошибкой'
 }
 
 function base64UrlToUint8Array(value: string): Uint8Array {

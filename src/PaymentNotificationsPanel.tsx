@@ -60,6 +60,7 @@ export function PaymentNotificationsPanel({
       await sendTestPaymentNotification()
       setMessage('Тестовое уведомление отправлено')
     } catch (error) {
+      setUiState(getPaymentNotificationUiState())
       setMessage(
         error instanceof Error
           ? error.message
