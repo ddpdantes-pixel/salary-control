@@ -96,12 +96,14 @@ import {
   type PaymentNotificationSettings,
   type PaymentNotificationNavigationTarget,
 } from './paymentNotifications'
+import { markAppStage } from './appPerformance'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
 type UpdateServiceWorker = (reloadPage?: boolean) => Promise<void>
 
 const SAVE_DELAY_MS = 400
+const BACKGROUND_SYNC_DELAY_MS = 1200
 const OFFLINE_READY_MESSAGE = 'Приложение готово к работе без интернета.'
 const PRODUCT_GROUP_THRESHOLD = 750_000
 
@@ -125,39 +127,28 @@ interface RestorePreview {
 }
 
 function App() {
-  const [initialState] = useState(loadInitialState)
+  const [initialState, setInitialState] = useState<InitialState | null>(null)
   const [paymentNavigationTarget] =
     useState<PaymentNotificationNavigationTarget | null>(() =>
       typeof window === 'undefined'
         ? null
         : parsePaymentNotificationNavigation(window.location.href),
     )
-  const [months, setMonths] = useState(initialState.months)
-  const [financeState, setFinanceState] = useState<FinanceState | null>(
-    loadStoredFinanceState,
-  )
-  const [dailySalesState, setDailySalesState] = useState(
-    loadStoredDailySalesState,
-  )
-  const [cashAtHome, setCashAtHome] = useState(loadStoredCashAtHomeState)
+  const [months, setMonths] = useState<SalaryMonth[]>([])
+  const [financeState, setFinanceState] = useState<FinanceState | null>(null)
+  const [dailySalesState, setDailySalesState] =
+    useState<DailySalesState | null>(null)
+  const [cashAtHome, setCashAtHome] = useState(createEmptyCashAtHomeState)
   const [paymentNotificationSettings, setPaymentNotificationSettings] =
-    useState(loadStoredPaymentNotificationSettings)
-  const [selectedMonthId, setSelectedMonthId] = useState(
-    initialState.selectedMonthId,
-  )
+    useState(createDefaultPaymentNotificationSettings)
+  const [selectedMonthId, setSelectedMonthId] = useState('')
+  const [isBooting, setIsBooting] = useState(true)
   const [activeTab, setActiveTab] = useState<TabId>(
     paymentNavigationTarget ? 'money' : 'home',
   )
   const [salaryView, setSalaryView] = useState<SalaryView>('current')
   const [saveState, setSaveState] = useState<SaveState>('saved')
-  const [storageMessage, setStorageMessage] = useState(() =>
-    [
-      ...initialState.storageIssues,
-      ...consumeFinanceStorageIssues(),
-      ...consumeDailySalesStorageIssues(),
-      ...consumeCashAtHomeStorageIssues(),
-    ].join(' '),
-  )
+  const [storageMessage, setStorageMessage] = useState('')
   const [pwaMessage, setPwaMessage] = useState<string | null>(null)
   const [backupMessage, setBackupMessage] = useState('')
   const [updateServiceWorker, setUpdateServiceWorker] =
@@ -176,6 +167,12 @@ function App() {
   const cashAtHomeDidMountRef = useRef(false)
   const notificationSettingsDidMountRef = useRef(false)
   const restoreInputRef = useRef<HTMLInputElement>(null)
+  const firstRenderRef = useRef(true)
+
+  if (firstRenderRef.current) {
+    firstRenderRef.current = false
+    markAppStage('first-render')
+  }
 
   const currentMonth = useMemo(
     () =>
@@ -190,6 +187,46 @@ function App() {
   )
 
   useEffect(() => {
+    let cancelled = false
+    let timer: number | undefined
+    const frame = window.requestAnimationFrame(() => {
+      timer = window.setTimeout(() => {
+        markAppStage('storage-restore-start')
+        const nextInitialState = loadInitialState()
+        const nextFinanceState = loadStoredFinanceState()
+        const nextDailySalesState = loadStoredDailySalesState()
+        const nextCashAtHome = loadStoredCashAtHomeState()
+        const nextNotificationSettings = loadStoredPaymentNotificationSettings()
+        const nextStorageMessage = [
+          ...nextInitialState.storageIssues,
+          ...consumeFinanceStorageIssues(),
+          ...consumeDailySalesStorageIssues(),
+          ...consumeCashAtHomeStorageIssues(),
+        ].join(' ')
+        markAppStage('storage-restore-ready')
+
+        if (cancelled) return
+        setInitialState(nextInitialState)
+        setMonths(nextInitialState.months)
+        setSelectedMonthId(nextInitialState.selectedMonthId)
+        setFinanceState(nextFinanceState)
+        setDailySalesState(nextDailySalesState)
+        setCashAtHome(nextCashAtHome)
+        setPaymentNotificationSettings(nextNotificationSettings)
+        setStorageMessage(nextStorageMessage)
+        setIsBooting(false)
+      }, 0)
+    })
+
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isBooting) return
     const updateSW = registerSW({
       immediate: true,
       onNeedRefresh() {
@@ -210,9 +247,10 @@ function App() {
         )
       },
     })
-  }, [])
+  }, [isBooting])
 
   useEffect(() => {
+    if (isBooting || !initialState) return
     if (!didMountRef.current) {
       didMountRef.current = true
 
@@ -236,9 +274,10 @@ function App() {
     }, SAVE_DELAY_MS)
 
     return () => window.clearTimeout(saveTimerRef.current)
-  }, [initialState.createdInitialMonth, months, selectedMonthId])
+  }, [initialState, isBooting, months, selectedMonthId])
 
   useEffect(() => {
+    if (isBooting) return
     if (!financeDidMountRef.current) {
       financeDidMountRef.current = true
       return
@@ -258,9 +297,10 @@ function App() {
     }, SAVE_DELAY_MS)
 
     return () => window.clearTimeout(financeSaveTimerRef.current)
-  }, [financeState])
+  }, [financeState, isBooting])
 
   useEffect(() => {
+    if (isBooting || !dailySalesState) return
     if (!dailySalesDidMountRef.current) {
       dailySalesDidMountRef.current = true
       return
@@ -276,9 +316,10 @@ function App() {
     }, SAVE_DELAY_MS)
 
     return () => window.clearTimeout(dailySalesSaveTimerRef.current)
-  }, [dailySalesState])
+  }, [dailySalesState, isBooting])
 
   useEffect(() => {
+    if (isBooting) return
     if (!cashAtHomeDidMountRef.current) {
       cashAtHomeDidMountRef.current = true
       return
@@ -286,29 +327,31 @@ function App() {
 
     saveStoredCashAtHomeState(cashAtHome)
     showStorageIssues()
-  }, [cashAtHome])
+  }, [cashAtHome, isBooting])
 
   useEffect(() => {
+    if (isBooting) return
     if (!notificationSettingsDidMountRef.current) {
       notificationSettingsDidMountRef.current = true
       return
     }
     saveStoredPaymentNotificationSettings(paymentNotificationSettings)
-  }, [paymentNotificationSettings])
+  }, [isBooting, paymentNotificationSettings])
 
   useEffect(() => {
-    if (!financeState) return
+    if (isBooting || !financeState) return
     const timer = window.setTimeout(() => {
       void syncPaymentReminders({
         state: financeState,
         settings: paymentNotificationSettings,
         todayIsoDate: getLocalIsoDate(),
       })
-    }, SAVE_DELAY_MS)
+    }, BACKGROUND_SYNC_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [financeState, paymentNotificationSettings])
+  }, [financeState, isBooting, paymentNotificationSettings])
 
   useEffect(() => {
+    if (isBooting) return
     function handleOnline(): void {
       if (!financeState) return
       void flushQueuedPaymentReminderSync({
@@ -318,9 +361,12 @@ function App() {
       })
     }
     window.addEventListener('online', handleOnline)
-    handleOnline()
     return () => window.removeEventListener('online', handleOnline)
-  }, [financeState, paymentNotificationSettings])
+  }, [financeState, isBooting, paymentNotificationSettings])
+
+  if (isBooting || !dailySalesState) {
+    return <AppLoadingShell openingOperation={paymentNavigationTarget !== null} />
+  }
 
   function showStorageIssues(): boolean {
     const issues = [
@@ -793,7 +839,11 @@ function App() {
             <DailySalesScreen
               state={dailySalesState}
               todayIsoDate={getDailySalesLocalIsoDate()}
-              onChange={(updater) => setDailySalesState((current) => updater(current))}
+              onChange={(updater) =>
+                setDailySalesState((current) =>
+                  current ? updater(current) : current,
+                )
+              }
             />
           </div>
           <div role="tabpanel" aria-label="История" hidden={salaryView !== 'history'}>
@@ -1767,6 +1817,20 @@ function Warnings({
         <p key={warning.code}>{warning.message}</p>
       ))}
     </section>
+  )
+}
+
+function AppLoadingShell({ openingOperation }: { openingOperation: boolean }) {
+  return (
+    <main className="app-loading-shell" aria-live="polite">
+      <p className="eyebrow">{APP_NAME}</p>
+      <h1>{openingOperation ? 'Открываем операцию…' : 'Открываем приложение…'}</h1>
+      <p>
+        {openingOperation
+          ? 'Восстанавливаем календарь и готовим нужный платёж.'
+          : 'Восстанавливаем сохранённые данные.'}
+      </p>
+    </main>
   )
 }
 

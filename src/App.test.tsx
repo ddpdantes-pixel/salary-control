@@ -29,6 +29,7 @@ vi.mock('virtual:pwa-register', () => ({
 describe('оболочка приложения', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    window.history.replaceState({}, '', '/')
     vi.stubGlobal('scrollTo', vi.fn())
   })
 
@@ -37,8 +38,8 @@ describe('оболочка приложения', () => {
     vi.unstubAllGlobals()
   })
 
-  it('показывает четыре основных раздела без отдельной кнопки продаж', () => {
-    render(<App />)
+  it('показывает четыре основных раздела без отдельной кнопки продаж', async () => {
+    await renderApp()
 
     expect(APP_NAME).toBe('Мой ритм')
     expect(screen.getByText('Мой ритм')).not.toBeNull()
@@ -60,9 +61,65 @@ describe('оболочка приложения', () => {
     expect(within(navigation).queryByRole('button', { name: 'Выплаты' })).toBeNull()
   })
 
+  it('сначала показывает shell при глубокой ссылке, затем открывает нужную операцию', async () => {
+    const finance = createDefaultFinanceState('2026-07-17T10:00:00.000Z')
+    const operation = {
+      id: 'lamoda-target',
+      date: '2026-07-22',
+      scheduledDate: '2026-07-22',
+      title: 'Lamoda',
+      amountKopecks: 150_000,
+      direction: 'expense' as const,
+      status: 'planned' as const,
+      source: 'manual' as const,
+      category: 'manualExpense' as const,
+      amountSource: 'explicit' as const,
+      sortOrder: 900,
+      createdAt: '2026-07-17T10:00:00.000Z',
+      updatedAt: '2026-07-17T10:00:00.000Z',
+    }
+    finance.operations.push(operation)
+    saveStoredFinanceState(finance)
+    window.history.replaceState(
+      {},
+      '',
+      `/?section=money&finance=calendar&month=${operation.date.slice(0, 7)}&operation=${operation.id}`,
+    )
+
+    render(<App />)
+    expect(
+      screen.getByRole('heading', { name: 'Открываем операцию…' }),
+    ).not.toBeNull()
+
+    await screen.findByRole('navigation', { name: 'Разделы приложения' })
+    const card = document.querySelector(
+      `[data-operation-id="${operation.id}"]`,
+    )
+    expect(card).not.toBeNull()
+    expect(card?.className).toContain('highlighted')
+    expect(screen.getByDisplayValue(operation.date.slice(0, 7))).not.toBeNull()
+  })
+
+  it('после загрузки показывает сообщение вместо пустого экрана, если операции нет', async () => {
+    saveStoredFinanceState(createDefaultFinanceState('2026-07-17T10:00:00.000Z'))
+    window.history.replaceState(
+      {},
+      '',
+      '/?section=money&finance=calendar&month=2026-07&operation=missing-operation',
+    )
+
+    render(<App />)
+    expect(
+      screen.getByRole('heading', { name: 'Открываем операцию…' }),
+    ).not.toBeNull()
+
+    expect(await screen.findByText('Операция больше не найдена')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Календарь' })).not.toBeNull()
+  })
+
   it('открывает каркас здоровья с вкладкой «Сегодня» по умолчанию', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    await renderApp()
 
     await user.click(screen.getByRole('button', { name: 'Здоровье' }))
 
@@ -79,7 +136,7 @@ describe('оболочка приложения', () => {
 
   it('предупреждает при переходе из несохранённых настроек в нижний раздел', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    await renderApp()
     const navigation = screen.getByRole('navigation', { name: 'Разделы приложения' })
     await user.click(within(navigation).getByRole('button', { name: 'Здоровье' }))
     await user.click(screen.getByRole('tab', { name: 'Настройки' }))
@@ -96,7 +153,7 @@ describe('оболочка приложения', () => {
 
   it('открывает независимые продажи внутри зарплаты', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    await renderApp()
 
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'Продажи' }))
@@ -109,7 +166,7 @@ describe('оболочка приложения', () => {
 
   it('показывает реализацию, авансы, продажи и историю внутри зарплаты', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    await renderApp()
 
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     expect(
@@ -158,7 +215,7 @@ describe('оболочка приложения', () => {
     }
     saveStoredMonths([july, june])
     saveStoredSelectedMonthId(july.id)
-    render(<App />)
+    await renderApp()
 
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'История' }))
@@ -213,7 +270,7 @@ describe('оболочка приложения', () => {
     )
     const healthBefore = window.localStorage.getItem(HEALTH_STATE_KEY)
 
-    render(<App />)
+    await renderApp()
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'Продажи' }))
     await user.click(screen.getAllByRole('button', { name: /Добавить продажу/ })[0])
@@ -249,7 +306,7 @@ describe('оболочка приложения', () => {
     }
     saveStoredDailySalesState(dailySales)
     const salesBefore = window.localStorage.getItem(DAILY_SALES_STATE_KEY)
-    render(<App />)
+    await renderApp()
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     const salesTotal = document.getElementById('sales-total') as HTMLInputElement
     await user.clear(salesTotal)
@@ -258,7 +315,7 @@ describe('оболочка приложения', () => {
     expect(window.localStorage.getItem(DAILY_SALES_STATE_KEY)).toBe(salesBefore)
   })
 
-  it('оставляет на «Главном» выплату и период без зарплатной аналитики', () => {
+  it('оставляет на «Главном» выплату и период без зарплатной аналитики', async () => {
     const month = {
       ...createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z'),
       salesTotal: 1_234_567,
@@ -266,7 +323,7 @@ describe('оболочка приложения', () => {
       salesLaparet: 400_000,
     }
     saveStoredMonths([month])
-    render(<App />)
+    await renderApp()
     expect(screen.getByRole('heading', { name: 'Главное' })).not.toBeNull()
     expect(screen.getByText(/К выплате/)).not.toBeNull()
     expect(screen.getByText('Период продаж')).not.toBeNull()
@@ -290,7 +347,7 @@ describe('оболочка приложения', () => {
     const july = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     saveStoredMonths([july, june])
     saveStoredSelectedMonthId(july.id)
-    render(<App />)
+    await renderApp()
 
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     const panel = screen.getByRole('tabpanel', { name: 'Реализация' })
@@ -340,7 +397,7 @@ describe('оболочка приложения', () => {
 
   it('нижняя кнопка зарплаты всегда открывает реализацию', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    await renderApp()
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'История' }))
     await user.click(screen.getByRole('button', { name: 'Деньги' }))
@@ -350,7 +407,7 @@ describe('оболочка приложения', () => {
 
   it('сохраняет выбранный месяц независимых продаж между внутренними вкладками', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    await renderApp()
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'Продажи' }))
     const salesPanel = screen.getByRole('tabpanel', { name: 'Продажи' })
@@ -378,7 +435,7 @@ describe('оболочка приложения', () => {
       createObjectURL: vi.fn(() => 'blob:backup'),
       revokeObjectURL: vi.fn(),
     })
-    render(<App />)
+    await renderApp()
 
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'История' }))
@@ -416,7 +473,7 @@ describe('оболочка приложения', () => {
     delete (legacyBackup as { dailySalesState?: unknown }).dailySalesState
     delete (legacyBackup as { healthState?: unknown }).healthState
 
-    render(<App />)
+    await renderApp()
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     await user.upload(
       fileInput,
@@ -435,3 +492,9 @@ describe('оболочка приложения', () => {
     expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"waterCups":6')
   })
 })
+
+async function renderApp() {
+  const result = render(<App />)
+  await screen.findByRole('navigation', { name: 'Разделы приложения' })
+  return result
+}

@@ -27,6 +27,7 @@ import {
 } from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { sendOperationTestPaymentNotification } from './paymentNotifications'
+import { markAppStage } from './appPerformance'
 import type {
   FinanceOperation,
   FinanceOperationCategory,
@@ -117,16 +118,19 @@ export function FinanceCalendarScreen({
 
   useEffect(() => {
     if (!initialOperationId) return
+    markAppStage('deep-link-operation-search')
     const found = items.some(
       (item) => item.operation.id === initialOperationId,
     )
     if (!found) {
+      markAppStage('deep-link-operation-missing')
       setNavigationMessage('Операция больше не найдена')
       setHighlightedId(null)
       return
     }
 
     setExpandedId(initialOperationId)
+    markAppStage('deep-link-operation-ready')
     setNavigationMessage('')
     const frame = window.requestAnimationFrame(() => {
       const element = Array.from(
@@ -136,6 +140,7 @@ export function FinanceCalendarScreen({
           candidate.dataset.operationId === initialOperationId,
       )
       element?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+      markAppStage('deep-link-operation-revealed')
     })
     const timer = window.setTimeout(() => setHighlightedId(null), 4500)
     return () => {
