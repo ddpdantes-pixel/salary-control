@@ -40,12 +40,14 @@ export function FinanceObligationsScreen({
   onChangeState,
   openEditorOnMount = false,
   onEditorOpened,
+  defaultPaymentInstruction = '',
 }: {
   state: FinanceState
   todayIsoDate: string
   onChangeState: (updater: (state: FinanceState) => FinanceState) => void
   openEditorOnMount?: boolean
   onEditorOpened?: () => void
+  defaultPaymentInstruction?: string
 }) {
   const [view, setView] = useState<ObligationView>('active')
   const [editing, setEditing] = useState<Obligation | null>(null)
@@ -173,9 +175,9 @@ export function FinanceObligationsScreen({
 
       {showEditor && (
         <div ref={backdropRef} className="dialog-backdrop finance-editor-backdrop" role="presentation">
-          <section className="finance-dialog finance-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="obligation-editor-title">
+          <section className="finance-dialog finance-editor-dialog finance-obligation-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="obligation-editor-title">
             <ObligationEditorErrorBoundary onBack={() => setShowEditor(false)}>
-              <ObligationEditor obligation={editing} todayIsoDate={todayIsoDate} onSave={saveObligation} onCancel={() => setShowEditor(false)} />
+              <ObligationEditor obligation={editing} todayIsoDate={todayIsoDate} defaultPaymentInstruction={defaultPaymentInstruction} onSave={saveObligation} onCancel={() => setShowEditor(false)} />
             </ObligationEditorErrorBoundary>
           </section>
         </div>
@@ -276,11 +278,13 @@ function ObligationCard({
 function ObligationEditor({
   obligation,
   todayIsoDate,
+  defaultPaymentInstruction,
   onSave,
   onCancel,
 }: {
   obligation: Obligation | null
   todayIsoDate: string
+  defaultPaymentInstruction: string
   onSave: (draft: ObligationDraft) => void
   onCancel: () => void
 }) {
@@ -293,6 +297,9 @@ function ObligationEditor({
   const [endDate, setEndDate] = useState(obligation?.endDate ?? '')
   const [remainingDebtText, setRemainingDebtText] = useState(toMoneyText(obligation?.remainingDebtKopecks))
   const [originalDebtText, setOriginalDebtText] = useState(toMoneyText(obligation?.originalDebtKopecks))
+  const [paymentInstruction, setPaymentInstruction] = useState(
+    obligation?.paymentInstruction ?? defaultPaymentInstruction,
+  )
   const [note, setNote] = useState(obligation?.note ?? '')
   const [payments, setPayments] = useState<PaymentEditorRow[]>(() => {
     const existing = obligation?.payments.map((payment) => createPaymentEditorRow(payment.date ?? '', toMoneyText(payment.amountKopecks), payment.id)) ?? []
@@ -328,46 +335,69 @@ function ObligationEditor({
       endDate: scheduleType === 'monthlyFixed' ? endDate || null : paymentDrafts.at(-1)?.date ?? null,
       remainingDebtKopecks: parseMoneyInput(remainingDebtText),
       originalDebtKopecks: parseMoneyInput(originalDebtText),
+      paymentInstruction,
       note,
       payments: paymentDrafts,
     })
   }
 
   return (
-    <form className="finance-edit-form" onSubmit={submit}>
-      <h2 id="obligation-editor-title">{obligation ? 'Изменить обязательство' : 'Добавить обязательство'}</h2>
-      <label><span>Название</span><input value={title} onChange={(event) => setTitle(event.currentTarget.value)} /></label>
-      <label><span>Категория</span><select value={category} onChange={(event) => setCategory(event.currentTarget.value as ObligationCategory)}><option value="credit">Кредит</option><option value="installment">Рассрочка</option><option value="creditCard">Кредитная карта</option><option value="split">Сплит</option><option value="dolyami">Долями</option><option value="other">Другое</option></select></label>
-      <label><span>График</span><select value={scheduleType} onChange={(event) => setScheduleType(event.currentTarget.value as ObligationScheduleType)}><option value="monthlyFixed">Постоянный ежемесячный</option><option value="custom">Платежи по датам</option><option value="single">Один раз</option></select></label>
+    <form className="finance-edit-form finance-obligation-edit-form" onSubmit={submit}>
+      <header className="finance-editor-header">
+        <h2 id="obligation-editor-title">
+          {obligation ? 'Изменить обязательство' : 'Добавить обязательство'}
+        </h2>
+      </header>
 
-      {scheduleType === 'monthlyFixed' ? (
-        <div className="finance-schedule-fields">
-          <MoneyEditor label="Сумма платежа" value={amountText} onChange={setAmountText} />
-          <label><span>День месяца</span><input type="text" inputMode="numeric" pattern="[0-9]*" value={dueDay} onChange={(event) => setDueDay(event.currentTarget.value.replace(/\D/g, '').slice(0, 2))} /></label>
-          <ObligationDateField label="Дата начала" value={startDate} todayIsoDate={todayIsoDate} onChange={setStartDate} />
-          <ObligationDateField label="Дата завершения" value={endDate} todayIsoDate={todayIsoDate} optional onChange={setEndDate} />
-        </div>
-      ) : (
-        <section className="finance-payment-editor">
-          <div className="finance-card-heading"><h3>{scheduleType === 'single' ? 'Разовый платёж' : 'Платежи по датам'}</h3>{scheduleType === 'custom' && <button type="button" onClick={() => setPayments((current) => [...current, createPaymentEditorRow(todayIsoDate)])}>+ Строка</button>}</div>
-          {(scheduleType === 'single' ? payments.slice(0, 1) : payments).map((payment, index) => (
-            <div className="finance-payment-row" key={payment.draftId}>
-              <ObligationDateField label={`Дата платежа ${index + 1}`} value={payment.date} todayIsoDate={todayIsoDate} onChange={(value) => setPayments((current) => current.map((item) => item.draftId === payment.draftId ? { ...item, date: value } : item))} />
-              <div className="finance-compact-money"><input aria-label={`Сумма платежа ${index + 1}`} type="text" inputMode="decimal" value={payment.amountText} onChange={(event) => {
-                const value = formatMoneyInputText(event.currentTarget.value)
-                setPayments((current) => current.map((item) => item.draftId === payment.draftId ? { ...item, amountText: value } : item))
-              }} /><b>₽</b></div>
-              {scheduleType === 'custom' && payments.length > 1 && <button type="button" aria-label={`Удалить платёж ${index + 1}`} onClick={() => setPayments((current) => current.filter((item) => item.draftId !== payment.draftId))}>×</button>}
-            </div>
-          ))}
-        </section>
-      )}
+      <div className="finance-editor-scroll" data-testid="obligation-editor-scroll">
+        <label><span>Название</span><input value={title} onChange={(event) => setTitle(event.currentTarget.value)} /></label>
+        <label><span>Категория</span><select value={category} onChange={(event) => setCategory(event.currentTarget.value as ObligationCategory)}><option value="credit">Кредит</option><option value="installment">Рассрочка</option><option value="creditCard">Кредитная карта</option><option value="split">Сплит</option><option value="dolyami">Долями</option><option value="other">Другое</option></select></label>
+        <label><span>График</span><select value={scheduleType} onChange={(event) => setScheduleType(event.currentTarget.value as ObligationScheduleType)}><option value="monthlyFixed">Постоянный ежемесячный</option><option value="custom">Платежи по датам</option><option value="single">Один раз</option></select></label>
 
-      <MoneyEditor label="Текущий остаток долга" optional value={remainingDebtText} onChange={setRemainingDebtText} />
-      <MoneyEditor label="Первоначальная сумма" optional value={originalDebtText} onChange={setOriginalDebtText} />
-      <label><span>Комментарий <small>необязательно</small></span><textarea rows={3} value={note} onChange={(event) => setNote(event.currentTarget.value)} /></label>
-      {error && <p className="finance-form-error">{error}</p>}
-      <div className="finance-form-actions"><button type="submit" className="finance-primary-action">Сохранить</button><button type="button" onClick={onCancel}>Отмена</button></div>
+        {scheduleType === 'monthlyFixed' ? (
+          <div className="finance-schedule-fields">
+            <MoneyEditor label="Сумма платежа" value={amountText} onChange={setAmountText} />
+            <label><span>День месяца</span><input type="text" inputMode="numeric" pattern="[0-9]*" value={dueDay} onChange={(event) => setDueDay(event.currentTarget.value.replace(/\D/g, '').slice(0, 2))} /></label>
+            <ObligationDateField label="Дата начала" value={startDate} todayIsoDate={todayIsoDate} onChange={setStartDate} />
+            <ObligationDateField label="Дата завершения" value={endDate} todayIsoDate={todayIsoDate} optional onChange={setEndDate} />
+          </div>
+        ) : (
+          <section className="finance-payment-editor">
+            <div className="finance-card-heading"><h3>{scheduleType === 'single' ? 'Разовый платёж' : 'Платежи по датам'}</h3>{scheduleType === 'custom' && <button type="button" onClick={() => setPayments((current) => [...current, createPaymentEditorRow(todayIsoDate)])}>+ Строка</button>}</div>
+            {(scheduleType === 'single' ? payments.slice(0, 1) : payments).map((payment, index) => (
+              <div className="finance-payment-row" key={payment.draftId}>
+                <ObligationDateField label={`Дата платежа ${index + 1}`} value={payment.date} todayIsoDate={todayIsoDate} onChange={(value) => setPayments((current) => current.map((item) => item.draftId === payment.draftId ? { ...item, date: value } : item))} />
+                <div className="finance-compact-money"><input aria-label={`Сумма платежа ${index + 1}`} type="text" inputMode="decimal" value={payment.amountText} onChange={(event) => {
+                  const value = formatMoneyInputText(event.currentTarget.value)
+                  setPayments((current) => current.map((item) => item.draftId === payment.draftId ? { ...item, amountText: value } : item))
+                }} /><b>₽</b></div>
+                {scheduleType === 'custom' && payments.length > 1 && <button type="button" aria-label={`Удалить платёж ${index + 1}`} onClick={() => setPayments((current) => current.filter((item) => item.draftId !== payment.draftId))}>×</button>}
+              </div>
+            ))}
+          </section>
+        )}
+
+        <MoneyEditor label="Текущий остаток долга" optional value={remainingDebtText} onChange={setRemainingDebtText} />
+        <MoneyEditor label="Первоначальная сумма" optional value={originalDebtText} onChange={setOriginalDebtText} />
+        <label>
+          <span>Как оплатить <small>необязательно</small></span>
+          <textarea
+            rows={3}
+            value={paymentInstruction}
+            placeholder="Например, оплатить в приложении банка"
+            onChange={(event) => setPaymentInstruction(event.currentTarget.value)}
+          />
+        </label>
+        <label><span>Комментарий <small>необязательно</small></span><textarea rows={3} value={note} onChange={(event) => setNote(event.currentTarget.value)} /></label>
+        {error && <p className="finance-form-error">{error}</p>}
+      </div>
+
+      <footer className="finance-editor-actions" data-testid="obligation-editor-actions">
+        <button type="button" onClick={onCancel}>Отмена</button>
+        <button type="submit" className="finance-primary-action">
+          {obligation ? 'Сохранить изменения' : 'Сохранить обязательство'}
+        </button>
+      </footer>
     </form>
   )
 }

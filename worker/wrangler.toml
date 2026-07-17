@@ -1,0 +1,13 @@
+name = "moi-ritm-payment-reminders"
+main = "src/index.ts"
+compatibility_date = "2026-07-17"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "moi-ritm-payment-reminders"
+database_id = "2815a677-08ac-4a6e-80e0-ff1dd013a49d"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["*/5 * * * *"]

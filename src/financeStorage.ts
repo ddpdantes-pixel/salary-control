@@ -371,6 +371,7 @@ function normalizeObligation(
     createdAt: stringValue(raw.createdAt, new Date().toISOString()),
     updatedAt: stringValue(raw.updatedAt, new Date().toISOString()),
     note: optionalString(raw.note),
+    paymentInstruction: optionalString(raw.paymentInstruction),
   }
 }
 

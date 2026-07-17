@@ -8,15 +8,25 @@ import {
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { formatMoneyInputText, formatMonthLabel } from './format'
 import type { FinanceState, PersonalExpense } from './financeTypes'
+import { PaymentNotificationsPanel } from './PaymentNotificationsPanel'
+import type { PaymentNotificationSettings } from './paymentNotifications'
 
 export function FinanceSettingsScreen({
   state,
   currentMonth,
   onChangeState,
+  notificationSettings,
+  todayIsoDate,
+  onChangeNotificationSettings,
 }: {
   state: FinanceState
   currentMonth: string
   onChangeState: (updater: (state: FinanceState) => FinanceState) => void
+  notificationSettings: PaymentNotificationSettings
+  todayIsoDate: string
+  onChangeNotificationSettings: (
+    settings: PaymentNotificationSettings,
+  ) => void
 }) {
   const [editingExpense, setEditingExpense] =
     useState<PersonalExpense | null>(null)
@@ -38,6 +48,13 @@ export function FinanceSettingsScreen({
           />
         ))}
       </div>
+
+      <PaymentNotificationsPanel
+        state={state}
+        settings={notificationSettings}
+        todayIsoDate={todayIsoDate}
+        onChangeSettings={onChangeNotificationSettings}
+      />
 
       {editingExpense && (
         <div className="dialog-backdrop" role="presentation">

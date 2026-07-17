@@ -4,8 +4,10 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSalaryMonth } from './calculations'
+import { createEmptyCashAtHomeState } from './cashAtHome'
 import { createDefaultFinanceState } from './financeDefaults'
 import { FinanceScreen } from './FinanceScreen'
+import { createDefaultPaymentNotificationSettings } from './paymentNotifications'
 
 describe('раздел регулярных расходов', () => {
   afterEach(cleanup)
@@ -23,6 +25,10 @@ describe('раздел регулярных расходов', () => {
         onAddAnchor={vi.fn()}
         onOpenSalaryMonth={vi.fn()}
         onChangeState={vi.fn()}
+        cashAtHome={createEmptyCashAtHomeState()}
+        onChangeCashAtHome={vi.fn()}
+        notificationSettings={createDefaultPaymentNotificationSettings()}
+        onChangeNotificationSettings={vi.fn()}
       />,
     )
 

@@ -160,6 +160,7 @@ export interface Obligation {
   createdAt: string
   updatedAt: string
   note?: string
+  paymentInstruction?: string
 }
 
 export interface ObligationPayment {

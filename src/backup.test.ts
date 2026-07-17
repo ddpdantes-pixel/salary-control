@@ -10,14 +10,15 @@ import { rublesToKopecks } from './financeMoney'
 import { setFinanceOperationStatus } from './financeObligations'
 import { createDefaultDailySalesState } from './dailySalesStorage'
 import { createEmptyHealthState, createHealthEntry } from './healthModel'
+import { createDefaultPaymentNotificationSettings } from './paymentNotifications'
 
 describe('резервная копия', () => {
   it('сохраняет версию структуры, дату, месяцы и настройки', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backup = createBackupData([month], month.id)
 
-    expect(backup.structureVersion).toBe(6)
-    expect(backup.schemaVersion).toBe(6)
+    expect(backup.structureVersion).toBe(7)
+    expect(backup.schemaVersion).toBe(7)
     expect(backup.appName).toBe('Мой ритм')
     expect(backup.createdAt).toEqual(expect.any(String))
     expect(backup.months).toHaveLength(1)
@@ -88,6 +89,45 @@ describe('резервная копия', () => {
     expect(parsed.financeState).toBeNull()
   })
 
+  it('сохраняет Кубышку и только настройки уведомлений без данных устройства', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const settings = createDefaultPaymentNotificationSettings()
+    const backup = createBackupData(
+      [month],
+      month.id,
+      null,
+      null,
+      null,
+      null,
+      {
+        schemaVersion: 1,
+        balanceKopecks: 654_321,
+        updatedAt: '2026-07-12T10:00:00.000Z',
+        note: 'Наличные дома',
+      },
+      settings,
+    )
+    const parsed = parseBackupData(JSON.stringify(backup))
+
+    expect(parsed.cashAtHome).toMatchObject({ balanceKopecks: 654_321, note: 'Наличные дома' })
+    expect(parsed.paymentNotificationSettings).toEqual(settings)
+    expect(JSON.stringify(backup)).not.toContain('deviceSecret')
+    expect(JSON.stringify(backup)).not.toContain('p256dh')
+    expect(JSON.stringify(backup)).not.toContain('endpoint')
+  })
+
+  it('восстанавливает старую копию без Кубышки и настроек уведомлений', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const legacy = {
+      ...createBackupData([month], month.id),
+      structureVersion: 6,
+    }
+    const parsed = parseBackupData(JSON.stringify(legacy))
+
+    expect(parsed.cashAtHome).toBeNull()
+    expect(parsed.paymentNotificationSettings).toBeNull()
+  })
+
   it('экспортирует и импортирует полный финансовый раздел версии 4', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const state = createDefaultFinanceState()
@@ -127,7 +167,7 @@ describe('резервная копия', () => {
       (operation) => operation.id === splitOperation.id,
     )
 
-    expect(backup.structureVersion).toBe(6)
+    expect(backup.structureVersion).toBe(7)
     expect(restored.months).toHaveLength(1)
     expect(restored.financeState?.operations).toHaveLength(
       completed.operations.length,

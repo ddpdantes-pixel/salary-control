@@ -41,6 +41,8 @@ export function FinanceCalendarScreen({
   onCopyReport,
   openEditorOnMount = false,
   onEditorOpened,
+  initialMonthId,
+  initialOperationId,
 }: {
   state: FinanceState
   salaryMonths: SalaryMonth[]
@@ -49,13 +51,23 @@ export function FinanceCalendarScreen({
   onCopyReport: () => void
   openEditorOnMount?: boolean
   onEditorOpened?: () => void
+  initialMonthId?: string
+  initialOperationId?: string
 }) {
-  const [monthId, setMonthId] = useState(getDateYearMonth(todayIsoDate))
+  const [monthId, setMonthId] = useState(
+    initialMonthId ?? getDateYearMonth(todayIsoDate),
+  )
   const [direction, setDirection] =
     useState<CalendarDirectionFilter>('all')
   const [obligationId, setObligationId] = useState('all')
   const [status, setStatus] = useState<CalendarStatusFilter>('all')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(
+    initialOperationId ?? null,
+  )
+  const [highlightedId, setHighlightedId] = useState<string | null>(
+    initialOperationId ?? null,
+  )
+  const [navigationMessage, setNavigationMessage] = useState('')
   const [editingOperation, setEditingOperation] =
     useState<FinanceOperation | null>(null)
   const [showOperationDialog, setShowOperationDialog] = useState(false)
@@ -98,6 +110,35 @@ export function FinanceCalendarScreen({
     obligationId,
     status,
   })
+
+  useEffect(() => {
+    if (!initialOperationId) return
+    const found = items.some(
+      (item) => item.operation.id === initialOperationId,
+    )
+    if (!found) {
+      setNavigationMessage('Операция больше не найдена')
+      setHighlightedId(null)
+      return
+    }
+
+    setExpandedId(initialOperationId)
+    setNavigationMessage('')
+    const frame = window.requestAnimationFrame(() => {
+      const element = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-operation-id]'),
+      ).find(
+        (candidate) =>
+          candidate.dataset.operationId === initialOperationId,
+      )
+      element?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+    })
+    const timer = window.setTimeout(() => setHighlightedId(null), 4500)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [initialOperationId, items])
 
   function upsertOperation(operation: FinanceOperation): void {
     onChangeState((current) => ({
@@ -190,6 +231,12 @@ export function FinanceCalendarScreen({
         </button>
       </div>
 
+      {navigationMessage && (
+        <p className="finance-navigation-message" role="status">
+          {navigationMessage}
+        </p>
+      )}
+
       <div className="finance-month-control">
         <button
           type="button"
@@ -272,6 +319,7 @@ export function FinanceCalendarScreen({
               key={item.operation.id}
               item={item}
               expanded={expandedId === item.operation.id}
+              highlighted={highlightedId === item.operation.id}
               onToggle={() =>
                 setExpandedId((current) =>
                   current === item.operation.id ? null : item.operation.id,
@@ -341,6 +389,7 @@ export function FinanceCalendarScreen({
 function CalendarOperationCard({
   item,
   expanded,
+  highlighted,
   onToggle,
   onStatusChange,
   onEdit,
@@ -348,6 +397,7 @@ function CalendarOperationCard({
 }: {
   item: FinanceCalendarItem
   expanded: boolean
+  highlighted: boolean
   onToggle: () => void
   onStatusChange: (status: FinanceOperation['status']) => void
   onEdit: () => void
@@ -365,7 +415,10 @@ function CalendarOperationCard({
     operation.source === 'accountInterest'
 
   return (
-    <article className={`finance-calendar-item ${operation.direction}`}>
+    <article
+      className={`finance-calendar-item ${operation.direction} ${highlighted ? 'highlighted' : ''}`}
+      data-operation-id={operation.id}
+    >
       <button
         type="button"
         className="finance-calendar-summary"

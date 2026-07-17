@@ -23,6 +23,7 @@ export interface ObligationDraft {
   remainingDebtKopecks: number | null
   originalDebtKopecks: number | null
   note?: string
+  paymentInstruction?: string
   payments: Array<{
     id?: string
     date: string
@@ -133,6 +134,7 @@ export function createObligationFromDraft(
             }
           }),
     note: draft.note?.trim() || undefined,
+    paymentInstruction: draft.paymentInstruction?.trim() || undefined,
     createdAt: previous?.createdAt ?? nowIso,
     updatedAt: nowIso,
   }

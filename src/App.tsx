@@ -79,6 +79,23 @@ import {
 } from './dailySalesStorage'
 import type { DailySalesState } from './dailySalesTypes'
 import { getLocalIsoDate as getDailySalesLocalIsoDate } from './dailySalesCalculations'
+import {
+  consumeCashAtHomeStorageIssues,
+  createEmptyCashAtHomeState,
+  loadStoredCashAtHomeState,
+  saveStoredCashAtHomeState,
+  type CashAtHomeState,
+} from './cashAtHome'
+import {
+  createDefaultPaymentNotificationSettings,
+  flushQueuedPaymentReminderSync,
+  loadStoredPaymentNotificationSettings,
+  parsePaymentNotificationNavigation,
+  saveStoredPaymentNotificationSettings,
+  syncPaymentReminders,
+  type PaymentNotificationSettings,
+  type PaymentNotificationNavigationTarget,
+} from './paymentNotifications'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
@@ -103,10 +120,18 @@ interface RestorePreview {
   dailySalesState: DailySalesState | null
   healthState: HealthState | null
   healthSettings: HealthSettings | null
+  cashAtHome: CashAtHomeState | null
+  paymentNotificationSettings: PaymentNotificationSettings | null
 }
 
 function App() {
   const [initialState] = useState(loadInitialState)
+  const [paymentNavigationTarget] =
+    useState<PaymentNotificationNavigationTarget | null>(() =>
+      typeof window === 'undefined'
+        ? null
+        : parsePaymentNotificationNavigation(window.location.href),
+    )
   const [months, setMonths] = useState(initialState.months)
   const [financeState, setFinanceState] = useState<FinanceState | null>(
     loadStoredFinanceState,
@@ -114,10 +139,15 @@ function App() {
   const [dailySalesState, setDailySalesState] = useState(
     loadStoredDailySalesState,
   )
+  const [cashAtHome, setCashAtHome] = useState(loadStoredCashAtHomeState)
+  const [paymentNotificationSettings, setPaymentNotificationSettings] =
+    useState(loadStoredPaymentNotificationSettings)
   const [selectedMonthId, setSelectedMonthId] = useState(
     initialState.selectedMonthId,
   )
-  const [activeTab, setActiveTab] = useState<TabId>('home')
+  const [activeTab, setActiveTab] = useState<TabId>(
+    paymentNavigationTarget ? 'money' : 'home',
+  )
   const [salaryView, setSalaryView] = useState<SalaryView>('current')
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [storageMessage, setStorageMessage] = useState(() =>
@@ -125,6 +155,7 @@ function App() {
       ...initialState.storageIssues,
       ...consumeFinanceStorageIssues(),
       ...consumeDailySalesStorageIssues(),
+      ...consumeCashAtHomeStorageIssues(),
     ].join(' '),
   )
   const [pwaMessage, setPwaMessage] = useState<string | null>(null)
@@ -142,6 +173,8 @@ function App() {
   const financeSaveTimerRef = useRef<number | undefined>(undefined)
   const dailySalesDidMountRef = useRef(false)
   const dailySalesSaveTimerRef = useRef<number | undefined>(undefined)
+  const cashAtHomeDidMountRef = useRef(false)
+  const notificationSettingsDidMountRef = useRef(false)
   const restoreInputRef = useRef<HTMLInputElement>(null)
 
   const currentMonth = useMemo(
@@ -245,11 +278,56 @@ function App() {
     return () => window.clearTimeout(dailySalesSaveTimerRef.current)
   }, [dailySalesState])
 
+  useEffect(() => {
+    if (!cashAtHomeDidMountRef.current) {
+      cashAtHomeDidMountRef.current = true
+      return
+    }
+
+    saveStoredCashAtHomeState(cashAtHome)
+    showStorageIssues()
+  }, [cashAtHome])
+
+  useEffect(() => {
+    if (!notificationSettingsDidMountRef.current) {
+      notificationSettingsDidMountRef.current = true
+      return
+    }
+    saveStoredPaymentNotificationSettings(paymentNotificationSettings)
+  }, [paymentNotificationSettings])
+
+  useEffect(() => {
+    if (!financeState) return
+    const timer = window.setTimeout(() => {
+      void syncPaymentReminders({
+        state: financeState,
+        settings: paymentNotificationSettings,
+        todayIsoDate: getLocalIsoDate(),
+      })
+    }, SAVE_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [financeState, paymentNotificationSettings])
+
+  useEffect(() => {
+    function handleOnline(): void {
+      if (!financeState) return
+      void flushQueuedPaymentReminderSync({
+        state: financeState,
+        settings: paymentNotificationSettings,
+        todayIsoDate: getLocalIsoDate(),
+      })
+    }
+    window.addEventListener('online', handleOnline)
+    handleOnline()
+    return () => window.removeEventListener('online', handleOnline)
+  }, [financeState, paymentNotificationSettings])
+
   function showStorageIssues(): boolean {
     const issues = [
       ...consumeStorageIssues().map((issue) => issue.message),
       ...consumeFinanceStorageIssues(),
       ...consumeDailySalesStorageIssues(),
+      ...consumeCashAtHomeStorageIssues(),
     ]
 
     if (issues.length === 0) {
@@ -392,6 +470,8 @@ function App() {
       dailySalesState,
       healthState,
       healthSettings,
+      cashAtHome,
+      paymentNotificationSettings,
     )
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: 'application/json',
@@ -430,6 +510,9 @@ function App() {
           dailySalesState: parsedBackup.dailySalesState,
           healthState: parsedBackup.healthState,
           healthSettings: parsedBackup.healthSettings,
+          cashAtHome: parsedBackup.cashAtHome,
+          paymentNotificationSettings:
+            parsedBackup.paymentNotificationSettings,
         })
       })
       .catch((error: unknown) => {
@@ -478,6 +561,13 @@ function App() {
     saveStoredHealthSettings(
       pendingRestore.healthSettings ?? createDefaultHealthSettings(),
     )
+    setCashAtHome(
+      pendingRestore.cashAtHome ?? createEmptyCashAtHomeState(),
+    )
+    setPaymentNotificationSettings(
+      pendingRestore.paymentNotificationSettings ??
+        createDefaultPaymentNotificationSettings(),
+    )
     setActiveTab('salary')
     setSalaryView('history')
     setBackupMessage(
@@ -493,6 +583,14 @@ function App() {
         pendingRestore.healthState
           ? 'Здоровье: восстановлено.'
           : 'Здоровье: в этой копии отсутствовало.'
+      } ${
+        pendingRestore.cashAtHome
+          ? 'Кубышка: восстановлена.'
+          : 'Кубышка: в этой копии отсутствовала.'
+      } ${
+        pendingRestore.paymentNotificationSettings
+          ? 'Настройки уведомлений: восстановлены.'
+          : 'Настройки уведомлений: использованы стандартные.'
       }`,
     )
     setPendingRestore(null)
@@ -719,6 +817,11 @@ function App() {
           onCompleteSetup={completeFinanceSetup}
           onAddAnchor={addFinanceAnchor}
           onChangeState={updateFinanceState}
+          cashAtHome={cashAtHome}
+          onChangeCashAtHome={setCashAtHome}
+          notificationSettings={paymentNotificationSettings}
+          onChangeNotificationSettings={setPaymentNotificationSettings}
+          initialCalendarTarget={paymentNavigationTarget}
           onOpenSalaryMonth={(monthId) => {
             selectOrCreateMonth(monthId)
             setSalaryView('current')

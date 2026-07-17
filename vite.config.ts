@@ -11,7 +11,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.svg', 'icons.svg', 'apple-touch-icon.png'],
+      includeAssets: [
+        'favicon.svg',
+        'icons.svg',
+        'apple-touch-icon.png',
+        'push-sw.js',
+      ],
       manifest: {
         name: 'Мой ритм',
         short_name: 'Мой ритм',
@@ -43,6 +48,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
         navigateFallback: 'index.html',
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

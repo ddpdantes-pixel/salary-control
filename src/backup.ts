@@ -8,10 +8,25 @@ import { APP_NAME } from './appNavigation'
 import { migrateHealthState } from './healthStorage'
 import type { HealthState } from './healthTypes'
 import { normalizeHealthSettings, type HealthSettings } from './healthSettings'
+import {
+  normalizeCashAtHomeState,
+  type CashAtHomeState,
+} from './cashAtHome'
+import {
+  normalizePaymentNotificationSettings,
+  type PaymentNotificationSettings,
+} from './paymentNotifications'
 
 const BACKUP_APP_ID = 'kontrol-zarplaty'
-const BACKUP_STRUCTURE_VERSION = 6
-const SUPPORTED_BACKUP_VERSIONS = new Set([2, 3, 4, 5, BACKUP_STRUCTURE_VERSION])
+const BACKUP_STRUCTURE_VERSION = 7
+const SUPPORTED_BACKUP_VERSIONS = new Set([
+  2,
+  3,
+  4,
+  5,
+  6,
+  BACKUP_STRUCTURE_VERSION,
+])
 
 export interface BackupData {
   app: typeof BACKUP_APP_ID
@@ -27,6 +42,8 @@ export interface BackupData {
   dailySalesState?: DailySalesState
   healthState?: HealthState
   healthSettings?: HealthSettings
+  cashAtHome?: CashAtHomeState
+  paymentNotificationSettings?: PaymentNotificationSettings
 }
 
 export interface ParsedBackup {
@@ -37,6 +54,8 @@ export interface ParsedBackup {
   dailySalesState: DailySalesState | null
   healthState: HealthState | null
   healthSettings: HealthSettings | null
+  cashAtHome: CashAtHomeState | null
+  paymentNotificationSettings: PaymentNotificationSettings | null
 }
 
 export function createBackupData(
@@ -46,6 +65,8 @@ export function createBackupData(
   dailySalesState?: DailySalesState | null,
   healthState?: HealthState | null,
   healthSettings?: HealthSettings | null,
+  cashAtHome?: CashAtHomeState | null,
+  paymentNotificationSettings?: PaymentNotificationSettings | null,
 ): BackupData {
   return {
     app: BACKUP_APP_ID,
@@ -61,6 +82,10 @@ export function createBackupData(
     ...(dailySalesState ? { dailySalesState } : {}),
     ...(healthState ? { healthState } : {}),
     ...(healthSettings ? { healthSettings } : {}),
+    ...(cashAtHome ? { cashAtHome } : {}),
+    ...(paymentNotificationSettings
+      ? { paymentNotificationSettings }
+      : {}),
   }
 }
 
@@ -123,6 +148,15 @@ export function parseBackupData(text: string): ParsedBackup {
   const healthSettings = parsed.healthSettings === undefined
     ? null
     : normalizeHealthSettings(parsed.healthSettings)
+  const cashAtHome = parsed.cashAtHome === undefined
+    ? null
+    : normalizeCashAtHomeState(parsed.cashAtHome)
+  const paymentNotificationSettings =
+    parsed.paymentNotificationSettings === undefined
+      ? null
+      : normalizePaymentNotificationSettings(
+          parsed.paymentNotificationSettings,
+        )
 
   if (parsed.financeState !== undefined && financeState === null) {
     throw new Error('В резервной копии повреждены финансовые данные.')
@@ -136,6 +170,17 @@ export function parseBackupData(text: string): ParsedBackup {
     throw new Error('В резервной копии повреждены данные здоровья.')
   }
 
+  if (parsed.cashAtHome !== undefined && cashAtHome === null) {
+    throw new Error('В резервной копии повреждены данные «Кубышки».')
+  }
+
+  if (
+    parsed.paymentNotificationSettings !== undefined &&
+    paymentNotificationSettings === null
+  ) {
+    throw new Error('В резервной копии повреждены настройки уведомлений.')
+  }
+
   return {
     createdAt:
       typeof parsed.createdAt === 'string'
@@ -147,6 +192,8 @@ export function parseBackupData(text: string): ParsedBackup {
     dailySalesState,
     healthState,
     healthSettings,
+    cashAtHome,
+    paymentNotificationSettings,
   }
 }
 

@@ -62,7 +62,7 @@ describe('редактор обязательств', () => {
     await user.type(screen.getByRole('textbox', { name: 'Сумма платежа 2' }), '67,89')
     await chooseDate(user, 'Дата платежа 2', '13.07.2026')
 
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
 
     const saved = harness.getState().obligations.find((item) => item.title === 'Тест копеек')!
     expect(saved.payments.map((payment) => payment.date)).toEqual(['2026-07-13', '2026-07-14'])
@@ -125,7 +125,7 @@ describe('редактор обязательств', () => {
     const harness = renderHarness()
     await openNew(user, 'Разовая покупка', 'single')
     await user.type(screen.getByRole('textbox', { name: 'Сумма платежа 1' }), '1500,50')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
 
     const saved = harness.getState().obligations.find((item) => item.title === 'Разовая покупка')!
     expect(saved.scheduleType).toBe('single')
@@ -136,10 +136,10 @@ describe('редактор обязательств', () => {
     const user = userEvent.setup()
     renderHarness()
     await openNewCustom(user, 'Неполный платёж')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
     expect(screen.getByText('Укажите дату и положительную сумму каждого платежа.')).not.toBeNull()
     await user.type(screen.getByRole('textbox', { name: 'Сумма платежа 1' }), '0')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
     expect(screen.getByRole('heading', { name: 'Добавить обязательство' })).not.toBeNull()
   })
 
@@ -151,17 +151,17 @@ describe('редактор обязательств', () => {
     const dueDay = screen.getByRole('textbox', { name: 'День месяца' })
     await user.clear(dueDay)
     await user.type(dueDay, '32')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
     expect(screen.getByText('Укажите положительную сумму, день месяца от 1 до 31 и дату начала.')).not.toBeNull()
 
     await user.clear(dueDay)
     await user.type(dueDay, '31')
     await chooseDate(user, 'Дата завершения', '11.07.2026')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
     expect(screen.getByText('Дата завершения не может быть раньше даты начала.')).not.toBeNull()
     await user.click(screen.getByRole('button', { name: 'Дата завершения' }))
     await user.click(screen.getByRole('button', { name: 'Без даты' }))
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
 
     const saved = harness.getState().obligations.find((item) => item.title === 'Ежемесячный тест')!
     expect(saved).toMatchObject({ scheduleType: 'monthlyFixed', dueDay: 31, startDate: TODAY, endDate: null })
@@ -197,6 +197,32 @@ describe('редактор обязательств', () => {
 
     expect(document.body.style.overflow).toBe('')
     expect(initial.obligations).toEqual(before)
+  })
+
+  it('держит панель сохранения вне прокручиваемой части и сохраняет десять платежей', async () => {
+    const user = userEvent.setup()
+    const harness = renderHarness()
+    await openNewCustom(user, 'Десять платежей')
+
+    for (let index = 2; index <= 10; index += 1) {
+      await user.click(screen.getByRole('button', { name: '+ Строка' }))
+    }
+    for (let index = 1; index <= 10; index += 1) {
+      await user.type(
+        screen.getByRole('textbox', { name: `Сумма платежа ${index}` }),
+        String(index * 100),
+      )
+    }
+
+    const scrollArea = screen.getByTestId('obligation-editor-scroll')
+    const actions = screen.getByTestId('obligation-editor-actions')
+    expect(scrollArea.contains(actions)).toBe(false)
+    expect(actions.parentElement?.className).toContain('finance-obligation-edit-form')
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить обязательство' }))
+    expect(harness.getState().obligations.find((item) => item.title === 'Десять платежей')?.payments).toHaveLength(10)
+    expect(document.body.style.overflow).toBe('')
   })
 
   it('перехватывает ошибку редактора вместо белого экрана', async () => {

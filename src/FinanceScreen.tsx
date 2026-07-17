@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react'
 import { FinanceCalendarScreen } from './FinanceCalendarScreen'
+import { FinanceCashAtHomeScreen } from './FinanceCashAtHomeScreen'
 import { FinanceObligationsScreen } from './FinanceObligationsScreen'
 import { FinanceSettingsScreen } from './FinanceSettingsScreen'
+import type { CashAtHomeState } from './cashAtHome'
+import type {
+  PaymentNotificationNavigationTarget,
+  PaymentNotificationSettings,
+} from './paymentNotifications'
 import {
   buildFinanceCalendarTimeline,
   getFinanceBalanceTone,
@@ -22,7 +28,12 @@ import type { FinanceState, SalaryIncomeField } from './financeTypes'
 import type { SalaryMonth } from './types'
 import './FinanceScreen.css'
 
-type FinanceSection = 'overview' | 'calendar' | 'obligations' | 'settings'
+type FinanceSection =
+  | 'overview'
+  | 'calendar'
+  | 'obligations'
+  | 'settings'
+  | 'cash'
 type FinanceQuickAction = 'operation' | 'obligation' | null
 
 const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string }> = [
@@ -30,6 +41,7 @@ const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string }> = [
   { id: 'calendar', label: 'Календарь' },
   { id: 'obligations', label: 'Обязательства' },
   { id: 'settings', label: 'Расходы' },
+  { id: 'cash', label: 'Кубышка' },
 ]
 
 const ANCHOR_EXPLANATION =
@@ -49,6 +61,11 @@ export function FinanceScreen({
   onAddAnchor,
   onOpenSalaryMonth,
   onChangeState,
+  cashAtHome,
+  onChangeCashAtHome,
+  notificationSettings,
+  onChangeNotificationSettings,
+  initialCalendarTarget = null,
 }: {
   state: FinanceState | null
   salaryMonths: SalaryMonth[]
@@ -57,9 +74,18 @@ export function FinanceScreen({
   onAddAnchor: (input: FinanceAnchorInput) => void
   onOpenSalaryMonth: (monthId: string) => void
   onChangeState: (updater: (state: FinanceState) => FinanceState) => void
+  cashAtHome: CashAtHomeState
+  onChangeCashAtHome: (state: CashAtHomeState) => void
+  notificationSettings: PaymentNotificationSettings
+  onChangeNotificationSettings: (
+    settings: PaymentNotificationSettings,
+  ) => void
+  initialCalendarTarget?: PaymentNotificationNavigationTarget | null
 }) {
   const [activeSection, setActiveSection] =
-    useState<FinanceSection>('overview')
+    useState<FinanceSection>(
+      initialCalendarTarget ? 'calendar' : 'overview',
+    )
   const [showBalanceDialog, setShowBalanceDialog] = useState(false)
   const [featureMessage, setFeatureMessage] = useState<string | null>(null)
   const [quickAction, setQuickAction] = useState<FinanceQuickAction>(null)
@@ -205,6 +231,8 @@ export function FinanceScreen({
           onCopyReport={() => setShowReportDialog(true)}
           openEditorOnMount={quickAction === 'operation'}
           onEditorOpened={() => setQuickAction(null)}
+          initialMonthId={initialCalendarTarget?.monthId}
+          initialOperationId={initialCalendarTarget?.operationId}
         />
       ) : activeSection === 'obligations' ? (
         <FinanceObligationsScreen
@@ -213,12 +241,21 @@ export function FinanceScreen({
           onChangeState={onChangeState}
           openEditorOnMount={quickAction === 'obligation'}
           onEditorOpened={() => setQuickAction(null)}
+          defaultPaymentInstruction={notificationSettings.defaultInstruction}
         />
       ) : activeSection === 'settings' ? (
         <FinanceSettingsScreen
           state={state}
           currentMonth={getDateYearMonth(todayIsoDate)}
           onChangeState={onChangeState}
+          notificationSettings={notificationSettings}
+          todayIsoDate={todayIsoDate}
+          onChangeNotificationSettings={onChangeNotificationSettings}
+        />
+      ) : activeSection === 'cash' ? (
+        <FinanceCashAtHomeScreen
+          state={cashAtHome}
+          onChange={onChangeCashAtHome}
         />
       ) : (
         null
@@ -444,6 +481,7 @@ function FinanceSectionTabs({
           key={section.id}
           type="button"
           className={section.id === activeSection ? 'active' : ''}
+          data-section={section.id}
           aria-current={section.id === activeSection ? 'page' : undefined}
           onClick={() => onChange(section.id)}
         >
