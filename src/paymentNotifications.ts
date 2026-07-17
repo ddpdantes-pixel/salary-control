@@ -69,6 +69,11 @@ export interface PaymentNotificationNavigationTarget {
   operationId: string
 }
 
+export interface PaymentOperationTestTarget {
+  operationId: string
+  scheduledDate: string
+}
+
 export type PaymentNotificationUiState =
   | 'service-unavailable'
   | 'unsupported'
@@ -439,6 +444,28 @@ export async function sendTestPaymentNotification(
   })
 }
 
+export async function sendOperationTestPaymentNotification(
+  target: PaymentOperationTestTarget,
+  config = getPaymentPushConfig(),
+): Promise<void> {
+  const device = loadStoredPaymentPushDevice()
+  if (!config || !device) throw new Error('Уведомления на устройстве выключены')
+  const navigateUrl = createOperationNavigateUrl(
+    getPaymentNotificationBaseUrl(),
+    target.operationId,
+    target.scheduledDate,
+  )
+  await fetchJson(`${config.apiUrl}/api/reminders/test-operation`, {
+    method: 'POST',
+    headers: authHeaders(device),
+    body: JSON.stringify({
+      operationId: target.operationId,
+      scheduledDate: target.scheduledDate,
+      navigateUrl,
+    }),
+  })
+}
+
 export async function disablePaymentNotifications(
   config = getPaymentPushConfig(),
 ): Promise<void> {
@@ -698,6 +725,12 @@ function createOperationNavigateUrl(
   url.searchParams.set('month', scheduledDate.slice(0, 7))
   url.searchParams.set('operation', operationId)
   return url.toString()
+}
+
+function getPaymentNotificationBaseUrl(): string {
+  return typeof window === 'undefined'
+    ? 'https://ddpdantes-pixel.github.io/salary-control/'
+    : new URL(import.meta.env.BASE_URL, window.location.origin).toString()
 }
 
 function serializeSubscription(

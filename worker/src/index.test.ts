@@ -166,6 +166,36 @@ describe('Worker уведомлений о платежах', () => {
     )
   })
 
+  it('отправляет одноразовый тест перехода к операции без записи напоминания', async () => {
+    const repository = new MemoryRepository()
+    const secret = 'known-secret'
+    repository.devices.set('device-1', {
+      ...storedDevice(),
+      secretHash: await hash(secret),
+    })
+    const sender: PushSender = { send: vi.fn(async () => undefined) }
+    const response = await handleRequest(
+      post('/api/reminders/test-operation', {
+        operationId: 'operation-1',
+        scheduledDate: '2026-07-12',
+        navigateUrl: 'https://ddpdantes-pixel.github.io/salary-control/?section=money&finance=calendar&month=2026-07&operation=operation-1',
+      }, `Device device-1.${secret}`),
+      env,
+      { createRepository: () => repository, pushSender: sender, now },
+    )
+
+    expect(response.status).toBe(200)
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: 'Проверка перехода к операции',
+        data: expect.objectContaining({ operationId: 'operation-1' }),
+      }),
+      env,
+    )
+    expect(repository.synced).toHaveLength(0)
+  })
+
   it('безопасно описывает ошибку доставки и публикует только public VAPID-конфигурацию', async () => {
     const repository = new MemoryRepository()
     const secret = 'known-secret'

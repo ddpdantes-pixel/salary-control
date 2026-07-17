@@ -12,6 +12,12 @@ export interface SubscriptionInput {
   }
 }
 
+export interface OperationTestInput {
+  operationId: string
+  scheduledDate: string
+  navigateUrl: string
+}
+
 export function parseSubscription(value: unknown): SubscriptionInput | null {
   if (!isRecord(value) || !isRecord(value.keys)) return null
   if (
@@ -51,6 +57,28 @@ export function parseReminderSync(value: unknown): ReminderInput[] | null {
     (reminder): reminder is ReminderInput => reminder !== null,
   )
     ? reminders
+    : null
+}
+
+export function parseOperationTest(value: unknown): OperationTestInput | null {
+  if (
+    !isRecord(value) ||
+    !isBoundedString(value.operationId, 1, 200) ||
+    !isIsoDate(value.scheduledDate) ||
+    !isAllowedNavigateUrl(value.navigateUrl)
+  ) {
+    return null
+  }
+  const url = new URL(value.navigateUrl)
+  return (
+    url.searchParams.get('operation') === value.operationId &&
+    url.searchParams.get('month') === value.scheduledDate.slice(0, 7)
+  )
+    ? {
+        operationId: value.operationId,
+        scheduledDate: value.scheduledDate,
+        navigateUrl: value.navigateUrl,
+      }
     : null
 }
 

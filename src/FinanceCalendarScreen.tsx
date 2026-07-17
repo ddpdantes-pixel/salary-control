@@ -26,6 +26,7 @@ import {
   formatShortDateLabel,
 } from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
+import { sendOperationTestPaymentNotification } from './paymentNotifications'
 import type {
   FinanceOperation,
   FinanceOperationCategory,
@@ -74,6 +75,9 @@ export function FinanceCalendarScreen({
   const [pendingCompletion, setPendingCompletion] = useState<{
     item: FinanceCalendarItem
   } | null>(null)
+  const [testingOperationId, setTestingOperationId] = useState<string | null>(
+    null,
+  )
 
   useEffect(() => {
     if (!openEditorOnMount) return
@@ -149,6 +153,29 @@ export function FinanceCalendarScreen({
           )
         : [...current.operations, operation],
     }))
+  }
+
+  async function testOperationNotification(
+    item: FinanceCalendarItem,
+  ): Promise<void> {
+    const scheduledDate = item.operation.scheduledDate ?? item.operation.date
+    setTestingOperationId(item.operation.id)
+    setNavigationMessage('')
+    try {
+      await sendOperationTestPaymentNotification({
+        operationId: item.operation.id,
+        scheduledDate,
+      })
+      setNavigationMessage('Тестовое уведомление для операции отправлено')
+    } catch (error) {
+      setNavigationMessage(
+        error instanceof Error
+          ? error.message
+          : 'Не удалось отправить тестовое уведомление',
+      )
+    } finally {
+      setTestingOperationId(null)
+    }
   }
 
   function requestOperationStatusChange(
@@ -333,6 +360,10 @@ export function FinanceCalendarScreen({
                 setShowOperationDialog(true)
               }}
               onDelete={() => deleteManualOperation(item.operation)}
+              onTestNotification={() => {
+                void testOperationNotification(item)
+              }}
+              testingNotification={testingOperationId === item.operation.id}
             />
           ))
         )}
@@ -394,6 +425,8 @@ function CalendarOperationCard({
   onStatusChange,
   onEdit,
   onDelete,
+  onTestNotification,
+  testingNotification,
 }: {
   item: FinanceCalendarItem
   expanded: boolean
@@ -402,6 +435,8 @@ function CalendarOperationCard({
   onStatusChange: (status: FinanceOperation['status']) => void
   onEdit: () => void
   onDelete: () => void
+  onTestNotification: () => void
+  testingNotification: boolean
 }) {
   const operation = item.operation
   const isEarlyPayment =
@@ -488,6 +523,15 @@ function CalendarOperationCard({
             </select>
           </label>
           <pre>{formatFinanceFeedItem(item).join('\n').trim()}</pre>
+          {operation.direction === 'expense' && operation.status === 'planned' && (
+            <button
+              type="button"
+              onClick={onTestNotification}
+              disabled={testingNotification}
+            >
+              Проверить переход к операции
+            </button>
+          )}
           {canEdit && (
             <div className="finance-inline-actions">
               <button type="button" onClick={onEdit}>Изменить</button>

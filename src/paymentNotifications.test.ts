@@ -12,6 +12,7 @@ import {
   hasCurrentPaymentPushDevice,
   loadQueuedPaymentReminderSync,
   parsePaymentNotificationNavigation,
+  sendOperationTestPaymentNotification,
   saveStoredPaymentPushDevice,
   syncPaymentReminders,
 } from './paymentNotifications'
@@ -152,6 +153,37 @@ describe('напоминания о платежах', () => {
     const { sendTestPaymentNotification } = await import('./paymentNotifications')
     await expect(sendTestPaymentNotification(config)).rejects.toThrow(
       'Сервер уведомлений недоступен',
+    )
+  })
+
+  it('отправляет тест перехода с безопасным идентификатором и URL операции', async () => {
+    saveStoredPaymentPushDevice({
+      schemaVersion: 1,
+      deviceId: 'device-1',
+      deviceSecret: 'secret-1',
+      endpoint: 'https://push.example.test/subscription',
+      connectedAt: '2026-07-10T08:00:00.000Z',
+      vapidPublicKey: config.vapidPublicKey,
+    })
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    )
+
+    await sendOperationTestPaymentNotification({
+      operationId: 'operation-1',
+      scheduledDate: '2026-07-12',
+    }, config)
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://push.example.test/api/reminders/test-operation',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          operationId: 'operation-1',
+          scheduledDate: '2026-07-12',
+          navigateUrl: `${window.location.origin}/?section=money&finance=calendar&month=2026-07&operation=operation-1`,
+        }),
+      }),
     )
   })
 

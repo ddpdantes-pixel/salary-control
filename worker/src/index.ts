@@ -11,6 +11,7 @@ import {
 import {
   RequestValidationError,
   isAllowedOrigin,
+  parseOperationTest,
   parseReminderSync,
   parseSubscription,
   readJsonWithLimit,
@@ -173,6 +174,42 @@ export async function handleRequest(
             url: 'https://ddpdantes-pixel.github.io/salary-control/?section=money&finance=calendar',
             operationId: 'test',
             scheduledDate: nowIso.slice(0, 10),
+          },
+        },
+        env,
+      )
+      return jsonResponse({ ok: true }, 200, origin)
+    }
+
+    if (
+      request.method === 'POST' &&
+      url.pathname === '/api/reminders/test-operation'
+    ) {
+      if (!hasMatchingVapidKeyPair(env)) {
+        return jsonResponse(
+          { error: 'Конфигурация уведомлений на сервере недействительна' },
+          503,
+          origin,
+        )
+      }
+      await enforceRateLimit(repository, `test-operation:${device.id}`, nowIso, 5)
+      const body = await readJsonWithLimit(request)
+      const target = parseOperationTest(body)
+      if (!target) {
+        throw new RequestValidationError('Некорректная операция для теста', 400)
+      }
+      await dependencies.pushSender.send(
+        device,
+        {
+          title: 'Мой ритм',
+          body: 'Проверка перехода к операции',
+          icon: '/salary-control/pwa-192x192.png',
+          badge: '/salary-control/pwa-192x192.png',
+          tag: `test-operation-${target.operationId}`,
+          data: {
+            url: target.navigateUrl,
+            operationId: target.operationId,
+            scheduledDate: target.scheduledDate,
           },
         },
         env,
