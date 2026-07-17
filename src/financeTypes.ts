@@ -138,6 +138,7 @@ export interface FinanceOperation {
   shortageKopecks?: Kopecks
   personalExpenseDeductions?: PersonalExpenseDeduction[]
   personalExpensesAmountKopecks?: Kopecks
+  recurringScheduleId?: string
   createdAt: string
   updatedAt: string
 }

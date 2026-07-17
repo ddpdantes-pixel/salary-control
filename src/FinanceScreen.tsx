@@ -63,6 +63,7 @@ export function FinanceScreen({
   onChangeState,
   cashAtHome,
   onChangeCashAtHome,
+  onStopFutureDepositInterest = () => 0,
   notificationSettings,
   onChangeNotificationSettings,
   initialCalendarTarget = null,
@@ -76,6 +77,7 @@ export function FinanceScreen({
   onChangeState: (updater: (state: FinanceState) => FinanceState) => void
   cashAtHome: CashAtHomeState
   onChangeCashAtHome: (state: CashAtHomeState) => void
+  onStopFutureDepositInterest?: () => number
   notificationSettings: PaymentNotificationSettings
   onChangeNotificationSettings: (
     settings: PaymentNotificationSettings,
@@ -256,6 +258,7 @@ export function FinanceScreen({
         <FinanceCashAtHomeScreen
           state={cashAtHome}
           onChange={onChangeCashAtHome}
+          onStopFutureDepositInterest={onStopFutureDepositInterest}
         />
       ) : (
         null

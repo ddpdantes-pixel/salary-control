@@ -7,6 +7,7 @@ import {
   CASH_AT_HOME_KEY,
   createEmptyCashAtHomeState,
   loadStoredCashAtHomeState,
+  normalizeCashAtHomeState,
   saveStoredCashAtHomeState,
 } from './cashAtHome'
 import { createDefaultFinanceState } from './financeDefaults'
@@ -40,10 +41,16 @@ describe('Кубышка', () => {
       todayIsoDate: '2026-07-12',
     })
     const cash = {
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       balanceKopecks: 12_345,
       updatedAt: '2026-07-12T10:00:00.000Z',
       note: 'Наличные дома',
+      deposit: {
+        status: 'none' as const,
+        amountKopecks: 0,
+        annualRatePercent: null,
+        receivedInterestKopecks: null,
+      },
     }
 
     expect(saveStoredCashAtHomeState(cash)).toBe(true)
@@ -79,7 +86,87 @@ describe('Кубышка', () => {
       note: 'На непредвиденные расходы',
       updatedAt: expect.any(String),
     }))
-    expect(screen.getByRole('status').textContent).toContain('Сумма сохранена')
+    expect(screen.getByRole('status').textContent).toContain('Кубышка и вклад сохранены')
+  })
+
+  it('сохраняет вклад только как справочную информацию', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <FinanceCashAtHomeScreen
+        state={createEmptyCashAtHomeState()}
+        onChange={onChange}
+      />,
+    )
+
+    await user.type(screen.getByRole('textbox', { name: 'Сумма наличных дома' }), '1 000')
+    await user.click(screen.getByRole('radio', { name: 'Есть вклад' }))
+    await user.type(screen.getByRole('textbox', { name: 'Сумма вклада' }), '100 000')
+    await user.type(screen.getByRole('textbox', { name: 'Ставка, процентов годовых' }), '12,5')
+    await user.type(screen.getByRole('textbox', { name: 'Получено процентов' }), '1 234,56')
+    await user.click(screen.getByRole('button', { name: 'Сохранить сумму' }))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      deposit: {
+        status: 'active',
+        amountKopecks: 10_000_000,
+        annualRatePercent: 12.5,
+        receivedInterestKopecks: 123_456,
+      },
+    }))
+  })
+
+  it('безопасно мигрирует старую Кубышку без вклада', () => {
+    expect(normalizeCashAtHomeState({
+      schemaVersion: 1,
+      balanceKopecks: 1_000,
+      updatedAt: '2026-07-12T10:00:00.000Z',
+      note: 'Старая запись',
+    })).toMatchObject({
+      schemaVersion: 2,
+      balanceKopecks: 1_000,
+      deposit: { status: 'none', amountKopecks: 0 },
+    })
+  })
+
+  it('сохраняет миграцию старой Кубышки в новом формате', () => {
+    storage.set(CASH_AT_HOME_KEY, JSON.stringify({
+      schemaVersion: 1,
+      balanceKopecks: 1_000,
+      updatedAt: '2026-07-12T10:00:00.000Z',
+      note: 'Старая запись',
+    }))
+
+    expect(loadStoredCashAtHomeState()).toMatchObject({
+      schemaVersion: 2,
+      deposit: { status: 'none' },
+    })
+    expect(JSON.parse(storage.get(CASH_AT_HOME_KEY) ?? '{}')).toMatchObject({
+      schemaVersion: 2,
+      deposit: { status: 'none' },
+    })
+  })
+
+  it('отклоняет отрицательные и повреждённые значения вклада', () => {
+    expect(normalizeCashAtHomeState({
+      schemaVersion: 2,
+      balanceKopecks: 1_000,
+      updatedAt: '2026-07-12T10:00:00.000Z',
+      note: '',
+      deposit: {
+        status: 'active',
+        amountKopecks: -1,
+        annualRatePercent: Infinity,
+        receivedInterestKopecks: Number.NaN,
+      },
+    })).toMatchObject({
+      deposit: {
+        status: 'active',
+        amountKopecks: 0,
+        annualRatePercent: null,
+        receivedInterestKopecks: null,
+      },
+    })
   })
 
   it('безопасно возвращает пустое состояние для повреждённой записи', () => {

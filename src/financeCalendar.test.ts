@@ -4,6 +4,7 @@ import {
   buildFinanceCalendarTimeline,
   filterFinanceCalendarItems,
   getFinanceBalanceTone,
+  groupFinanceCalendarItems,
 } from './financeCalendar'
 import {
   INITIAL_CREDIT_ACCOUNT_ANCHOR,
@@ -41,6 +42,55 @@ describe('финансовый календарь', () => {
     })
 
     expect(filtered.map((item) => item.operation.id)).toEqual(['overdue'])
+  })
+
+  it('раскладывает операции по приоритету календаря без смешивания расходов и поступлений', () => {
+    const grouped = groupFinanceCalendarItems(
+      buildFinanceCalendarTimeline({
+        anchors: [INITIAL_CREDIT_ACCOUNT_ANCHOR],
+        todayIsoDate: '2026-07-11',
+        operations: [
+          { ...operation('overdue-late', '2026-07-10', 'expense', 500), status: 'planned' },
+          { ...operation('overdue-early', '2026-07-08', 'expense', 500), status: 'planned' },
+          { ...operation('next-payment', '2026-07-12', 'expense', 1_000), status: 'planned' },
+          { ...operation('later-payment', '2026-07-20', 'expense', 1_000), status: 'planned' },
+          { ...operation('expected-income', '2026-07-13', 'income', 2_000), status: 'planned' },
+          {
+            ...operation('paid-expense', '2026-07-14', 'expense', 1_000),
+            status: 'completed',
+            actualDate: '2026-07-15',
+            completedDate: '2026-07-15',
+          },
+          {
+            ...operation('received-income', '2026-07-15', 'income', 2_000),
+            status: 'completed',
+            actualDate: '2026-07-16',
+            completedDate: '2026-07-16',
+          },
+          { ...operation('cancelled', '2026-07-16', 'expense', 500), status: 'cancelled' },
+        ],
+      }),
+      '2026-07',
+    )
+
+    expect(grouped.overdueExpenses.map((item) => item.operation.id)).toEqual([
+      'overdue-early',
+      'overdue-late',
+    ])
+    expect(grouped.upcomingExpenses.map((item) => item.operation.id)).toEqual([
+      'next-payment',
+      'later-payment',
+    ])
+    expect(grouped.upcomingIncome.map((item) => item.operation.id)).toEqual([
+      'expected-income',
+    ])
+    expect(grouped.completed.map((item) => item.operation.id)).toEqual([
+      'received-income',
+      'paid-expense',
+    ])
+    expect(grouped.cancelled.map((item) => item.operation.id)).toEqual([
+      'cancelled',
+    ])
   })
 
   it('показывает новую категорию обязательства в календаре', () => {

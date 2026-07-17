@@ -100,16 +100,28 @@ describe('резервная копия', () => {
       null,
       null,
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         balanceKopecks: 654_321,
         updatedAt: '2026-07-12T10:00:00.000Z',
         note: 'Наличные дома',
+        deposit: {
+          status: 'active',
+          amountKopecks: 987_654,
+          annualRatePercent: 12.5,
+          receivedInterestKopecks: 12_345,
+        },
       },
       settings,
     )
     const parsed = parseBackupData(JSON.stringify(backup))
 
     expect(parsed.cashAtHome).toMatchObject({ balanceKopecks: 654_321, note: 'Наличные дома' })
+    expect(parsed.cashAtHome?.deposit).toEqual({
+      status: 'active',
+      amountKopecks: 987_654,
+      annualRatePercent: 12.5,
+      receivedInterestKopecks: 12_345,
+    })
     expect(parsed.paymentNotificationSettings).toEqual(settings)
     expect(JSON.stringify(backup)).not.toContain('deviceSecret')
     expect(JSON.stringify(backup)).not.toContain('p256dh')
@@ -126,6 +138,24 @@ describe('резервная копия', () => {
 
     expect(parsed.cashAtHome).toBeNull()
     expect(parsed.paymentNotificationSettings).toBeNull()
+  })
+
+  it('восстанавливает старую Кубышку без вклада как состояние «Вклада нет»', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const legacyCash = {
+      schemaVersion: 1,
+      balanceKopecks: 40_000,
+      updatedAt: '2026-07-12T10:00:00.000Z',
+      note: 'Старые наличные',
+    }
+    const backup = createBackupData([month], month.id, null, null, null, null, legacyCash as never)
+    const parsed = parseBackupData(JSON.stringify(backup))
+
+    expect(parsed.cashAtHome).toMatchObject({
+      schemaVersion: 2,
+      balanceKopecks: 40_000,
+      deposit: { status: 'none' },
+    })
   })
 
   it('экспортирует и импортирует полный финансовый раздел версии 4', () => {

@@ -47,6 +47,21 @@ export interface FinanceCalendarFilters {
   status: CalendarStatusFilter
 }
 
+export type FinanceCalendarGroupId =
+  | 'overdueExpenses'
+  | 'upcomingExpenses'
+  | 'upcomingIncome'
+  | 'completed'
+  | 'cancelled'
+
+export interface FinanceCalendarGroups {
+  overdueExpenses: FinanceCalendarItem[]
+  upcomingExpenses: FinanceCalendarItem[]
+  upcomingIncome: FinanceCalendarItem[]
+  completed: FinanceCalendarItem[]
+  cancelled: FinanceCalendarItem[]
+}
+
 export function buildFinanceCalendarTimeline(input: {
   anchors: BalanceAnchor[]
   operations: FinanceOperation[]
@@ -160,6 +175,50 @@ export function filterFinanceCalendarItems(
   })
 }
 
+export function groupFinanceCalendarItems(
+  items: FinanceCalendarItem[],
+  monthId: string,
+): FinanceCalendarGroups {
+  const groups: FinanceCalendarGroups = {
+    overdueExpenses: [],
+    upcomingExpenses: [],
+    upcomingIncome: [],
+    completed: [],
+    cancelled: [],
+  }
+
+  for (const item of items) {
+    if (getDateYearMonth(item.operation.date) !== monthId) continue
+    groups[getFinanceCalendarGroup(item)].push(item)
+  }
+
+  groups.overdueExpenses.sort(sortByDateAscending)
+  groups.upcomingExpenses.sort(sortByDateAscending)
+  groups.upcomingIncome.sort(sortByDateAscending)
+  groups.completed.sort((first, second) =>
+    getCompletionDate(second).localeCompare(getCompletionDate(first)) ||
+    second.operation.id.localeCompare(first.operation.id),
+  )
+  groups.cancelled.sort((first, second) =>
+    second.operation.date.localeCompare(first.operation.date) ||
+    second.operation.id.localeCompare(first.operation.id),
+  )
+  return groups
+}
+
+export function getFinanceCalendarGroup(
+  item: FinanceCalendarItem,
+): FinanceCalendarGroupId {
+  if (item.operation.status === 'cancelled') return 'cancelled'
+  if (item.operation.status === 'completed') return 'completed'
+  if (item.operation.direction === 'expense') {
+    return item.displayStatus === 'Просрочено'
+      ? 'overdueExpenses'
+      : 'upcomingExpenses'
+  }
+  return 'upcomingIncome'
+}
+
 export function getFinanceSourceLabel(
   source: FinanceOperationSource,
   obligation?: Obligation,
@@ -204,4 +263,22 @@ function shouldApplyOperation(
   }
 
   return operation.status === 'planned' || operation.status === 'completed'
+}
+
+function sortByDateAscending(
+  first: FinanceCalendarItem,
+  second: FinanceCalendarItem,
+): number {
+  return (
+    first.operation.date.localeCompare(second.operation.date) ||
+    first.operation.id.localeCompare(second.operation.id)
+  )
+}
+
+function getCompletionDate(item: FinanceCalendarItem): string {
+  return (
+    item.operation.actualDate ??
+    item.operation.completedDate ??
+    item.operation.date
+  )
 }

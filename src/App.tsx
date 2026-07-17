@@ -86,6 +86,7 @@ import {
   saveStoredCashAtHomeState,
   type CashAtHomeState,
 } from './cashAtHome'
+import { stopFutureDepositInterest } from './financeDeposit'
 import {
   createDefaultPaymentNotificationSettings,
   flushQueuedPaymentReminderSync,
@@ -703,6 +704,18 @@ function App() {
     )
   }
 
+  function stopScheduledDepositInterest(): number {
+    if (!financeState) return 0
+    const result = stopFutureDepositInterest({
+      state: financeState,
+      todayIsoDate: getLocalIsoDate(),
+    })
+    if (result.removedCount > 0) {
+      updateFinanceState(() => result.state)
+    }
+    return result.removedCount
+  }
+
   function openMonthFromHistory(monthId: string): void {
     const target = getHistoryMonthOpenTarget(monthId)
     setSelectedMonthId(target.selectedMonthId)
@@ -869,6 +882,7 @@ function App() {
           onChangeState={updateFinanceState}
           cashAtHome={cashAtHome}
           onChangeCashAtHome={setCashAtHome}
+          onStopFutureDepositInterest={stopScheduledDepositInterest}
           notificationSettings={paymentNotificationSettings}
           onChangeNotificationSettings={setPaymentNotificationSettings}
           initialCalendarTarget={paymentNavigationTarget}

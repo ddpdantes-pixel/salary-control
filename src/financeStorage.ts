@@ -1,6 +1,7 @@
 import {
   FINANCE_SCHEMA_VERSION,
   INITIAL_FUTURE_OPERATION_IDS,
+  DEPOSIT_INTEREST_SCHEDULE_ID,
   createDefaultFinanceState,
   createInitialObligations,
 } from './financeDefaults'
@@ -148,6 +149,9 @@ export function normalizeFinanceState(
   const operations = shouldMigrateEarlyCompletions
     ? migrateEarlyCompletedOperations(normalizedOperations, todayIsoDate)
     : normalizedOperations
+  const operationsWithDepositSchedule = migrateDepositInterestScheduleIds(
+    operations,
+  )
   const shouldMigrateCategories =
     typeof raw.schemaVersion !== 'number' || raw.schemaVersion < 5
   const categorizedObligations = shouldMigrateCategories
@@ -155,14 +159,14 @@ export function normalizeFinanceState(
     : normalizedObligations
   const obligations = syncObligationPaymentStatuses(
     categorizedObligations,
-    operations,
+    operationsWithDepositSchedule,
   )
 
   return {
     schemaVersion: FINANCE_SCHEMA_VERSION,
     settings,
     anchors,
-    operations,
+    operations: operationsWithDepositSchedule,
     obligations,
     obligationPayments,
     personalExpenses,
@@ -306,6 +310,7 @@ function normalizeOperation(
     personalExpensesAmountKopecks: optionalInteger(
       raw.personalExpensesAmountKopecks,
     ),
+    recurringScheduleId: optionalString(raw.recurringScheduleId),
     createdAt,
     updatedAt,
   }
@@ -617,7 +622,24 @@ function needsFinanceMigration(raw: unknown): boolean {
         ),
     )
 
-  return anchorsNeedTimestamp || operationsNeedTimestamp || paymentsNeedTimestamp
+  const depositScheduleNeedsMigration =
+    Array.isArray(raw.operations) &&
+    raw.operations.some(
+      (operation) =>
+        isRecord(operation) &&
+        operation.source === 'depositInterest' &&
+        operation.category === 'depositInterest' &&
+        operation.title === 'Проценты по вкладу' &&
+        isInitialDepositInterestOperationId(String(operation.id)) &&
+        operation.recurringScheduleId !== DEPOSIT_INTEREST_SCHEDULE_ID,
+    )
+
+  return (
+    anchorsNeedTimestamp ||
+    operationsNeedTimestamp ||
+    paymentsNeedTimestamp ||
+    depositScheduleNeedsMigration
+  )
 }
 
 function migrateEarlyCompletedOperations(
@@ -657,6 +679,31 @@ function migrateObligationCategories(
       ? { ...obligation, category: 'split' }
       : obligation,
   )
+}
+
+function migrateDepositInterestScheduleIds(
+  operations: FinanceOperation[],
+): FinanceOperation[] {
+  return operations.map((operation) => {
+    if (
+      operation.recurringScheduleId ||
+      operation.source !== 'depositInterest' ||
+      operation.category !== 'depositInterest' ||
+      operation.title !== 'Проценты по вкладу' ||
+      !isInitialDepositInterestOperationId(operation.id)
+    ) {
+      return operation
+    }
+
+    return {
+      ...operation,
+      recurringScheduleId: DEPOSIT_INTEREST_SCHEDULE_ID,
+    }
+  })
+}
+
+function isInitialDepositInterestOperationId(id: string): boolean {
+  return /^deposit-interest-\d{4}-\d{2}-15$/.test(id)
 }
 
 function syncObligationPaymentStatuses(

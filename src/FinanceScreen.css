@@ -776,7 +776,6 @@
 }
 
 .finance-month-control label,
-.finance-filter-panel label,
 .finance-edit-form label,
 .finance-operation-details label,
 .finance-report-period label,
@@ -790,7 +789,6 @@
 }
 
 .finance-month-control input,
-.finance-filter-panel select,
 .finance-edit-form input,
 .finance-edit-form select,
 .finance-edit-form textarea,
@@ -814,16 +812,6 @@
   resize: vertical;
 }
 
-.finance-filter-panel {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  border-radius: var(--radius);
-  padding: 12px;
-  background: var(--surface);
-  box-shadow: var(--shadow-soft);
-}
-
 .finance-calendar-item,
 .finance-obligation-card {
   min-width: 0;
@@ -840,6 +828,104 @@
     0 0 0 3px color-mix(in srgb, var(--finance-accent) 20%, transparent),
     var(--shadow-soft);
   animation: finance-operation-highlight 1.2s ease-in-out 2;
+}
+
+.finance-calendar-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.finance-calendar-group-heading,
+.finance-calendar-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0;
+  padding: 4px 2px;
+  color: var(--text-primary);
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.finance-calendar-group-heading h2,
+.finance-calendar-group-toggle span:first-child {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.finance-calendar-group-heading > span {
+  display: grid;
+  min-width: 24px;
+  min-height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.finance-calendar-group-toggle {
+  width: 100%;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--surface-muted);
+  font-weight: 750;
+}
+
+.finance-calendar-group-toggle > span:last-child {
+  color: var(--finance-accent);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.finance-calendar-group-items {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.finance-calendar-item {
+  border-left: 4px solid var(--finance-border);
+}
+
+.finance-calendar-item.calendar-status-overdue {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--finance-border));
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger-soft) 58%, var(--surface));
+}
+
+.finance-calendar-item.calendar-status-next {
+  border-color: color-mix(in srgb, #b97716 48%, var(--finance-border));
+  border-left-color: #b97716;
+  background: color-mix(in srgb, #fff1ce 70%, var(--surface));
+}
+
+.finance-calendar-item.calendar-status-planned {
+  border-left-color: #bd8a25;
+  background: color-mix(in srgb, #fff8e9 70%, var(--surface));
+}
+
+.finance-calendar-item.calendar-status-income {
+  border-left-color: #308a8a;
+  background: color-mix(in srgb, #e5f6f3 72%, var(--surface));
+}
+
+.finance-calendar-item.calendar-status-completed {
+  border-left-color: var(--success);
+  background: color-mix(in srgb, var(--success-soft) 52%, var(--surface));
+}
+
+.finance-calendar-item.calendar-status-cancelled {
+  border-left-color: #8a8a8a;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
 }
 
 .finance-navigation-message {
@@ -884,6 +970,53 @@
   gap: 4px;
   min-width: 0;
 }
+
+.finance-calendar-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.finance-calendar-status-line small {
+  margin-left: 2px;
+}
+
+.finance-calendar-status-icon {
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: var(--finance-accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.calendar-status-overdue .finance-calendar-status-icon { background: var(--danger); }
+.calendar-status-next .finance-calendar-status-icon,
+.calendar-status-planned .finance-calendar-status-icon { background: #b97716; }
+.calendar-status-income .finance-calendar-status-icon { background: #308a8a; }
+.calendar-status-completed .finance-calendar-status-icon { background: var(--success); }
+.calendar-status-cancelled .finance-calendar-status-icon { background: #777; }
+
+.finance-calendar-status-badge {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: var(--finance-accent-strong);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.15;
+}
+
+.calendar-status-overdue .finance-calendar-status-badge { color: var(--danger); }
+.calendar-status-next .finance-calendar-status-badge,
+.calendar-status-planned .finance-calendar-status-badge { color: #9a650a; }
+.calendar-status-income .finance-calendar-status-badge { color: #247575; }
+.calendar-status-completed .finance-calendar-status-badge { color: var(--success); }
+.calendar-status-cancelled .finance-calendar-status-badge { color: #777; }
 
 .finance-calendar-summary b {
   overflow-wrap: anywhere;
@@ -1500,6 +1633,65 @@
   font-size: 13px;
 }
 
+.finance-deposit-fields,
+.finance-cash-deposit-actions {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--finance-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--surface-muted);
+}
+
+.finance-deposit-fields legend {
+  padding: 0 5px;
+  color: var(--finance-text);
+  font-size: 17px;
+  font-weight: 760;
+}
+
+.finance-deposit-state {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.finance-deposit-state label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.finance-deposit-state input {
+  width: 18px;
+  min-height: auto;
+  padding: 0;
+  box-shadow: none;
+}
+
+.finance-deposit-inputs {
+  display: grid;
+  gap: 12px;
+}
+
+.finance-cash-deposit-actions h3,
+.finance-cash-deposit-actions p {
+  margin: 0;
+}
+
+.finance-cash-deposit-actions h3 { font-size: 16px; }
+.finance-cash-deposit-actions p { color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
+.finance-cash-deposit-actions button { justify-self: start; min-height: 44px; }
+
 .finance-notification-settings {
   display: grid;
   gap: 13px;
@@ -1730,10 +1922,6 @@
     grid-column: 1 / -1;
   }
 
-  .finance-filter-panel {
-    grid-template-columns: 1fr;
-  }
-
   .finance-payment-row {
     grid-template-columns: minmax(0, 1fr) 36px;
   }
@@ -1835,6 +2023,10 @@
 
   .finance-calendar-balance b {
     text-align: left;
+  }
+
+  .finance-deposit-state {
+    grid-template-columns: 1fr;
   }
 
   .finance-obligation-card header {

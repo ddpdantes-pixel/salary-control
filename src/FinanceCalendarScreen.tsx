@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   buildFinanceCalendarTimeline,
-  filterFinanceCalendarItems,
+  getFinanceCalendarGroup,
   getFinanceBalanceTone,
   getOperationStatusLabel,
-  type CalendarDirectionFilter,
-  type CalendarStatusFilter,
+  groupFinanceCalendarItems,
+  type FinanceCalendarGroupId,
   type FinanceCalendarItem,
 } from './financeCalendar'
 import {
@@ -16,7 +16,6 @@ import { formatFinanceFeedItem } from './financeReport'
 import { buildOverviewOperations } from './financeOverview'
 import {
   closeObligationInState,
-  getObligationCategoryLabel,
   isFinalObligationPayment,
   setFinanceOperationStatus,
 } from './financeObligations'
@@ -59,16 +58,14 @@ export function FinanceCalendarScreen({
   const [monthId, setMonthId] = useState(
     initialMonthId ?? getDateYearMonth(todayIsoDate),
   )
-  const [direction, setDirection] =
-    useState<CalendarDirectionFilter>('all')
-  const [obligationId, setObligationId] = useState('all')
-  const [status, setStatus] = useState<CalendarStatusFilter>('all')
   const [expandedId, setExpandedId] = useState<string | null>(
     initialOperationId ?? null,
   )
   const [highlightedId, setHighlightedId] = useState<string | null>(
     initialOperationId ?? null,
   )
+  const [completedExpanded, setCompletedExpanded] = useState(false)
+  const [cancelledExpanded, setCancelledExpanded] = useState(false)
   const [navigationMessage, setNavigationMessage] = useState('')
   const [editingOperation, setEditingOperation] =
     useState<FinanceOperation | null>(null)
@@ -109,12 +106,10 @@ export function FinanceCalendarScreen({
       todayIsoDate,
     })
   }, [monthId, rangeEndDate, rangeStartDate, salaryMonths, state, todayIsoDate])
-  const filteredItems = filterFinanceCalendarItems(items, {
-    monthId,
-    direction,
-    obligationId,
-    status,
-  })
+  const calendarGroups = useMemo(
+    () => groupFinanceCalendarItems(items, monthId),
+    [items, monthId],
+  )
 
   useEffect(() => {
     if (!initialOperationId) return
@@ -130,17 +125,27 @@ export function FinanceCalendarScreen({
     }
 
     setExpandedId(initialOperationId)
+    const target = items.find(
+      (item) => item.operation.id === initialOperationId,
+    )
+    if (target) {
+      const targetGroup = getFinanceCalendarGroup(target)
+      if (targetGroup === 'completed') setCompletedExpanded(true)
+      if (targetGroup === 'cancelled') setCancelledExpanded(true)
+    }
     markAppStage('deep-link-operation-ready')
     setNavigationMessage('')
     const frame = window.requestAnimationFrame(() => {
-      const element = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-operation-id]'),
-      ).find(
-        (candidate) =>
-          candidate.dataset.operationId === initialOperationId,
-      )
-      element?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
-      markAppStage('deep-link-operation-revealed')
+      window.requestAnimationFrame(() => {
+        const element = Array.from(
+          document.querySelectorAll<HTMLElement>('[data-operation-id]'),
+        ).find(
+          (candidate) =>
+            candidate.dataset.operationId === initialOperationId,
+        )
+        element?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+        markAppStage('deep-link-operation-revealed')
+      })
     })
     const timer = window.setTimeout(() => setHighlightedId(null), 4500)
     return () => {
@@ -203,6 +208,13 @@ export function FinanceCalendarScreen({
     nextStatus: FinanceOperation['status'],
     actualDate?: string,
   ): void {
+    if (nextStatus === 'completed') {
+      setNavigationMessage('Операция перемещена в выполненные')
+    } else if (nextStatus === 'planned') {
+      setNavigationMessage('Операция возвращена в предстоящие')
+    } else {
+      setNavigationMessage('Операция перемещена в отменённые')
+    }
     const obligation = item.operation.obligationId
       ? state.obligations.find(
           (candidate) => candidate.id === item.operation.obligationId,
@@ -294,83 +306,84 @@ export function FinanceCalendarScreen({
         </button>
       </div>
 
-      <section className="finance-filter-panel" aria-label="Фильтры календаря">
-        <label>
-          <span>Операции</span>
-          <select
-            value={direction}
-            onChange={(event) =>
-              setDirection(event.currentTarget.value as CalendarDirectionFilter)
-            }
-          >
-            <option value="all">Все</option>
-            <option value="income">Поступления</option>
-            <option value="expense">Списания</option>
-          </select>
-        </label>
-        <label>
-          <span>Обязательство</span>
-          <select
-            value={obligationId}
-            onChange={(event) => setObligationId(event.currentTarget.value)}
-          >
-            <option value="all">Все обязательства</option>
-            {state.obligations.map((obligation) => (
-              <option key={obligation.id} value={obligation.id}>
-                {obligation.title} · {getObligationCategoryLabel(obligation.category)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Статус</span>
-          <select
-            value={status}
-            onChange={(event) =>
-              setStatus(event.currentTarget.value as CalendarStatusFilter)
-            }
-          >
-            <option value="all">Все статусы</option>
-            <option value="planned">Предстоит</option>
-            <option value="overdue">Просрочено</option>
-            <option value="completed">Проведено</option>
-            <option value="cancelled">Отменено</option>
-          </select>
-        </label>
-      </section>
-
       <section className="finance-calendar-list" aria-label="Финансовые операции">
-        {filteredItems.length === 0 ? (
+        {Object.values(calendarGroups).every((group) => group.length === 0) ? (
           <div className="finance-card finance-calendar-empty">
             <h2>Операций не найдено</h2>
-            <p>Измените фильтры или добавьте ручную операцию.</p>
+            <p>Добавьте ручную операцию, когда она появится.</p>
           </div>
         ) : (
-          filteredItems.map((item) => (
-            <CalendarOperationCard
-              key={item.operation.id}
-              item={item}
-              expanded={expandedId === item.operation.id}
-              highlighted={highlightedId === item.operation.id}
-              onToggle={() =>
-                setExpandedId((current) =>
-                  current === item.operation.id ? null : item.operation.id,
-                )
-              }
-              onStatusChange={(nextStatus) =>
-                requestOperationStatusChange(item, nextStatus)
-              }
-              onEdit={() => {
-                setEditingOperation(item.operation)
-                setShowOperationDialog(true)
-              }}
-              onDelete={() => deleteManualOperation(item.operation)}
-              onTestNotification={() => {
-                void testOperationNotification(item)
-              }}
-              testingNotification={testingOperationId === item.operation.id}
+          <>
+            <CalendarGroup
+              title="Просроченные расходы"
+              group="overdueExpenses"
+              items={calendarGroups.overdueExpenses}
+              expandedId={expandedId}
+              highlightedId={highlightedId}
+              onToggle={(id) => setExpandedId((current) => current === id ? null : id)}
+              onStatusChange={requestOperationStatusChange}
+              onEdit={(operation) => { setEditingOperation(operation); setShowOperationDialog(true) }}
+              onDelete={deleteManualOperation}
+              onTestNotification={(item) => { void testOperationNotification(item) }}
+              testingOperationId={testingOperationId}
             />
-          ))
+            <CalendarGroup
+              title="Предстоящие расходы"
+              group="upcomingExpenses"
+              items={calendarGroups.upcomingExpenses}
+              expandedId={expandedId}
+              highlightedId={highlightedId}
+              onToggle={(id) => setExpandedId((current) => current === id ? null : id)}
+              onStatusChange={requestOperationStatusChange}
+              onEdit={(operation) => { setEditingOperation(operation); setShowOperationDialog(true) }}
+              onDelete={deleteManualOperation}
+              onTestNotification={(item) => { void testOperationNotification(item) }}
+              testingOperationId={testingOperationId}
+            />
+            <CalendarGroup
+              title="Ожидаемые поступления"
+              group="upcomingIncome"
+              items={calendarGroups.upcomingIncome}
+              expandedId={expandedId}
+              highlightedId={highlightedId}
+              onToggle={(id) => setExpandedId((current) => current === id ? null : id)}
+              onStatusChange={requestOperationStatusChange}
+              onEdit={(operation) => { setEditingOperation(operation); setShowOperationDialog(true) }}
+              onDelete={deleteManualOperation}
+              onTestNotification={(item) => { void testOperationNotification(item) }}
+              testingOperationId={testingOperationId}
+            />
+            <CollapsibleCalendarGroup
+              title="Выполнено"
+              group="completed"
+              items={calendarGroups.completed}
+              expanded={completedExpanded}
+              onExpandedChange={setCompletedExpanded}
+              expandedId={expandedId}
+              highlightedId={highlightedId}
+              onToggle={(id) => setExpandedId((current) => current === id ? null : id)}
+              onStatusChange={requestOperationStatusChange}
+              onEdit={(operation) => { setEditingOperation(operation); setShowOperationDialog(true) }}
+              onDelete={deleteManualOperation}
+              onTestNotification={(item) => { void testOperationNotification(item) }}
+              testingOperationId={testingOperationId}
+            />
+            <CollapsibleCalendarGroup
+              title="Отменено"
+              group="cancelled"
+              items={calendarGroups.cancelled}
+              expanded={cancelledExpanded}
+              onExpandedChange={setCancelledExpanded}
+              expandedId={expandedId}
+              highlightedId={highlightedId}
+              onToggle={(id) => setExpandedId((current) => current === id ? null : id)}
+              onStatusChange={requestOperationStatusChange}
+              onEdit={(operation) => { setEditingOperation(operation); setShowOperationDialog(true) }}
+              onDelete={deleteManualOperation}
+              onTestNotification={(item) => { void testOperationNotification(item) }}
+              testingOperationId={testingOperationId}
+            />
+          </>
         )}
       </section>
 
@@ -422,8 +435,98 @@ export function FinanceCalendarScreen({
   )
 }
 
+interface CalendarGroupProps {
+  title: string
+  group: FinanceCalendarGroupId
+  items: FinanceCalendarItem[]
+  expandedId: string | null
+  highlightedId: string | null
+  onToggle: (id: string) => void
+  onStatusChange: (
+    item: FinanceCalendarItem,
+    status: FinanceOperation['status'],
+  ) => void
+  onEdit: (operation: FinanceOperation) => void
+  onDelete: (operation: FinanceOperation) => void
+  onTestNotification: (item: FinanceCalendarItem) => void
+  testingOperationId: string | null
+}
+
+function CalendarGroup(props: CalendarGroupProps) {
+  if (props.items.length === 0) return null
+  return (
+    <section className={`finance-calendar-group ${props.group}`} aria-label={props.title}>
+      <header className="finance-calendar-group-heading">
+        <h2>{props.title}</h2>
+        <span>{props.items.length}</span>
+      </header>
+      <CalendarGroupItems {...props} />
+    </section>
+  )
+}
+
+function CollapsibleCalendarGroup({
+  expanded,
+  onExpandedChange,
+  ...props
+}: CalendarGroupProps & {
+  expanded: boolean
+  onExpandedChange: (value: boolean) => void
+}) {
+  return (
+    <section className={`finance-calendar-group ${props.group}`}>
+      <button
+        type="button"
+        className="finance-calendar-group-toggle"
+        aria-expanded={expanded}
+        onClick={() => onExpandedChange(!expanded)}
+      >
+        <span>{props.title} — {props.items.length} операций</span>
+        <span aria-hidden="true">{expanded ? '−' : '+'}</span>
+      </button>
+      {expanded && <CalendarGroupItems {...props} />}
+    </section>
+  )
+}
+
+function CalendarGroupItems({
+  group,
+  items,
+  expandedId,
+  highlightedId,
+  onToggle,
+  onStatusChange,
+  onEdit,
+  onDelete,
+  onTestNotification,
+  testingOperationId,
+}: CalendarGroupProps) {
+  return (
+    <div className="finance-calendar-group-items">
+      {items.map((item, index) => (
+        <CalendarOperationCard
+          key={item.operation.id}
+          item={item}
+          group={group}
+          isNextPayment={group === 'upcomingExpenses' && index === 0}
+          expanded={expandedId === item.operation.id}
+          highlighted={highlightedId === item.operation.id}
+          onToggle={() => onToggle(item.operation.id)}
+          onStatusChange={(nextStatus) => onStatusChange(item, nextStatus)}
+          onEdit={() => onEdit(item.operation)}
+          onDelete={() => onDelete(item.operation)}
+          onTestNotification={() => onTestNotification(item)}
+          testingNotification={testingOperationId === item.operation.id}
+        />
+      ))}
+    </div>
+  )
+}
+
 function CalendarOperationCard({
   item,
+  group,
+  isNextPayment,
   expanded,
   highlighted,
   onToggle,
@@ -434,6 +537,8 @@ function CalendarOperationCard({
   testingNotification,
 }: {
   item: FinanceCalendarItem
+  group: FinanceCalendarGroupId
+  isNextPayment: boolean
   expanded: boolean
   highlighted: boolean
   onToggle: () => void
@@ -444,6 +549,11 @@ function CalendarOperationCard({
   testingNotification: boolean
 }) {
   const operation = item.operation
+  const statusPresentation = getStatusPresentation(
+    group,
+    isNextPayment,
+    operation.direction,
+  )
   const isEarlyPayment =
     operation.status === 'completed' &&
     operation.completedDate !== undefined &&
@@ -456,7 +566,7 @@ function CalendarOperationCard({
 
   return (
     <article
-      className={`finance-calendar-item ${operation.direction} ${highlighted ? 'highlighted' : ''}`}
+      className={`finance-calendar-item ${operation.direction} calendar-status-${statusPresentation.tone} ${highlighted ? 'highlighted' : ''}`}
       data-operation-id={operation.id}
     >
       <button
@@ -468,7 +578,15 @@ function CalendarOperationCard({
         <time dateTime={operation.date}>{formatCompactDate(operation.date)}</time>
         <span>
           <b>{operation.title}</b>
-          <small>{item.sourceLabel} · {item.displayStatus}</small>
+          <span className="finance-calendar-status-line">
+            <span className="finance-calendar-status-icon" aria-hidden="true">
+              {statusPresentation.icon}
+            </span>
+            <span className="finance-calendar-status-badge">
+              {statusPresentation.label}
+            </span>
+            <small>{item.sourceLabel}</small>
+          </span>
           {isEarlyPayment && (
             <small className="finance-early-payment">
               <span>
@@ -549,6 +667,32 @@ function CalendarOperationCard({
       )}
     </article>
   )
+}
+
+function getStatusPresentation(
+  group: FinanceCalendarGroupId,
+  isNextPayment: boolean,
+  direction: FinanceOperation['direction'],
+): { label: string; icon: string; tone: string } {
+  if (group === 'overdueExpenses') {
+    return { label: 'Просрочено', icon: '!', tone: 'overdue' }
+  }
+  if (group === 'upcomingExpenses') {
+    return isNextPayment
+      ? { label: 'Следующий платёж', icon: '>', tone: 'next' }
+      : { label: 'Предстоит', icon: '~', tone: 'planned' }
+  }
+  if (group === 'upcomingIncome') {
+    return { label: 'Ожидается', icon: '+', tone: 'income' }
+  }
+  if (group === 'completed') {
+    return {
+      label: direction === 'income' ? 'Получено' : 'Оплачено',
+      icon: 'v',
+      tone: 'completed',
+    }
+  }
+  return { label: 'Отменено', icon: 'x', tone: 'cancelled' }
 }
 
 function PaymentCompletionDialog({
@@ -664,6 +808,7 @@ function ManualOperationForm({
       source,
       category,
       amountSource: 'explicit',
+      recurringScheduleId: operation?.recurringScheduleId,
       sortOrder: operation?.sortOrder ?? 500,
       note: note.trim() || undefined,
       createdAt: operation?.createdAt ?? nowIso,

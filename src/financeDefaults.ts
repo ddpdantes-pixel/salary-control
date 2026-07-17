@@ -12,6 +12,7 @@ const INITIAL_CREATED_AT = '2026-06-25T12:00:00.000Z'
 const INITIAL_CONFIRMED_THROUGH = '2026-07-10'
 
 export const FINANCE_SCHEMA_VERSION = 7
+export const DEPOSIT_INTEREST_SCHEDULE_ID = 'deposit-interest-monthly-v1'
 
 export const INITIAL_FUTURE_OPERATION_IDS: ReadonlySet<string> = new Set([
   'yandex-split-2026-07-12',
@@ -220,6 +221,10 @@ function createOperation(
     source,
     category: getOperationCategory(source, direction, obligationId),
     amountSource,
+    recurringScheduleId:
+      source === 'depositInterest'
+        ? DEPOSIT_INTEREST_SCHEDULE_ID
+        : undefined,
     obligationId,
     sortOrder,
     createdAt: nowIso,
