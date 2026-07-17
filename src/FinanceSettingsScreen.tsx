@@ -9,7 +9,7 @@ import { formatMoney, parseMoneyInput } from './financeMoney'
 import { formatMoneyInputText, formatMonthLabel } from './format'
 import type { FinanceState, PersonalExpense } from './financeTypes'
 import { PaymentNotificationsPanel } from './PaymentNotificationsPanel'
-import { FinanceDialog } from './FinanceDialog'
+import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
 import type { PaymentNotificationSettings } from './paymentNotifications'
 
 export function FinanceSettingsScreen({
@@ -244,8 +244,8 @@ function PersonalExpenseEditor({
 
       {error && <p className="finance-form-error">{error}</p>}
       <div className="finance-form-actions">
-        <button type="submit" className="finance-primary-action">Сохранить</button>
-        <button type="button" onClick={onCancel}>Отмена</button>
+        <FinanceDialogAction type="submit">Сохранить</FinanceDialogAction>
+        <FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>Отмена</FinanceDialogAction>
       </div>
     </form>
   )

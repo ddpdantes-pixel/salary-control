@@ -81,6 +81,8 @@ describe('Кубышка', () => {
     const dialog = screen.getByRole('dialog', { name: 'Изменить деньги дома' })
     expect(dialog.parentElement?.parentElement).toBe(document.body)
     expect(document.body.style.position).toBe('fixed')
+    expect(screen.getByRole('button', { name: 'Сохранить' }).classList.contains('finance-dialog-action--primary')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Отмена' }).classList.contains('finance-dialog-action--secondary')).toBe(true)
     await user.type(screen.getByRole('textbox', { name: 'Текущая сумма' }), '1 234,56')
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
@@ -106,7 +108,7 @@ describe('Кубышка', () => {
     await user.type(screen.getByRole('textbox', { name: 'Сумма вклада' }), '100 000')
     await user.type(screen.getByRole('textbox', { name: 'Ставка, процентов годовых' }), '12,5')
     await user.type(screen.getByRole('textbox', { name: 'Получено процентов' }), '1 234,56')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить вклад' }))
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       deposit: {

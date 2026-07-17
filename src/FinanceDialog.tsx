@@ -1,6 +1,26 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import type { ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
+
+export type FinanceDialogActionVariant = 'primary' | 'secondary' | 'danger'
+
+export function FinanceDialogAction({
+  children,
+  className = '',
+  variant = 'primary',
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: FinanceDialogActionVariant
+}) {
+  return (
+    <button
+      {...props}
+      className={`finance-dialog-action finance-dialog-action--${variant} ${className}`.trim()}
+    >
+      {children}
+    </button>
+  )
+}
 
 export function FinanceDialog({
   children,

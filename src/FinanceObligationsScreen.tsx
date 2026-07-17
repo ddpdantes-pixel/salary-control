@@ -4,7 +4,7 @@ import { addDays } from './financeDates'
 import { formatDateLabel, formatMoneyInputText } from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { ObligationDateField } from './ObligationDateField'
-import { FinanceDialog } from './FinanceDialog'
+import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
 import {
   closeObligationInState,
   createObligationFromDraft,
@@ -172,7 +172,7 @@ export function FinanceObligationsScreen({
           <section className="finance-edit-form">
             <h2 id="obligation-confirmation-title">{confirmation.title}</h2>
             <p className="finance-form-note">{confirmation.message}</p>
-            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { confirmation.onConfirm(); setConfirmation(null) }}>{confirmation.confirmLabel}</button><button type="button" onClick={() => setConfirmation(null)}>Отмена</button></div>
+            <div className="finance-form-actions"><FinanceDialogAction type="button" variant={confirmation.confirmLabel === 'Удалить' ? 'danger' : 'primary'} onClick={() => { confirmation.onConfirm(); setConfirmation(null) }}>{confirmation.confirmLabel}</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setConfirmation(null)}>Отмена</FinanceDialogAction></div>
           </section>
         </FinanceDialog>
       )}
@@ -387,10 +387,10 @@ function ObligationEditor({
       </div>
 
       <footer className="finance-editor-actions" data-testid="obligation-editor-actions">
-        <button type="button" onClick={onCancel}>Отмена</button>
-        <button type="submit" className="finance-primary-action">
+        <FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>Отмена</FinanceDialogAction>
+        <FinanceDialogAction type="submit">
           {obligation ? 'Сохранить изменения' : 'Сохранить обязательство'}
-        </button>
+        </FinanceDialogAction>
       </footer>
     </form>
   )

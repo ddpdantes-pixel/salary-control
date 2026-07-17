@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
+import type { ComponentType } from 'react'
 import { FinanceCalendarScreen } from './FinanceCalendarScreen'
 import { FinanceCashAtHomeScreen } from './FinanceCashAtHomeScreen'
-import { FinanceDialog } from './FinanceDialog'
+import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
 import { FinanceObligationsScreen } from './FinanceObligationsScreen'
 import { FinanceSettingsScreen } from './FinanceSettingsScreen'
 import type { CashAtHomeState } from './cashAtHome'
@@ -37,12 +38,12 @@ type FinanceSection =
   | 'cash'
 type FinanceQuickAction = 'operation' | 'obligation' | null
 
-const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string }> = [
-  { id: 'overview', label: 'Обзор' },
-  { id: 'calendar', label: 'Календарь' },
-  { id: 'obligations', label: 'Обязательства' },
-  { id: 'settings', label: 'Расходы' },
-  { id: 'cash', label: 'Кубышка' },
+const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string; icon: ComponentType }> = [
+  { id: 'overview', label: 'Обзор', icon: OverviewIcon },
+  { id: 'calendar', label: 'Календарь', icon: CalendarIcon },
+  { id: 'obligations', label: 'Обязательства', icon: ObligationsIcon },
+  { id: 'settings', label: 'Расходы', icon: ExpensesIcon },
+  { id: 'cash', label: 'Кубышка', icon: WalletIcon },
 ]
 
 const ANCHOR_EXPLANATION =
@@ -429,27 +430,19 @@ function BalanceAnchorForm({
           <b>Подтвердите новую точку расчёта</b>
           <p>{ANCHOR_EXPLANATION}</p>
           <div className="finance-form-actions">
-            <button
-              type="button"
-              className="finance-primary-action"
-              onClick={() => onSubmit(pendingInput)}
-            >
-              Подтвердить
-            </button>
-            <button type="button" onClick={() => setPendingInput(null)}>
-              Вернуться
-            </button>
+            <FinanceDialogAction type="button" onClick={() => onSubmit(pendingInput)}>Подтвердить</FinanceDialogAction>
+            <FinanceDialogAction type="button" variant="secondary" onClick={() => setPendingInput(null)}>Вернуться</FinanceDialogAction>
           </div>
         </section>
       ) : (
         <div className={onCancel ? 'finance-form-actions' : undefined}>
-          <button type="submit" className="finance-primary-action">
+          <FinanceDialogAction type="submit">
             {submitLabel}
-          </button>
+          </FinanceDialogAction>
           {onCancel && (
-            <button type="button" onClick={onCancel}>
+            <FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>
               Отмена
-            </button>
+            </FinanceDialogAction>
           )}
         </div>
       )}
@@ -457,7 +450,7 @@ function BalanceAnchorForm({
   )
 }
 
-function FinanceSectionTabs({
+export function FinanceSectionTabs({
   activeSection,
   onChange,
 }: {
@@ -475,6 +468,7 @@ function FinanceSectionTabs({
           aria-current={section.id === activeSection ? 'page' : undefined}
           onClick={() => onChange(section.id)}
         >
+          <section.icon />
           {section.label}
         </button>
       ))}
@@ -679,8 +673,8 @@ function FinanceReportDialog({
       )}
       {error && <p className="finance-form-error">{error}</p>}
       <div className="finance-form-actions">
-        <button type="button" className="finance-primary-action" onClick={() => { void copyReport() }}>Скопировать</button>
-        <button type="button" onClick={onCancel}>Отмена</button>
+        <FinanceDialogAction type="button" onClick={() => { void copyReport() }}>Скопировать</FinanceDialogAction>
+        <FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>Отмена</FinanceDialogAction>
       </div>
     </section>
   )
@@ -720,11 +714,38 @@ function WalletIcon() {
   )
 }
 
+function OverviewIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3a9 9 0 1 0 9 9h-9Z" />
+      <path d="M14 3.3A8.8 8.8 0 0 1 20.7 10H14Z" />
+    </svg>
+  )
+}
+
 function CalendarIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <rect x="4" y="6" width="16" height="14" rx="2" />
       <path d="M8 3v5M16 3v5M4 10h16" />
+    </svg>
+  )
+}
+
+function ObligationsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="5" y="3.5" width="14" height="17" rx="2" />
+      <path d="M8.5 8h7M8.5 12h7M8.5 16h4" />
+    </svg>
+  )
+}
+
+function ExpensesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2h10" />
+      <path d="m14 13 3 3 3-3M17 8v8" />
     </svg>
   )
 }

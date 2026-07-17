@@ -27,7 +27,7 @@ import {
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { sendOperationTestPaymentNotification } from './paymentNotifications'
 import { markAppStage } from './appPerformance'
-import { FinanceDialog } from './FinanceDialog'
+import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
 import type {
   FinanceOperation,
   FinanceOperationCategory,
@@ -437,7 +437,7 @@ export function FinanceCalendarScreen({
           <section className="finance-edit-form">
             <h2 id="operation-status-confirmation-title">{getStatusConfirmationTitle(pendingStatusChange.nextStatus)}</h2>
             <p className="finance-form-note">{pendingStatusChange.item.operation.title}</p>
-            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { applyOperationStatus(pendingStatusChange.item, pendingStatusChange.nextStatus); setPendingStatusChange(null) }}>Подтвердить</button><button type="button" onClick={() => setPendingStatusChange(null)}>Отмена</button></div>
+            <div className="finance-form-actions"><FinanceDialogAction type="button" onClick={() => { applyOperationStatus(pendingStatusChange.item, pendingStatusChange.nextStatus); setPendingStatusChange(null) }}>{pendingStatusChange.nextStatus === 'completed' ? 'Подтвердить получение' : 'Подтвердить'}</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setPendingStatusChange(null)}>Отмена</FinanceDialogAction></div>
           </section>
         </FinanceDialog>
       )}
@@ -446,7 +446,7 @@ export function FinanceCalendarScreen({
           <section className="finance-edit-form">
             <h2 id="operation-delete-confirmation-title">Удалить операцию?</h2>
             <p className="finance-form-note">{pendingDeletion.title}</p>
-            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { confirmManualOperationDeletion(pendingDeletion); setPendingDeletion(null) }}>Удалить</button><button type="button" onClick={() => setPendingDeletion(null)}>Отмена</button></div>
+            <div className="finance-form-actions"><FinanceDialogAction type="button" variant="danger" onClick={() => { confirmManualOperationDeletion(pendingDeletion); setPendingDeletion(null) }}>Удалить</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setPendingDeletion(null)}>Отмена</FinanceDialogAction></div>
           </section>
         </FinanceDialog>
       )}
@@ -455,7 +455,7 @@ export function FinanceCalendarScreen({
           <section className="finance-edit-form">
             <h2 id="final-obligation-confirmation-title">Закрыть обязательство?</h2>
             <p className="finance-form-note">Это последний платёж по обязательству. Будущие платежи больше создаваться не будут.</p>
-            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => { const pending = pendingFinalClose; setPendingFinalClose(null); applyOperationStatus(pending.item, 'completed', pending.actualDate, true) }}>Закрыть обязательство</button><button type="button" onClick={() => { const pending = pendingFinalClose; setPendingFinalClose(null); applyOperationStatus(pending.item, 'completed', pending.actualDate, false) }}>Оставить открытым</button></div>
+            <div className="finance-form-actions"><FinanceDialogAction type="button" variant="danger" onClick={() => { const pending = pendingFinalClose; setPendingFinalClose(null); applyOperationStatus(pending.item, 'completed', pending.actualDate, true) }}>Закрыть обязательство</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => { const pending = pendingFinalClose; setPendingFinalClose(null); applyOperationStatus(pending.item, 'completed', pending.actualDate, false) }}>Оставить открытым</FinanceDialogAction></div>
           </section>
         </FinanceDialog>
       )}
@@ -774,10 +774,10 @@ function PaymentCompletionDialog({
         После подтверждения сумма сразу будет списана с расчётного остатка.
       </p>
       <div className="finance-form-actions">
-        <button type="submit" className="finance-primary-action">
+        <FinanceDialogAction type="submit">
           Подтвердить оплату
-        </button>
-        <button type="button" onClick={onCancel}>Отмена</button>
+        </FinanceDialogAction>
+        <FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>Отмена</FinanceDialogAction>
       </div>
     </form>
   )
@@ -867,7 +867,7 @@ function ManualOperationForm({
       <label><span>Статус</span><select value={status} onChange={(event) => setStatus(event.currentTarget.value as FinanceOperation['status'])}><option value="planned">Предстоит</option><option value="completed">{direction === 'income' ? 'Получено' : 'Оплачено'}</option><option value="cancelled">Отменено</option></select></label>
       <label><span>Комментарий <small>необязательно</small></span><textarea rows={3} value={note} onChange={(event) => setNote(event.currentTarget.value)} /></label>
       {error && <p className="finance-form-error">{error}</p>}
-      <div className="finance-form-actions"><button type="submit" className="finance-primary-action">Сохранить</button><button type="button" onClick={onCancel}>Отмена</button></div>
+      <div className="finance-form-actions"><FinanceDialogAction type="submit">Сохранить</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={onCancel}>Отмена</FinanceDialogAction></div>
     </form>
   )
 }

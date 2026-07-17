@@ -53,7 +53,7 @@ describe('календарь денег', () => {
     await user.click(screen.getByRole('button', { name: /Ожидаемое поступление/ }))
     await user.selectOptions(screen.getByLabelText('Статус операции'), 'completed')
     expect(screen.getByRole('dialog', { name: 'Отметить поступление полученным?' }).parentElement?.parentElement).toBe(document.body)
-    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    await user.click(screen.getByRole('button', { name: 'Подтвердить получение' }))
 
     expect(screen.getByRole('status').textContent).toContain('Поступление отмечено полученным')
     expect(screen.getByRole('button', { name: /Выполнено — 1 операций/ })).not.toBeNull()

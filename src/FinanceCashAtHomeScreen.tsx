@@ -3,7 +3,7 @@ import {
   createEmptyDepositReference,
   type CashAtHomeState,
 } from './cashAtHome'
-import { FinanceDialog } from './FinanceDialog'
+import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { formatDateLabel, formatMoneyInputText } from './format'
 
@@ -127,7 +127,7 @@ export function FinanceCashAtHomeScreen({
           <form className="finance-edit-form" onSubmit={saveAmount}>
             <h2 id="cash-amount-dialog-title">Изменить деньги дома</h2>
             <label><span>Текущая сумма</span><MoneyField ariaLabel="Текущая сумма" value={amountText} onChange={setAmountText} /></label>
-            <div className="finance-form-actions"><button type="submit" className="finance-primary-action">Сохранить</button><button type="button" onClick={() => setDialog(null)}>Отмена</button></div>
+            <div className="finance-form-actions"><FinanceDialogAction type="submit">Сохранить</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setDialog(null)}>Отмена</FinanceDialogAction></div>
           </form>
         </FinanceDialog>
       )}
@@ -144,10 +144,10 @@ export function FinanceCashAtHomeScreen({
                 <div><dt>Обновлено</dt><dd>{state.updatedAt === null ? '—' : formatDateLabel(state.updatedAt.slice(0, 10))}</dd></div>
               </dl>
               <p className="finance-form-note">Закрытие вклада удаляет только будущие операции встроенного расписания.</p>
-              <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => setDialog('deposit-edit')}>Изменить вклад</button><button type="button" onClick={() => setDialog('deposit-close')}>Закрыть вклад</button><button type="button" onClick={() => setDialog(null)}>Готово</button></div>
+              <div className="finance-form-actions"><FinanceDialogAction type="button" onClick={() => setDialog('deposit-edit')}>Изменить вклад</FinanceDialogAction><FinanceDialogAction type="button" variant="danger" onClick={() => setDialog('deposit-close')}>Закрыть вклад</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setDialog(null)}>Готово</FinanceDialogAction></div>
             </> : <>
               <p>Вклада нет. Добавьте его только как справочную информацию: он не меняет остаток и прогноз.</p>
-              <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={() => setDialog('deposit-edit')}>Добавить вклад</button><button type="button" onClick={() => setDialog(null)}>Отмена</button></div>
+              <div className="finance-form-actions"><FinanceDialogAction type="button" onClick={() => setDialog('deposit-edit')}>Добавить вклад</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setDialog(null)}>Отмена</FinanceDialogAction></div>
             </>}
           </section>
         </FinanceDialog>
@@ -158,7 +158,7 @@ export function FinanceCashAtHomeScreen({
           <form className="finance-edit-form" onSubmit={saveDeposit}>
             <h2 id="cash-deposit-edit-dialog-title">{hasDeposit ? 'Изменить вклад' : 'Добавить вклад'}</h2>
             <DepositFields amountText={depositAmountText} annualRateText={annualRateText} receivedInterestText={receivedInterestText} onAmountChange={setDepositAmountText} onRateChange={setAnnualRateText} onReceivedInterestChange={setReceivedInterestText} />
-            <div className="finance-form-actions"><button type="submit" className="finance-primary-action">Сохранить</button><button type="button" onClick={() => setDialog('deposit')}>Отмена</button></div>
+            <div className="finance-form-actions"><FinanceDialogAction type="submit">Сохранить вклад</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setDialog('deposit')}>Отмена</FinanceDialogAction></div>
           </form>
         </FinanceDialog>
       )}
@@ -168,7 +168,7 @@ export function FinanceCashAtHomeScreen({
           <section className="finance-edit-form">
             <h2 id="cash-deposit-close-dialog-title">Закрыть вклад?</h2>
             <p className="finance-form-note">Будущие плановые поступления процентов будут удалены. Уже полученные суммы и история сохранятся.</p>
-            <div className="finance-form-actions"><button type="button" className="finance-primary-action" onClick={closeDeposit}>Закрыть вклад</button><button type="button" onClick={() => setDialog('deposit')}>Отмена</button></div>
+            <div className="finance-form-actions"><FinanceDialogAction type="button" variant="danger" onClick={closeDeposit}>Закрыть вклад</FinanceDialogAction><FinanceDialogAction type="button" variant="secondary" onClick={() => setDialog('deposit')}>Отмена</FinanceDialogAction></div>
           </section>
         </FinanceDialog>
       )}
