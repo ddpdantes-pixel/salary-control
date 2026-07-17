@@ -161,14 +161,16 @@ export function PaymentNotificationsPanel({
       </label>
 
       <div className="finance-notification-actions">
-        <button
-          type="button"
-          className="finance-primary-action"
-          disabled={!canEnable || busy}
-          onClick={() => { void enable() }}
-        >
-          Включить уведомления
-        </button>
+        {canEnable && (
+          <button
+            type="button"
+            className="finance-primary-action"
+            disabled={busy}
+            onClick={() => { void enable() }}
+          >
+            Включить уведомления
+          </button>
+        )}
         <button
           type="button"
           disabled={!enabled || busy}
