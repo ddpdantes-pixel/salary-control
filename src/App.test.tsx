@@ -25,6 +25,7 @@ import {
   CLOUD_BACKUP_KEY_STORAGE,
   CLOUD_RESTORE_SNAPSHOT_STORAGE,
   createCloudBackupEnvelope,
+  formatCloudBackupDate,
 } from './cloudBackup'
 import { PAYMENT_PUSH_DEVICE_KEY } from './paymentNotifications'
 
@@ -245,7 +246,9 @@ describe('оболочка приложения', () => {
     await renderApp()
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'История' }))
-    await screen.findByText('18 июл. 2026 г., 22:15')
+    await screen.findByText(
+      formatCloudBackupDate('2026-07-18T19:15:00.000Z'),
+    )
     await user.click(screen.getByRole('button', { name: 'Восстановить из облака' }))
 
     expect(screen.getByRole('dialog')).not.toBeNull()

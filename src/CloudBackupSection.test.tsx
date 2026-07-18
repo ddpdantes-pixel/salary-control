@@ -7,6 +7,7 @@ import { CloudBackupSection } from './CloudBackupSection'
 import {
   CLOUD_BACKUP_KEY_STORAGE,
   createCloudConnectionToken,
+  formatCloudBackupDate,
 } from './cloudBackup'
 
 vi.mock('qrcode', () => ({
@@ -101,7 +102,9 @@ describe('интерфейс облачной копии', () => {
     const onRequestRestore = vi.fn()
     renderSection({ onRequestRestore })
 
-    await waitFor(() => expect(screen.getByText('18 июл. 2026 г., 22:15')).not.toBeNull())
+    await waitFor(() => expect(screen.getByText(
+      formatCloudBackupDate('2026-07-18T19:15:00.000Z'),
+    )).not.toBeNull())
     await user.click(screen.getByRole('button', { name: 'Восстановить из облака' }))
     await waitFor(() => expect(onRequestRestore).toHaveBeenCalledWith(
       PAYLOAD,
