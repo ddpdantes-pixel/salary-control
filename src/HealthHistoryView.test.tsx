@@ -243,6 +243,30 @@ describe('интерфейс истории здоровья', () => {
     expect(document.execCommand).toHaveBeenCalledWith('copy')
   })
 
+  it('сохраняет заголовок и действия карточки дня при длинных значениях', async () => {
+    const user = userEvent.setup()
+    const longReason = 'Продажа после очень длинного рабочего дня с дополнительным пояснением'
+    render(<HistoryHarness entries={entryMap(entry('2026-07-13', {
+      completed: true,
+      alcoholChoice: 'other',
+      alcoholAmount: 'Очень длинное пользовательское значение количества',
+      alcoholReasons: ['habit', 'relax', 'taste', 'company', 'other'],
+      alcoholOtherReason: longReason,
+    }))} />)
+
+    await user.click(screen.getByRole('button', { name: /Открыть запись за 13 июля/ }))
+    const details = screen.getByLabelText(/Подробности дня 13 июля/)
+    const heading = details.querySelector('.health-history-details-heading')
+    expect(heading?.textContent).toContain('Завершён')
+    expect(heading?.textContent).toContain('13 июля 2026')
+    expect(heading?.querySelector('button')?.textContent).toContain('Редактировать день')
+    expect(heading?.getAttribute('style')).toBeNull()
+    expect(details.textContent).toContain(longReason)
+    expect(details.textContent).toContain('Очень длинное пользовательское значение количества')
+    expect(screen.getByRole('button', { name: 'Редактировать день' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Скопировать чек-лист дня' })).not.toBeNull()
+  })
+
   it('не показывает временные скриншоты в подробностях', async () => {
     const user = userEvent.setup()
     render(<HistoryHarness entries={entryMap(entry('2026-07-13', {

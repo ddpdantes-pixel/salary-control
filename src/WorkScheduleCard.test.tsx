@@ -45,4 +45,42 @@ describe('карточка рабочего графика', () => {
     await user.click(screen.getByRole('button', { name: 'Открыть рабочий график за август 2026' }))
     expect(onOpen).toHaveBeenCalledOnce()
   })
+
+  it('даёт рабочему, выходному и сегодняшнему дню отдельные визуальные классы', () => {
+    const state = createDefaultDailySalesState()
+    state.settings.cycleAnchorDate = '2026-07-01'
+
+    const firstRender = render(
+      <WorkScheduleCard
+        state={state}
+        monthId="2026-07"
+        todayIsoDate="2026-07-03"
+        onOpen={() => undefined}
+      />,
+    )
+
+    const workToday = firstRender.container.querySelector('[aria-label="3 июля, сегодня, рабочий день"]')
+    const restDay = firstRender.container.querySelector('[aria-label="5 июля, выходной"]')
+    expect(workToday).not.toBeNull()
+    expect(restDay).not.toBeNull()
+    expect(workToday?.classList.contains('work')).toBe(true)
+    expect(workToday?.classList.contains('today')).toBe(true)
+    expect(restDay?.classList.contains('rest')).toBe(true)
+    expect(restDay?.classList.contains('work')).toBe(false)
+    firstRender.unmount()
+
+    const secondRender = render(
+      <WorkScheduleCard
+        state={state}
+        monthId="2026-07"
+        todayIsoDate="2026-07-05"
+        onOpen={() => undefined}
+      />,
+    )
+
+    const restToday = secondRender.container.querySelector('[aria-label="5 июля, сегодня, выходной"]')
+    expect(restToday).not.toBeNull()
+    expect(restToday?.classList.contains('rest')).toBe(true)
+    expect(restToday?.classList.contains('today')).toBe(true)
+  })
 })

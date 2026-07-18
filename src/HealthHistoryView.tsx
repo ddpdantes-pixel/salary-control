@@ -333,7 +333,7 @@ function HealthHistoryDayDetails({
 
   return (
     <section className="health-history-details" aria-label={`Подробности дня ${formatHistoryDate(entry.date)}`}>
-      <header>
+      <header className="health-history-details-heading">
         <div>
           <span>{entry.completed ? 'Завершён' : 'Черновик'}</span>
           <h2>{formatHistoryDate(entry.date)}</h2>
