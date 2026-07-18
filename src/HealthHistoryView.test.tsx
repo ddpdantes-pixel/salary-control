@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HealthHistoryView } from './HealthHistoryView'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
-import { WORKOUTS, createHealthEntry } from './healthModel'
+import { createHealthEntry } from './healthModel'
 import type { HealthEntry } from './healthTypes'
 
 const TODAY = '2026-07-14'
@@ -104,15 +104,16 @@ describe('интерфейс истории здоровья', () => {
     expect(cards[1].textContent).toContain('Черновик')
   })
 
-  it('показывает компактную месячную сводку', () => {
+  it('оставляет только переключатель режима и не показывает сводку или фильтры', () => {
     render(<HistoryHarness entries={entryMap(
       entry('2026-07-01', { completed: true }),
       entry('2026-07-02', { waterCups: 1 }),
     )} />)
-    const summary = screen.getByLabelText('Краткая сводка месяца')
-    expect(summary.textContent).toContain('Записей2')
-    expect(summary.textContent).toContain('Завершённых1')
-    expect(summary.textContent).toContain('Черновиков1')
+    expect(screen.getByRole('group', { name: 'Режим отображения истории' })).not.toBeNull()
+    expect(screen.queryByLabelText('Краткая сводка месяца')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Фильтр по статусу' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Дополнительный фильтр' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull()
   })
 
   it('открывает подробности и показывает выбранные нулевые симптомы', async () => {
@@ -152,55 +153,16 @@ describe('интерфейс истории здоровья', () => {
     expect(within(details).queryByText('Норма')).toBeNull()
   })
 
-  it('фильтрует завершённые и черновики и сбрасывает фильтры', async () => {
-    const user = userEvent.setup()
-    render(<HistoryHarness entries={entryMap(
-      entry('2026-07-01', { completed: true }),
-      entry('2026-07-02', { waterCups: 1 }),
-    )} />)
-    const statusFilters = screen.getByRole('group', { name: 'Фильтр по статусу' })
-    await user.click(within(statusFilters).getByRole('button', { name: 'Завершённые' }))
-    expect(screen.getByLabelText('Список дней здоровья').textContent).toContain('1 июля')
-    expect(screen.getByLabelText('Список дней здоровья').textContent).not.toContain('2 июля')
-    await user.click(within(statusFilters).getByRole('button', { name: 'Черновики' }))
-    expect(screen.getByLabelText('Список дней здоровья').textContent).toContain('2 июля')
-    await user.click(screen.getByRole('button', { name: 'Сбросить фильтры' }))
+  it('игнорирует старое состояние фильтров и показывает все содержательные записи', () => {
+    render(<HistoryHarness
+      entries={entryMap(
+        entry('2026-07-01', { completed: true }),
+        entry('2026-07-02', { waterCups: 1 }),
+      )}
+      initial={{ filters: { status: 'completed', activity: 'workout' } }}
+    />)
     expect(within(screen.getByLabelText('Список дней здоровья')).getAllByRole('article'))
       .toHaveLength(2)
-  })
-
-  it('сочетает фильтры тренировки и алкоголя со статусом', async () => {
-    const user = userEvent.setup()
-    const workout = WORKOUTS[0]
-    render(<HistoryHarness entries={entryMap(
-      entry('2026-07-01', {
-        selectedWorkouts: [{
-          workoutId: workout.id,
-          completedDate: '2026-07-01',
-          plannedDay: workout.plannedDay,
-        }],
-      }),
-      entry('2026-07-02', { alcoholChoice: 'beer' }),
-    )} />)
-    const activityFilters = screen.getByRole('group', { name: 'Дополнительный фильтр' })
-    await user.click(within(activityFilters).getByRole('button', { name: 'С тренировкой' }))
-    expect(screen.getByLabelText('Список дней здоровья').textContent).toContain('1 июля')
-    await user.click(within(activityFilters).getByRole('button', { name: 'С алкоголем' }))
-    expect(screen.getByLabelText('Список дней здоровья').textContent).toContain('2 июля')
-  })
-
-  it('фильтрует дни с выполненным обучением', async () => {
-    const user = userEvent.setup()
-    const learned = entry('2026-07-03')
-    learned.learning.speech.status = 'done'
-    const skipped = entry('2026-07-04')
-    skipped.learning.cavist.status = 'not_done'
-    render(<HistoryHarness entries={entryMap(learned, skipped)} />)
-    const filters = screen.getByRole('group', { name: 'Дополнительный фильтр' })
-    await user.click(within(filters).getByRole('button', { name: 'С обучением' }))
-    const list = screen.getByLabelText('Список дней здоровья')
-    expect(list.textContent).toContain('3 июля')
-    expect(list.textContent).not.toContain('4 июля')
   })
 
   it('показывает количество безалкогольного и три состояния обучения в подробностях', async () => {

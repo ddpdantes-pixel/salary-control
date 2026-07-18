@@ -338,7 +338,7 @@ export function selectLearningStatus<TActivityType extends string>(
   status: NonNullable<LearningDirection<TActivityType>['status']>,
 ): LearningDirection<TActivityType> {
   return status === 'not_done'
-    ? { status, activityType: null, number: null, note: '' }
+    ? { ...direction, status, activityType: null, number: null }
     : { ...direction, status }
 }
 

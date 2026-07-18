@@ -886,6 +886,11 @@ button.danger {
     padding-left: 1px;
     font-size: 11px;
   }
+
+  .health-screen .section-tabs-3 button {
+    font-size: 12px;
+    text-overflow: clip;
+  }
 }
 
 @media (max-width: 400px) {

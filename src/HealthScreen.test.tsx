@@ -113,7 +113,7 @@ describe('экран здоровья сегодня', () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
-  it('показывает новый сценарий подготовки и оставляет резервное копирование текста', () => {
+  it('показывает новый сценарий подготовки без отдельной кнопки копирования текста', () => {
     render(<HealthScreen />)
 
     expect(screen.getByRole('button', { name: 'Подготовить отчёт здоровья для ChatGPT' }))
@@ -121,7 +121,7 @@ describe('экран здоровья сегодня', () => {
     expect(
       screen.getByText('Текст скопируется, а изображения можно будет сохранить в Фото'),
     ).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Скопировать только текст' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Скопировать только текст' })).toBeNull()
   })
 
   it('делает системную подготовку доступной после заполнения чек-листа', async () => {
@@ -318,6 +318,17 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByRole('region', { name: 'Керамогранит' })).not.toBeNull()
   })
 
+  it('не показывает поля заметок у всех направлений обучения', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+
+    for (const title of ['Речь и дикция', 'Кавист', 'Керамогранит']) {
+      const direction = screen.getByRole('region', { name: title })
+      await user.click(within(direction).getByRole('button', { name: 'Занимался' }))
+      expect(within(direction).queryByLabelText('Заметка')).toBeNull()
+    }
+  })
+
   it('сохраняет выполненное обучение и очищает детали при «Не занимался»', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
@@ -328,7 +339,6 @@ describe('экран здоровья сегодня', () => {
     expect(within(types).getByRole('button', { name: 'Практика' })).not.toBeNull()
     await user.click(within(types).getByRole('button', { name: 'Занятие' }))
     await user.type(within(speech).getByLabelText('Номер'), '5')
-    await user.type(within(speech).getByLabelText('Заметка'), 'Diktum')
     await user.click(within(speech).getByRole('button', { name: 'Не занимался' }))
     expect(within(speech).queryByLabelText('Номер')).toBeNull()
     await waitFor(() => {
@@ -400,68 +410,17 @@ describe('экран здоровья сегодня', () => {
     ).toBe('true')
   })
 
-  it('открывает недельную сводку и переключает календарные недели', async () => {
-    const user = userEvent.setup()
-    const today = getLocalDateId()
-    const state = createEmptyHealthState()
-    state.entries[today] = { ...createHealthEntry(today), waterCups: 6, completed: true }
-    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
+  it('показывает три вкладки и безопасно открывает старый маршрут недели как сегодня', () => {
+    render(<HealthScreen initialTab="week" />)
 
-    render(<HealthScreen />)
-    await user.click(screen.getByRole('tab', { name: 'Неделя' }))
-
-    expect(screen.getByText('Главная сводка')).not.toBeNull()
-    expect(screen.getByText('Заполнено дней:', {
-      exact: false,
-      selector: '.health-week-coverage p',
-    })).not.toBeNull()
-    expect(screen.getByText('Завершено дней:', {
-      exact: false,
-      selector: '.health-week-coverage p',
-    })).not.toBeNull()
-    expect(screen.getByText('Комплекс расслабления — 14 минут')).not.toBeNull()
-    expect(screen.getByText('90/90 — 5 минут')).not.toBeNull()
-    expect(screen.getByText('Поза ребёнка — 5 минут')).not.toBeNull()
-    expect(screen.getByText('Бабочка — 2 минуты')).not.toBeNull()
-    expect(screen.getByText('Фигура «4» — 2 минуты')).not.toBeNull()
-    expect(screen.queryByText(/дыхание|релаксация|прогулка|массаж/i)).toBeNull()
-    const initialRange = screen.getByText(/\d+.*\d{4}/, { selector: '.health-week-heading strong' }).textContent
-
-    await user.click(screen.getByRole('button', { name: 'Предыдущая неделя' }))
-    expect(screen.getByText(/\d+.*\d{4}/, { selector: '.health-week-heading strong' }).textContent)
-      .not.toBe(initialRange)
-    await user.click(screen.getByRole('button', { name: 'Текущая неделя' }))
-    expect(screen.getByText(initialRange ?? '')).not.toBeNull()
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Сегодня', 'История', 'Настройки',
+    ])
+    expect(screen.queryByRole('tab', { name: 'Неделя' })).toBeNull()
+    expect(screen.getByRole('heading', { name: /Вода/ })).not.toBeNull()
   })
 
-  it('копирует недельный итог, не удаляя временные изображения', async () => {
-    const user = userEvent.setup()
-    const today = getLocalDateId()
-    const state = createEmptyHealthState()
-    state.entries[today] = { ...createHealthEntry(today), waterCups: 6 }
-    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
-    await saveHealthAttachment({
-      id: 'week-copy-image',
-      date: today,
-      blob: new Blob(['image'], { type: 'image/png' }),
-      fileName: 'activity.png',
-      mimeType: 'image/png',
-      size: 5,
-      addedAt: new Date().toISOString(),
-    })
-
-    render(<HealthScreen />)
-    await user.click(screen.getByRole('tab', { name: 'Неделя' }))
-    await user.click(screen.getByRole('button', {
-      name: 'Скопировать итог недели для ChatGPT',
-    }))
-
-    expect(await screen.findByText('Итог недели скопирован')).not.toBeNull()
-    expect(document.execCommand).toHaveBeenCalledWith('copy')
-    expect(await listHealthAttachments(today)).toHaveLength(1)
-  })
-
-  it('переходит история → сегодня → история и сохраняет фильтры без дубликатов', async () => {
+  it('переходит история → сегодня → история и сохраняет выбранный режим без дубликатов', async () => {
     const user = userEvent.setup()
     const today = getLocalDateId()
     const state = createEmptyHealthState()
@@ -474,9 +433,8 @@ describe('экран здоровья сегодня', () => {
 
     render(<HealthScreen />)
     await user.click(screen.getByRole('tab', { name: 'История' }))
-    const statusFilters = screen.getByRole('group', { name: 'Фильтр по статусу' })
-    await user.click(within(statusFilters).getByRole('button', { name: 'Завершённые' }))
-    await user.click(screen.getByRole('button', { name: /Открыть запись за/ }))
+    await user.click(screen.getByRole('button', { name: 'Календарь' }))
+    await user.click(screen.getByRole('button', { name: new RegExp(`${Number(today.slice(-2))} .*завершён`, 'i') }))
     await user.click(screen.getAllByRole('button', { name: /Редактировать день/ })[0])
 
     expect((screen.getByLabelText('Выбрать дату') as HTMLInputElement).value).toBe(today)
@@ -485,9 +443,8 @@ describe('экран здоровья сегодня', () => {
     })).getByRole('button', { name: '2' }))
     await user.click(screen.getByRole('button', { name: '← Назад в историю' }))
 
-    expect(screen.getByRole('button', { name: 'Завершённые' }).getAttribute('aria-pressed'))
+    expect(screen.getByRole('button', { name: 'Календарь' }).getAttribute('aria-pressed'))
       .toBe('true')
-    expect(screen.getAllByRole('article')).toHaveLength(1)
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}')
       expect(Object.keys(stored.entries)).toEqual([today])
@@ -540,9 +497,7 @@ describe('экран здоровья сегодня', () => {
 
     await user.click(screen.getByRole('tab', { name: 'История' }))
     expect(screen.getByText('История здоровья')).not.toBeNull()
-    expect(screen.getByText('В этом месяце записей пока нет', {
-      selector: '.health-history-calm-empty',
-    })).not.toBeNull()
+    expect(screen.getByText('В этом месяце записей пока нет')).not.toBeNull()
     await user.click(screen.getByRole('tab', { name: 'Настройки' }))
     expect(screen.getByRole('heading', { name: 'Настройки здоровья' })).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Сохранить настройки' })).not.toBeNull()

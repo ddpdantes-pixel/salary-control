@@ -12,22 +12,16 @@ import {
 import { buildHealthChecklistText, formatBeerAmount } from './healthExport'
 import { copyTextToClipboard } from './healthShare'
 import {
-  EMPTY_HEALTH_HISTORY_FILTERS,
-  getFilteredHealthHistoryEntries,
   getHealthEntryRelaxationMinutes,
   getHealthEntryWorkoutDetails,
   getHealthHistoryCalendar,
   getHealthHistoryMonth,
   getHealthHistoryMonthId,
-  getHealthHistoryMonthSummary,
+  getMeaningfulHealthEntriesForMonth,
   isFullHealthEntryRelaxation,
   shiftHealthHistoryMonth,
 } from './healthHistory'
-import type {
-  HealthHistoryActivityFilter,
-  HealthHistoryNavigationState,
-  HealthHistoryStatusFilter,
-} from './healthHistory'
+import type { HealthHistoryNavigationState } from './healthHistory'
 import { formatRelaxationExerciseLabel } from './healthWeek'
 import type { AlcoholChoice, HealthEntry, LearningDirection, ScalpNote } from './healthTypes'
 import {
@@ -73,21 +67,13 @@ export function HealthHistoryView({
     () => getHealthHistoryMonth(navigation.monthId),
     [navigation.monthId],
   )
-  const summary = useMemo(
-    () => getHealthHistoryMonthSummary(entries, navigation.monthId),
+  const monthEntries = useMemo(
+    () => getMeaningfulHealthEntriesForMonth(entries, navigation.monthId),
     [entries, navigation.monthId],
   )
-  const filteredEntries = useMemo(
-    () => getFilteredHealthHistoryEntries(entries, navigation.monthId, navigation.filters),
-    [entries, navigation.filters, navigation.monthId],
-  )
-  const filteredEntryMap = useMemo(
-    () => Object.fromEntries(filteredEntries.map((entry) => [entry.date, entry])),
-    [filteredEntries],
-  )
   const calendar = useMemo(
-    () => getHealthHistoryCalendar(filteredEntryMap, navigation.monthId, todayId),
-    [filteredEntryMap, navigation.monthId, todayId],
+    () => getHealthHistoryCalendar(entries, navigation.monthId, todayId),
+    [entries, navigation.monthId, todayId],
   )
   const selectedEntryCandidate = navigation.selectedDate
     ? entries[navigation.selectedDate] ?? null
@@ -95,7 +81,6 @@ export function HealthHistoryView({
   const selectedEntry = selectedEntryCandidate && isMeaningfulHealthEntry(selectedEntryCandidate)
     ? selectedEntryCandidate
     : null
-  const hasFilters = navigation.filters.status !== 'all' || navigation.filters.activity !== 'all'
 
   function updateNavigation(patch: Partial<HealthHistoryNavigationState>): void {
     onNavigationChange({ ...navigation, ...patch })
@@ -156,19 +141,7 @@ export function HealthHistoryView({
         </div>
       </section>
 
-      {summary.records > 0 ? (
-        <section className="health-history-month-summary" aria-label="Краткая сводка месяца">
-          <HistoryCount label="Записей" value={summary.records} />
-          <HistoryCount label="Завершённых" value={summary.completed} />
-          <HistoryCount label="Черновиков" value={summary.drafts} />
-          <HistoryCount label="С тренировкой" value={summary.workoutDays} />
-          <HistoryCount label="С алкоголем" value={summary.alcoholEvenings} />
-        </section>
-      ) : (
-        <p className="health-history-calm-empty">В этом месяце записей пока нет</p>
-      )}
-
-      <section className="health-history-tools" aria-label="Отображение и фильтры истории">
+      <section className="health-history-tools" aria-label="Отображение истории">
         <div className="health-history-mode" role="group" aria-label="Режим отображения истории">
           <FilterButton
             label="Список"
@@ -181,58 +154,13 @@ export function HealthHistoryView({
             onClick={() => updateNavigation({ mode: 'calendar' })}
           />
         </div>
-        <div className="health-history-filter-row" role="group" aria-label="Фильтр по статусу">
-          {([
-            ['all', 'Все'],
-            ['completed', 'Завершённые'],
-            ['draft', 'Черновики'],
-          ] as Array<[HealthHistoryStatusFilter, string]>).map(([value, label]) => (
-            <FilterButton
-              key={value}
-              label={label}
-              selected={navigation.filters.status === value}
-              onClick={() => updateNavigation({
-                filters: { ...navigation.filters, status: value },
-              })}
-            />
-          ))}
-        </div>
-        <div className="health-history-filter-row" role="group" aria-label="Дополнительный фильтр">
-          {([
-            ['all', 'Любая активность'],
-            ['workout', 'С тренировкой'],
-            ['alcohol', 'С алкоголем'],
-            ['learning', 'С обучением'],
-          ] as Array<[HealthHistoryActivityFilter, string]>).map(([value, label]) => (
-            <FilterButton
-              key={value}
-              label={label}
-              selected={navigation.filters.activity === value}
-              onClick={() => updateNavigation({
-                filters: { ...navigation.filters, activity: value },
-              })}
-            />
-          ))}
-        </div>
-        {hasFilters && (
-          <button
-            type="button"
-            className="health-history-reset"
-            onClick={() => updateNavigation({ filters: { ...EMPTY_HEALTH_HISTORY_FILTERS } })}
-          >
-            Сбросить фильтры
-          </button>
-        )}
       </section>
 
       {navigation.mode === 'list' ? (
         <HealthHistoryList
-          entries={filteredEntries}
+          entries={monthEntries}
           settings={settings}
-          hasMonthEntries={summary.records > 0}
-          hasFilters={hasFilters}
           onSelectDate={selectDate}
-          onResetFilters={() => updateNavigation({ filters: { ...EMPTY_HEALTH_HISTORY_FILTERS } })}
           onOpenToday={() => onEditDate(todayId)}
         />
       ) : (
@@ -273,31 +201,19 @@ export function HealthHistoryView({
 function HealthHistoryList({
   entries,
   settings,
-  hasMonthEntries,
-  hasFilters,
   onSelectDate,
-  onResetFilters,
   onOpenToday,
 }: {
   entries: HealthEntry[]
   settings: HealthSettings
-  hasMonthEntries: boolean
-  hasFilters: boolean
   onSelectDate: (dateId: string) => void
-  onResetFilters: () => void
   onOpenToday: () => void
 }) {
   if (entries.length === 0) {
     return (
       <section className="health-history-empty-state">
-        <p>{hasMonthEntries && hasFilters
-          ? 'По выбранным фильтрам ничего не найдено'
-          : 'В этом месяце записей пока нет'}</p>
-        {hasMonthEntries && hasFilters ? (
-          <button type="button" onClick={onResetFilters}>Сбросить фильтры</button>
-        ) : (
-          <button type="button" onClick={onOpenToday}>Открыть сегодняшний день</button>
-        )}
+        <p>В этом месяце записей пока нет</p>
+        <button type="button" onClick={onOpenToday}>Открыть сегодняшний день</button>
       </section>
     )
   }
@@ -562,10 +478,6 @@ function LearningDetail<TActivityType extends string>({
       {direction.note.trim() && <p className="health-history-note">Заметка: {direction.note.trim()}</p>}
     </div>
   )
-}
-
-function HistoryCount({ label, value }: { label: string; value: number }) {
-  return <p><span>{label}</span><strong>{value}</strong></p>
 }
 
 function FilterButton({

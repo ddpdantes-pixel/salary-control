@@ -149,10 +149,10 @@ describe('модель ежедневного здоровья', () => {
     })).toBe(true)
   })
 
-  it('очищает скрытые детали обучения при выборе «Не занимался»', () => {
+  it('очищает тип и номер при выборе «Не занимался», сохраняя старую заметку', () => {
     const direction = { status: 'done' as const, activityType: 'session' as const, number: 5, note: 'Diktum' }
     expect(selectLearningStatus(direction, 'not_done')).toEqual({
-      status: 'not_done', activityType: null, number: null, note: '',
+      status: 'not_done', activityType: null, number: null, note: 'Diktum',
     })
   })
 

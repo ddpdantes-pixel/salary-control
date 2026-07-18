@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { HEALTH_TABS } from './appNavigation'
-import type { HealthView } from './appNavigation'
-import { buildHealthChecklistText } from './healthExport'
+import { getVisibleHealthView, HEALTH_TABS } from './appNavigation'
+import type { HealthView, VisibleHealthView } from './appNavigation'
 import { HealthAttachmentsSection } from './HealthAttachmentsSection'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
-import { HealthWeekView } from './HealthWeekView'
 import type { HealthAttachment } from './healthAttachments'
 import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
-import { copyTextToClipboard, shareHealthReport } from './healthShare'
+import { shareHealthReport } from './healthShare'
 import type { HealthShareResult } from './healthShare'
 import {
   BRISTOL_DESCRIPTIONS,
@@ -84,19 +82,22 @@ const ALCOHOL_REASONS: Array<{ id: AlcoholReason; label: string }> = [
 ]
 
 export function HealthScreen({
+  initialTab = 'today',
   onSettingsDirtyChange,
 }: {
+  initialTab?: HealthView
   onSettingsDirtyChange?: (dirty: boolean) => void
 } = {}) {
   const [loaded] = useState(loadStoredHealthState)
   const [state, setState] = useState(loaded.state)
-  const [activeTab, setActiveTab] = useState<HealthView>('today')
+  const [activeTab, setActiveTab] = useState<VisibleHealthView>(() =>
+    getVisibleHealthView(initialTab),
+  )
   const [settings, setSettings] = useState(loadStoredHealthSettings)
   const [settingsDirty, setSettingsDirty] = useState(false)
-  const [pendingHealthTab, setPendingHealthTab] = useState<HealthView | null>(null)
+  const [pendingHealthTab, setPendingHealthTab] = useState<VisibleHealthView | null>(null)
   const [selectedDate, setSelectedDate] = useState(getLocalDateId)
   const [saveState, setSaveState] = useState<HealthSaveState>('saved')
-  const [copyMessage, setCopyMessage] = useState('')
   const [historyNavigation, setHistoryNavigation] = useState(
     createHealthHistoryNavigationState,
   )
@@ -148,11 +149,6 @@ export function HealthScreen({
     })
   }
 
-  async function copyChecklist(): Promise<void> {
-    const copied = await copyTextToClipboard(buildHealthChecklistText(entry, settings))
-    setCopyMessage(copied ? 'Чек-лист скопирован' : 'Не удалось скопировать чек-лист')
-  }
-
   function openDateFromHistory(dateId: string): void {
     setHistoryNavigation((current) => ({
       ...current,
@@ -171,11 +167,12 @@ export function HealthScreen({
   }
 
   function changeHealthTab(tab: HealthView): void {
-    if (activeTab === 'settings' && settingsDirty && tab !== 'settings') {
-      setPendingHealthTab(tab)
+    const nextTab = getVisibleHealthView(tab)
+    if (activeTab === 'settings' && settingsDirty && nextTab !== 'settings') {
+      setPendingHealthTab(nextTab)
       return
     }
-    setActiveTab(tab)
+    setActiveTab(nextTab)
   }
 
   function saveSettings(nextSettings: HealthSettings): boolean {
@@ -197,14 +194,10 @@ export function HealthScreen({
           selectedDate={selectedDate}
           saveState={saveState}
           storageIssue={loaded.issue}
-          copyMessage={copyMessage}
           onDateChange={setSelectedDate}
           onChange={changeEntry}
-          onCopy={() => void copyChecklist()}
           onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
         />
-      ) : activeTab === 'week' ? (
-        <HealthWeekView entries={state.entries} settings={settings} />
       ) : activeTab === 'history' ? (
         <HealthHistoryView
           entries={state.entries}
@@ -247,11 +240,11 @@ function HealthTabs({
   activeTab,
   onChange,
 }: {
-  activeTab: HealthView
+  activeTab: VisibleHealthView
   onChange: (tab: HealthView) => void
 }) {
   return (
-    <div className="section-tabs section-tabs-4" role="tablist" aria-label="Раздел здоровья">
+    <div className="section-tabs section-tabs-3" role="tablist" aria-label="Раздел здоровья">
       {HEALTH_TABS.map((tab) => (
         <button
           key={tab.id}
@@ -275,10 +268,8 @@ function HealthToday({
   selectedDate,
   saveState,
   storageIssue,
-  copyMessage,
   onDateChange,
   onChange,
-  onCopy,
   onBackToHistory,
 }: {
   entry: HealthEntry
@@ -287,10 +278,8 @@ function HealthToday({
   selectedDate: string
   saveState: HealthSaveState
   storageIssue: string | null
-  copyMessage: string
   onDateChange: (date: string) => void
   onChange: (updater: (current: HealthEntry) => HealthEntry) => void
-  onCopy: () => void
   onBackToHistory?: () => void
 }) {
   const dateHeading = formatHealthDate(selectedDate)
@@ -835,9 +824,6 @@ function HealthToday({
         <p className="health-share-hint">
           Текст скопируется, а изображения можно будет сохранить в Фото
         </p>
-        <button type="button" className="health-copy-action" onClick={onCopy}>
-          Скопировать только текст
-        </button>
         {shareResult?.checklistImage && (
           <HealthChecklistDownload file={shareResult.checklistImage} />
         )}
@@ -864,7 +850,6 @@ function HealthToday({
             Откройте нужный чат ChatGPT, выберите последние изображения и вставьте текст
           </p>
           )}
-        {copyMessage && <p className="health-copy-message" role="status">{copyMessage}</p>}
       </div>
     </div>
   )
@@ -1088,12 +1073,6 @@ function LearningDirectionField<TActivityType extends string>({
               ...direction,
               number: normalizePositiveInteger(value),
             })}
-          />
-          <TextField
-            label="Заметка"
-            value={direction.note}
-            maxLength={250}
-            onChange={(note) => onChange({ ...direction, note })}
           />
         </div>
       )}

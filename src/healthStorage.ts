@@ -186,7 +186,12 @@ function normalizeLearningDirection<TActivityType extends string>(
   }
   const status = nullableEnum(value.status, ['not_done', 'done'])
   if (status === 'not_done') {
-    return { status, activityType: null, number: null, note: '' }
+    return {
+      status,
+      activityType: null,
+      number: null,
+      note: stringValue(value.note).slice(0, 250),
+    }
   }
   return {
     status,

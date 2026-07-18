@@ -4,6 +4,7 @@ export type TabId = 'home' | 'salary' | 'daily-sales' | 'money' | 'health'
 export type TabIcon = TabId
 export type SalaryView = 'current' | 'advances' | 'sales' | 'history'
 export type HealthView = 'today' | 'week' | 'history' | 'settings'
+export type VisibleHealthView = Exclude<HealthView, 'week'>
 
 export const TABS: Array<{ id: TabId; label: string; icon: TabIcon }> = [
   { id: 'home', label: 'Главное', icon: 'home' },
@@ -32,12 +33,15 @@ export function getAppTabTarget(tabId: TabId): {
   return { activeTab: tabId }
 }
 
-export const HEALTH_TABS: Array<{ id: HealthView; label: string }> = [
+export const HEALTH_TABS: Array<{ id: VisibleHealthView; label: string }> = [
   { id: 'today', label: 'Сегодня' },
-  { id: 'week', label: 'Неделя' },
   { id: 'history', label: 'История' },
   { id: 'settings', label: 'Настройки' },
 ]
+
+export function getVisibleHealthView(view: HealthView): VisibleHealthView {
+  return view === 'week' ? 'today' : view
+}
 
 export function getHistoryMonthOpenTarget(monthId: string): {
   activeTab: 'salary'

@@ -590,7 +590,6 @@
 }
 
 .health-secondary-action,
-.health-copy-action,
 .health-delete-temporary,
 .health-checklist-download {
   width: 100%;
@@ -783,7 +782,6 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 38%, transparent);
 }
 
-.health-copy-message,
 .health-share-message {
   border-radius: var(--radius);
   padding: 10px 11px;
@@ -792,7 +790,6 @@
   text-align: center;
 }
 
-.health-copy-message,
 .health-share-message.success {
   color: var(--success);
   background: var(--success-soft);
@@ -825,14 +822,12 @@
 }
 
 .health-history-month,
-.health-history-month-summary,
 .health-history-tools,
 .health-history-card,
 .health-history-calendar,
 .health-history-details,
 .health-history-empty-state,
-.health-history-empty-day,
-.health-history-calm-empty {
+.health-history-empty-day {
   min-width: 0;
   border-radius: var(--radius);
   background: var(--surface);
@@ -885,49 +880,13 @@
   overflow-wrap: anywhere;
 }
 
-.health-history-month-summary {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  overflow: hidden;
-}
-
-.health-history-month-summary p {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-  margin: 0;
-  padding: 12px 8px;
-  background: var(--surface-muted);
-  text-align: center;
-}
-
-.health-history-month-summary span {
-  color: var(--text-secondary);
-  font-size: 11px;
-  overflow-wrap: normal;
-  word-break: normal;
-}
-
-.health-history-month-summary strong {
-  font-size: 18px;
-}
-
-.health-history-calm-empty {
-  margin: 0;
-  padding: 14px 16px;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
 .health-history-tools {
   display: grid;
   gap: 8px;
   padding: 12px;
 }
 
-.health-history-mode,
-.health-history-filter-row {
+.health-history-mode {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -951,11 +910,6 @@
   color: var(--accent);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
-}
-
-.health-history-reset {
-  justify-self: start;
-  padding-inline: 12px !important;
 }
 
 .health-history-list {
@@ -1328,10 +1282,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .health-screen .section-tabs-4 button {
-    font-size: 11px;
-  }
-
   .health-week-heading strong {
     font-size: 18px;
   }
@@ -1383,14 +1333,6 @@
     gap: 5px;
   }
 
-  .health-history-month-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .health-history-month-summary p:last-child {
-    grid-column: 1 / -1;
-  }
-
   .health-history-tools {
     padding: 9px;
   }
@@ -1436,11 +1378,6 @@
 }
 
 @media (min-width: 361px) and (max-width: 420px) {
-  .health-screen .section-tabs-4 button {
-    padding-right: 2px;
-    padding-left: 2px;
-    font-size: 12px;
-  }
 }
 
 .health-settings { display: grid; gap: 12px; padding-bottom: 24px; }
