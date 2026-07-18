@@ -1,4 +1,9 @@
 import { D1ReminderRepository } from './repository'
+import { handleBackupRequest } from './backups'
+import {
+  D1CloudBackupStore,
+  type CloudBackupStore,
+} from './backupRepository'
 import { hasMatchingVapidKeyPair, webPushSender } from './push'
 import {
   PushDeliveryError,
@@ -22,12 +27,14 @@ const CRON_BATCH_SIZE = 100
 
 interface WorkerDependencies {
   createRepository: (env: WorkerEnv) => ReminderRepository
+  createBackupStore?: (env: WorkerEnv) => CloudBackupStore
   pushSender: PushSender
   now: () => Date
 }
 
 const defaultDependencies: WorkerDependencies = {
   createRepository: (env) => new D1ReminderRepository(env.DB),
+  createBackupStore: (env) => new D1CloudBackupStore(env.DB),
   pushSender: webPushSender,
   now: () => new Date(),
 }
@@ -82,6 +89,19 @@ export async function handleRequest(
         vapidPublicKey: env.VAPID_PUBLIC_KEY,
         vapidKeyPairValid,
       }, vapidKeyPairValid ? 200 : 503, origin)
+    }
+
+    if (url.pathname.startsWith('/api/backups')) {
+      const createBackupStore =
+        dependencies.createBackupStore ?? defaultDependencies.createBackupStore
+      const backupResponse = await handleBackupRequest({
+        request,
+        store: createBackupStore!(env),
+        repository,
+        nowIso,
+        origin,
+      })
+      if (backupResponse) return backupResponse
     }
 
     if (
@@ -422,7 +442,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
   return {
     ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Confirm-Delete',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   }

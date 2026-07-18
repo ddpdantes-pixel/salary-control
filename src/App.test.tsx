@@ -21,6 +21,12 @@ import {
   saveStoredDailySalesState,
 } from './dailySalesStorage'
 import { createBackupData } from './backup'
+import {
+  CLOUD_BACKUP_KEY_STORAGE,
+  CLOUD_RESTORE_SNAPSHOT_STORAGE,
+  createCloudBackupEnvelope,
+} from './cloudBackup'
+import { PAYMENT_PUSH_DEVICE_KEY } from './paymentNotifications'
 
 vi.mock('virtual:pwa-register', () => ({
   registerSW: vi.fn(() => vi.fn()),
@@ -192,6 +198,7 @@ describe('оболочка приложения', () => {
 
     await user.click(screen.getByRole('tab', { name: 'История' }))
     expect(screen.getByRole('tabpanel', { name: 'История' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Облачная копия' })).not.toBeNull()
     expect(
       screen.getByRole('button', { name: 'Скачать резервную копию' }),
     ).not.toBeNull()
@@ -201,6 +208,55 @@ describe('оболочка приложения', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Реализация' }))
     expect(screen.getByRole('tabpanel', { name: 'Реализация' })).not.toBeNull()
+  })
+
+  it('создаёт защитный snapshot перед облачным восстановлением и сохраняет push-устройство', async () => {
+    const user = userEvent.setup()
+    const current = {
+      ...createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z'),
+      salary: 45_000,
+    }
+    const restored = {
+      ...createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z'),
+      salary: 99_000,
+    }
+    saveStoredMonths([current])
+    saveStoredSelectedMonthId(current.id)
+    const cloudKey = 'A'.repeat(43)
+    window.localStorage.setItem(CLOUD_BACKUP_KEY_STORAGE, cloudKey)
+    const pushDevice = JSON.stringify({
+      schemaVersion: 1,
+      deviceId: 'device-current',
+      deviceSecret: 'stay-on-this-device',
+      endpoint: 'https://push.example/current',
+      connectedAt: '2026-07-18T10:00:00.000Z',
+    })
+    window.localStorage.setItem(PAYMENT_PUSH_DEVICE_KEY, pushDevice)
+    const payload = JSON.stringify(createBackupData([restored], restored.id))
+    const envelope = await createCloudBackupEnvelope(payload, {
+      backupId: '00000000-0000-4000-8000-000000000001',
+      now: new Date('2026-07-18T19:15:00.000Z'),
+      platform: 'ios',
+    })
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(Response.json({ backups: [envelope] }))
+      .mockResolvedValueOnce(Response.json(envelope)))
+
+    await renderApp()
+    await user.click(screen.getByRole('button', { name: 'Зарплата' }))
+    await user.click(screen.getByRole('tab', { name: 'История' }))
+    await screen.findByText('18 июл. 2026 г., 22:15')
+    await user.click(screen.getByRole('button', { name: 'Восстановить из облака' }))
+
+    expect(screen.getByRole('dialog')).not.toBeNull()
+    expect(window.localStorage.getItem(CLOUD_RESTORE_SNAPSHOT_STORAGE)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Восстановить' }))
+
+    const snapshot = window.localStorage.getItem(CLOUD_RESTORE_SNAPSHOT_STORAGE)
+    expect(snapshot).toContain('"salary":45000')
+    expect(window.localStorage.getItem(PAYMENT_PUSH_DEVICE_KEY)).toBe(pushDevice)
+    await user.click(screen.getByRole('tab', { name: 'Авансы' }))
+    expect(screen.getByDisplayValue('99 000')).not.toBeNull()
   })
 
   it('открывает выбранный месяц из истории в текущем расчёте без потери месяцев', async () => {

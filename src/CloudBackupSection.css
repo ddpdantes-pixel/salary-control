@@ -1,0 +1,256 @@
+.cloud-backup-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.cloud-backup-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cloud-backup-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.cloud-backup-heading p,
+.cloud-backup-note,
+.cloud-backup-history > p,
+.cloud-key-dialog p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.cloud-backup-heading > span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cloud-backup-heading > span.connected {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.cloud-backup-summary {
+  display: grid;
+  grid-template-columns: 1.5fr 0.8fr 0.6fr;
+  gap: 8px;
+}
+
+.cloud-backup-summary div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  border-radius: 8px;
+  padding: 9px;
+  background: var(--surface-muted);
+}
+
+.cloud-backup-summary dt {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.cloud-backup-summary dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.cloud-backup-actions,
+.cloud-backup-transfer > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cloud-backup-actions button,
+.cloud-backup-transfer button {
+  min-width: 0;
+  padding: 9px 7px;
+  white-space: normal;
+}
+
+.cloud-backup-status {
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.cloud-backup-history {
+  display: grid;
+  gap: 8px;
+}
+
+.cloud-backup-history article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-muted);
+}
+
+.cloud-backup-history article > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.cloud-backup-history article strong,
+.cloud-backup-history article small {
+  overflow-wrap: anywhere;
+}
+
+.cloud-backup-history article span {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 6px;
+  color: var(--success);
+  background: var(--success-soft);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.cloud-backup-history article small {
+  color: var(--text-secondary);
+}
+
+.cloud-backup-history article > div:last-child {
+  display: grid;
+  gap: 6px;
+}
+
+.cloud-backup-history button {
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
+.cloud-backup-delete-all,
+.cloud-backup-disconnect,
+.cloud-backup-snapshot {
+  width: 100%;
+}
+
+.cloud-backup-transfer {
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.cloud-backup-transfer summary {
+  min-height: 44px;
+  padding: 12px;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.cloud-backup-transfer > div {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 10px 10px;
+}
+
+.cloud-key-dialog {
+  display: grid;
+  width: min(100%, 420px);
+  max-height: min(86dvh, 680px);
+  gap: 12px;
+  overflow-y: auto;
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.cloud-key-dialog img {
+  width: min(100%, 260px);
+  height: auto;
+  margin: 0 auto;
+  image-rendering: pixelated;
+}
+
+.cloud-key-dialog label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.cloud-key-dialog textarea {
+  width: 100%;
+  min-height: 86px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+}
+
+.cloud-key-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cloud-key-dialog-actions button:last-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 430px) {
+  .cloud-backup-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 350px) {
+  .cloud-backup-card {
+    padding: 12px;
+  }
+
+  .cloud-backup-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cloud-backup-summary div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .cloud-backup-transfer > div,
+  .cloud-key-dialog-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .cloud-key-dialog-actions button:last-child {
+    grid-column: auto;
+  }
+
+  .cloud-backup-history article {
+    grid-template-columns: 1fr;
+  }
+
+  .cloud-backup-history article > div:last-child {
+    grid-template-columns: 1fr 1fr;
+  }
+}

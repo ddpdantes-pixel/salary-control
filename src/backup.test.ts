@@ -11,8 +11,16 @@ import { setFinanceOperationStatus } from './financeObligations'
 import { createDefaultDailySalesState } from './dailySalesStorage'
 import { createEmptyHealthState, createHealthEntry } from './healthModel'
 import { createDefaultPaymentNotificationSettings } from './paymentNotifications'
+import { CLOUD_BACKUP_KEY_STORAGE } from './cloudBackup'
 
 describe('резервная копия', () => {
+  it('не включает облачный ключ в обычный JSON backup', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const backupJson = JSON.stringify(createBackupData([month], month.id))
+
+    expect(backupJson).not.toContain(CLOUD_BACKUP_KEY_STORAGE)
+    expect(backupJson).not.toContain('A'.repeat(43))
+  })
   it('сохраняет версию структуры, дату, месяцы и настройки', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backup = createBackupData([month], month.id)

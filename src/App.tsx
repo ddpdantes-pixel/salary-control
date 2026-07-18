@@ -73,6 +73,11 @@ import {
 } from './healthSettings'
 import { DailySalesScreen } from './DailySalesScreen'
 import { WorkScheduleCard } from './WorkScheduleCard'
+import { CloudBackupSection } from './CloudBackupSection'
+import {
+  clearCloudRestoreSnapshot,
+  saveCloudRestoreSnapshot,
+} from './cloudBackup'
 import {
   consumeDailySalesStorageIssues,
   loadStoredDailySalesState,
@@ -118,6 +123,7 @@ interface InitialState {
 
 interface RestorePreview {
   fileName: string
+  source: 'local' | 'cloud' | 'snapshot'
   months: SalaryMonth[]
   selectedMonthId: string | null
   financeState: FinanceState | null
@@ -509,18 +515,7 @@ function App() {
   }
 
   function downloadBackup(): void {
-    const healthState = loadStoredHealthState().state
-    const healthSettings = loadStoredHealthSettings()
-    const backup = createBackupData(
-      months,
-      selectedMonthId,
-      financeState,
-      dailySalesState,
-      healthState,
-      healthSettings,
-      cashAtHome,
-      paymentNotificationSettings,
-    )
+    const backup = createCurrentBackupData()
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: 'application/json',
     })
@@ -537,6 +532,23 @@ function App() {
     )
   }
 
+  function createCurrentBackupData() {
+    return createBackupData(
+      months,
+      selectedMonthId,
+      financeState,
+      dailySalesState,
+      loadStoredHealthState().state,
+      loadStoredHealthSettings(),
+      cashAtHome,
+      paymentNotificationSettings,
+    )
+  }
+
+  function createCurrentBackupText(): string {
+    return JSON.stringify(createCurrentBackupData())
+  }
+
   function openRestorePicker(): void {
     restoreInputRef.current?.click()
   }
@@ -549,19 +561,7 @@ function App() {
     file
       .text()
       .then((text) => {
-        const parsedBackup = parseBackupData(text)
-        setPendingRestore({
-          fileName: file.name,
-          months: parsedBackup.months,
-          selectedMonthId: parsedBackup.selectedMonthId,
-          financeState: parsedBackup.financeState,
-          dailySalesState: parsedBackup.dailySalesState,
-          healthState: parsedBackup.healthState,
-          healthSettings: parsedBackup.healthSettings,
-          cashAtHome: parsedBackup.cashAtHome,
-          paymentNotificationSettings:
-            parsedBackup.paymentNotificationSettings,
-        })
+        prepareBackupRestore(text, file.name, 'local')
       })
       .catch((error: unknown) => {
         setStorageMessage(
@@ -575,6 +575,35 @@ function App() {
           restoreInputRef.current.value = ''
         }
       })
+  }
+
+  function prepareBackupRestore(
+    text: string,
+    fileName: string,
+    source: RestorePreview['source'],
+  ): void {
+    try {
+      const parsedBackup = parseBackupData(text)
+      setPendingRestore({
+        fileName,
+        source,
+        months: parsedBackup.months,
+        selectedMonthId: parsedBackup.selectedMonthId,
+        financeState: parsedBackup.financeState,
+        dailySalesState: parsedBackup.dailySalesState,
+        healthState: parsedBackup.healthState,
+        healthSettings: parsedBackup.healthSettings,
+        cashAtHome: parsedBackup.cashAtHome,
+        paymentNotificationSettings:
+          parsedBackup.paymentNotificationSettings,
+      })
+    } catch (error) {
+      setStorageMessage(
+        error instanceof Error
+          ? error.message
+          : 'Не удалось прочитать резервную копию.',
+      )
+    }
   }
 
   function confirmRestore(): void {
@@ -593,6 +622,10 @@ function App() {
       setStorageMessage('В резервной копии нет месяцев для восстановления.')
       setPendingRestore(null)
       return
+    }
+
+    if (pendingRestore.source === 'cloud') {
+      saveCloudRestoreSnapshot(createCurrentBackupText())
     }
 
     setMonths(restoredMonths)
@@ -641,6 +674,9 @@ function App() {
           : 'Настройки уведомлений: использованы стандартные.'
       }`,
     )
+    if (pendingRestore.source === 'snapshot') {
+      clearCloudRestoreSnapshot()
+    }
     setPendingRestore(null)
   }
 
@@ -877,6 +913,8 @@ function App() {
               onDelete={deleteMonth}
               onDownloadBackup={downloadBackup}
               onRestoreRequest={openRestorePicker}
+              createBackupPayload={createCurrentBackupText}
+              onCloudRestore={prepareBackupRestore}
               onOpen={openMonthFromHistory}
             />
           </div>
@@ -1259,6 +1297,8 @@ function HistoryScreen({
   onDelete,
   onDownloadBackup,
   onRestoreRequest,
+  createBackupPayload,
+  onCloudRestore,
   onOpen,
 }: {
   months: SalaryMonth[]
@@ -1267,6 +1307,12 @@ function HistoryScreen({
   onDelete: (monthId: string) => void
   onDownloadBackup: () => void
   onRestoreRequest: () => void
+  createBackupPayload: () => string
+  onCloudRestore: (
+    payload: string,
+    label: string,
+    source: 'cloud' | 'snapshot',
+  ) => void
   onOpen: (monthId: string) => void
 }) {
   return (
@@ -1282,6 +1328,11 @@ function HistoryScreen({
           Восстановить из резервной копии
         </button>
       </div>
+
+      <CloudBackupSection
+        createBackupPayload={createBackupPayload}
+        onRequestRestore={onCloudRestore}
+      />
 
       <div className="history-list">
         {sortMonthsDesc(months).map((month) => {
