@@ -60,7 +60,13 @@ export type FinanceDateSource = 'explicit' | 'copiedPrevious'
 
 export type CoverageStatus = 'covered' | 'partial' | 'unknown'
 
-export type PersonalExpenseKind = 'rent' | 'mobile' | 'internet'
+export type PersonalExpenseKind =
+  | 'rent'
+  | 'mobile'
+  | 'internet'
+  | 'barber'
+  | 'browist'
+  | 'chatgpt'
 
 export interface PersonalExpenseAmountChange {
   id: string

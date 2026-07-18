@@ -130,15 +130,10 @@ export function normalizeFinanceState(
     raw.obligationPayments,
     normalizeObligationPayment,
   )
-  const personalExpenses = fallback.personalExpenses.map((defaultExpense) => {
-    const rawExpense = Array.isArray(raw.personalExpenses)
-      ? raw.personalExpenses.find(
-          (expense) =>
-            isRecord(expense) && expense.id === defaultExpense.id,
-        )
-      : undefined
-    return normalizePersonalExpense(rawExpense, defaultExpense)
-  })
+  const personalExpenses = mergePersonalExpenses(
+    raw.personalExpenses,
+    fallback.personalExpenses,
+  )
 
   if (!settings || anchors.length === 0) {
     return null
@@ -469,6 +464,37 @@ function normalizePersonalExpense(
   }
 }
 
+function mergePersonalExpenses(
+  rawExpenses: unknown,
+  defaults: PersonalExpense[],
+): PersonalExpense[] {
+  const records = Array.isArray(rawExpenses)
+    ? rawExpenses.filter(isRecord)
+    : []
+  const used = new Set<number>()
+
+  return defaults.map((defaultExpense) => {
+    const index = records.findIndex(
+      (expense, candidateIndex) =>
+        !used.has(candidateIndex) &&
+        (expense.id === defaultExpense.id ||
+          normalizeExpenseTitle(expense.title) ===
+            normalizeExpenseTitle(defaultExpense.title)),
+    )
+    if (index === -1) return { ...defaultExpense }
+
+    used.add(index)
+    return normalizePersonalExpense(
+      { ...records[index], id: defaultExpense.id },
+      defaultExpense,
+    )
+  })
+}
+
+function normalizeExpenseTitle(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLocaleLowerCase('ru-RU') : ''
+}
+
 function normalizePersonalExpenseAmountChange(
   raw: unknown,
 ): PersonalExpenseAmountChange | null {
@@ -658,7 +684,7 @@ function migrateEarlyCompletedOperations(
 
     return {
       ...operation,
-      date: todayIsoDate,
+      date: operation.date,
       scheduledDate: operation.date,
       actualDate: todayIsoDate,
       completedDate: todayIsoDate,

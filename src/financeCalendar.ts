@@ -49,15 +49,13 @@ export interface FinanceCalendarFilters {
 
 export type FinanceCalendarGroupId =
   | 'overdueExpenses'
-  | 'upcomingExpenses'
-  | 'upcomingIncome'
+  | 'upcoming'
   | 'completed'
   | 'cancelled'
 
 export interface FinanceCalendarGroups {
   overdueExpenses: FinanceCalendarItem[]
-  upcomingExpenses: FinanceCalendarItem[]
-  upcomingIncome: FinanceCalendarItem[]
+  upcoming: FinanceCalendarItem[]
   completed: FinanceCalendarItem[]
   cancelled: FinanceCalendarItem[]
 }
@@ -181,8 +179,7 @@ export function groupFinanceCalendarItems(
 ): FinanceCalendarGroups {
   const groups: FinanceCalendarGroups = {
     overdueExpenses: [],
-    upcomingExpenses: [],
-    upcomingIncome: [],
+    upcoming: [],
     completed: [],
     cancelled: [],
   }
@@ -193,8 +190,7 @@ export function groupFinanceCalendarItems(
   }
 
   groups.overdueExpenses.sort(sortByDateAscending)
-  groups.upcomingExpenses.sort(sortByDateAscending)
-  groups.upcomingIncome.sort(sortByDateAscending)
+  groups.upcoming.sort(sortUpcomingOperations)
   groups.completed.sort((first, second) =>
     getCompletionDate(second).localeCompare(getCompletionDate(first)) ||
     second.operation.id.localeCompare(first.operation.id),
@@ -214,9 +210,9 @@ export function getFinanceCalendarGroup(
   if (item.operation.direction === 'expense') {
     return item.displayStatus === 'Просрочено'
       ? 'overdueExpenses'
-      : 'upcomingExpenses'
+      : 'upcoming'
   }
-  return 'upcomingIncome'
+  return 'upcoming'
 }
 
 export function getFinanceSourceLabel(
@@ -273,6 +269,26 @@ function sortByDateAscending(
     first.operation.date.localeCompare(second.operation.date) ||
     first.operation.id.localeCompare(second.operation.id)
   )
+}
+
+function sortUpcomingOperations(
+  first: FinanceCalendarItem,
+  second: FinanceCalendarItem,
+): number {
+  const firstScheduledDate = first.operation.scheduledDate ?? first.operation.date
+  const secondScheduledDate = second.operation.scheduledDate ?? second.operation.date
+  const dateOrder = firstScheduledDate.localeCompare(secondScheduledDate)
+
+  if (dateOrder !== 0) return dateOrder
+
+  if (first.operation.direction !== second.operation.direction) {
+    return first.operation.direction === 'income' ? -1 : 1
+  }
+
+  const sortOrder = first.operation.sortOrder - second.operation.sortOrder
+  return sortOrder !== 0
+    ? sortOrder
+    : first.operation.id.localeCompare(second.operation.id)
 }
 
 function getCompletionDate(item: FinanceCalendarItem): string {

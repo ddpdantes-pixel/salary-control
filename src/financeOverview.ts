@@ -72,6 +72,12 @@ export interface FinanceOverviewData {
   coverage: FinanceCoverageSummary
 }
 
+export interface FinanceMonthSummary {
+  monthId: string
+  incomeKopecks: number
+  expenseKopecks: number
+}
+
 export function buildFinanceOverview(input: {
   state: FinanceState
   salaryMonths: SalaryMonth[]
@@ -245,6 +251,35 @@ export function buildOverviewOperations(input: {
   }
 
   return sortFinanceOperations([...operationsById.values()])
+}
+
+export function buildFinanceMonthSummary(input: {
+  operations: FinanceOperation[]
+  monthId: string
+}): FinanceMonthSummary {
+  return input.operations.reduce<FinanceMonthSummary>(
+    (summary, operation) => {
+      const scheduledDate = operation.scheduledDate ?? operation.date
+      if (
+        operation.status === 'cancelled' ||
+        getDateYearMonth(scheduledDate) !== input.monthId ||
+        operation.amountKopecks === null
+      ) {
+        return summary
+      }
+
+      return operation.direction === 'income'
+        ? {
+            ...summary,
+            incomeKopecks: summary.incomeKopecks + operation.amountKopecks,
+          }
+        : {
+            ...summary,
+            expenseKopecks: summary.expenseKopecks + operation.amountKopecks,
+          }
+    },
+    { monthId: input.monthId, incomeKopecks: 0, expenseKopecks: 0 },
+  )
 }
 
 function createIncomeOverview(

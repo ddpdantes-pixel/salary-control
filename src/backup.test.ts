@@ -206,10 +206,11 @@ describe('резервная копия', () => {
       completed.obligations.length,
     )
     expect(restored.financeState?.anchors).toHaveLength(2)
-    expect(restored.financeState?.personalExpenses).toHaveLength(3)
+    expect(restored.financeState?.personalExpenses).toHaveLength(6)
     expect(restoredOperation).toMatchObject({
       status: 'completed',
-      date: '2026-07-10',
+      date: '2026-07-12',
+      actualDate: '2026-07-10',
       completedDate: '2026-07-10',
       scheduledDate: '2026-07-12',
     })

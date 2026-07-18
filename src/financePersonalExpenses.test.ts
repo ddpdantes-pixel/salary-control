@@ -131,6 +131,38 @@ describe('регулярные личные расходы', () => {
     ).toBe(false)
   })
 
+  it('добавляет новые расходы без даты и не удерживает их из зарплаты до настройки дня', () => {
+    const state = createDefaultFinanceState()
+    const expected = [
+      ['barber', 'Барбер', 2_500],
+      ['browist', 'Бровист', 1_800],
+      ['chatgpt', 'ChatGPT', 2_000],
+    ] as const
+
+    for (const [id, title, amount] of expected) {
+      const expense = state.personalExpenses.find((item) => item.id === id)!
+      expect(expense.title).toBe(title)
+      expect(expense.paymentDay).toBeNull()
+      expect(resolvePersonalExpenseAmount(expense, '2026-07')).toBe(
+        rublesToKopecks(amount),
+      )
+    }
+    expect(deductionAmount(state, 'day01', 'barber')).toBe(0)
+  })
+
+  it('использует прежний редактор после назначения даты новому расходу', () => {
+    const state = updateExpense(createDefaultFinanceState(), {
+      expenseId: 'barber',
+      amountKopecks: rublesToKopecks(2_700),
+      effectiveMonth: '2026-07',
+      paymentDay: 7,
+      active: true,
+      monthOnly: false,
+    })
+
+    expect(deductionAmount(state, 'day01', 'barber')).toBe(rublesToKopecks(2_700))
+  })
+
   it('пересчитывает перевод после изменения личного расхода', () => {
     const before = createDefaultFinanceState()
     const after = updateExpense(before, {
@@ -183,7 +215,7 @@ function calculatePlan(
 function deductionAmount(
   state: ReturnType<typeof createDefaultFinanceState>,
   salaryField: 'day01' | 'day10' | 'day15Expected' | 'day25',
-  expenseId: 'rent' | 'mobile' | 'internet',
+  expenseId: 'rent' | 'mobile' | 'internet' | 'barber',
 ): number {
   return getPersonalExpenseDeductions({
     expenses: state.personalExpenses,

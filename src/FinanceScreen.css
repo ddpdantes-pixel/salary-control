@@ -209,6 +209,36 @@
   box-shadow: var(--shadow-soft);
 }
 
+.finance-month-summary {
+  gap: 8px;
+}
+
+.finance-month-summary h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+
+.finance-month-summary > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--finance-border) 45%, transparent);
+  padding-top: 8px;
+}
+
+.finance-month-summary span {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.finance-month-summary strong {
+  color: var(--finance-accent-strong);
+  font-size: 16px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 .finance-card-label,
 .finance-kicker {
   color: var(--finance-accent);
@@ -442,7 +472,7 @@
 
 .finance-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -954,8 +984,14 @@
   line-height: 1.25;
 }
 
+.finance-calendar-group-heading h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .finance-calendar-group-heading > span {
   display: grid;
+  flex: 0 0 auto;
   min-width: 24px;
   min-height: 24px;
   place-items: center;

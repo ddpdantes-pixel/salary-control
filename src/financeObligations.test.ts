@@ -115,7 +115,7 @@ describe('графики и жизненный цикл обязательств
 
     expect(current.balanceKopecks).toBe(rublesToKopecks('8 145,63'))
     expect(completed).toMatchObject({
-      date: '2026-07-10',
+      date: '2026-07-12',
       scheduledDate: '2026-07-12',
       actualDate: '2026-07-10',
       completedDate: '2026-07-10',
@@ -136,6 +136,79 @@ describe('графики и жизненный цикл обязательств
     expect(
       rublesToKopecks('17 928,63') - current.balanceKopecks,
     ).toBe(operation.amountKopecks)
+  })
+
+  it('сразу учитывает досрочно полученное поступление и очищает факт при возврате в planned', () => {
+    const state = createDefaultFinanceState()
+    const operation = {
+      ...state.operations.find((item) => item.id === 'salary-transfer-2026-07-25')!,
+      title: 'Перевод из выплаты 25-го числа',
+      amountKopecks: rublesToKopecks(8_390),
+    }
+    const anchoredState = {
+      ...state,
+      anchors: [{
+        ...state.anchors[0],
+        date: '2026-07-17',
+        balanceKopecks: rublesToKopecks(14_351),
+        confirmedAt: '2026-07-17T12:00:00.000Z',
+      }],
+      operations: [operation],
+    }
+    const completedState = setFinanceOperationStatus({
+      state: anchoredState,
+      operation,
+      nextStatus: 'completed',
+      todayIsoDate: '2026-07-18',
+      nowIso: '2026-07-18T10:00:00.000Z',
+    })
+    const completed = completedState.operations[0]
+    const current = calculateCurrentBalance({
+      anchors: completedState.anchors,
+      operations: completedState.operations,
+      todayIsoDate: '2026-07-18',
+    })
+    const forecast = calculateForecastBalance({
+      anchors: completedState.anchors,
+      operations: completedState.operations,
+      todayIsoDate: '2026-07-18',
+      forecastUntilIsoDate: '2026-07-31',
+    })
+
+    expect(completed).toMatchObject({
+      date: '2026-07-25',
+      scheduledDate: '2026-07-25',
+      actualDate: '2026-07-18',
+      completedDate: '2026-07-18',
+      status: 'completed',
+    })
+    expect(current.balanceKopecks).toBe(rublesToKopecks(22_741))
+    expect(forecast.currentBalanceKopecks).toBe(rublesToKopecks(22_741))
+    expect(forecast.timeline).toEqual([])
+
+    const restoredState = setFinanceOperationStatus({
+      state: completedState,
+      operation: completed,
+      nextStatus: 'planned',
+      todayIsoDate: '2026-07-18',
+      nowIso: '2026-07-18T10:01:00.000Z',
+    })
+    const restored = restoredState.operations[0]
+    const restoredBalance = calculateCurrentBalance({
+      anchors: restoredState.anchors,
+      operations: restoredState.operations,
+      todayIsoDate: '2026-07-18',
+    })
+
+    expect(restored).toMatchObject({
+      date: '2026-07-25',
+      scheduledDate: '2026-07-25',
+      status: 'planned',
+    })
+    expect(restored.actualDate).toBeUndefined()
+    expect(restored.completedDate).toBeUndefined()
+    expect(restoredBalance.balanceKopecks).toBe(rublesToKopecks(14_351))
+    expect(restoredState.operations).toHaveLength(1)
   })
 
   it('переводит следующий платёж обязательства на следующую planned-дату', () => {

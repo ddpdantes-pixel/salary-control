@@ -10,7 +10,6 @@ import {
 } from './financeCalendar'
 import {
   addMonthsToYearMonth,
-  getDateYearMonth,
 } from './financeDates'
 import { formatFinanceFeedItem } from './financeReport'
 import { buildOverviewOperations } from './financeOverview'
@@ -40,25 +39,22 @@ export function FinanceCalendarScreen({
   salaryMonths,
   todayIsoDate,
   onChangeState,
-  onCopyReport,
+  monthId,
+  onMonthIdChange,
   openEditorOnMount = false,
   onEditorOpened,
-  initialMonthId,
   initialOperationId,
 }: {
   state: FinanceState
   salaryMonths: SalaryMonth[]
   todayIsoDate: string
   onChangeState: (updater: (state: FinanceState) => FinanceState) => void
-  onCopyReport: () => void
+  monthId: string
+  onMonthIdChange: (monthId: string) => void
   openEditorOnMount?: boolean
   onEditorOpened?: () => void
-  initialMonthId?: string
   initialOperationId?: string
 }) {
-  const [monthId, setMonthId] = useState(
-    initialMonthId ?? getDateYearMonth(todayIsoDate),
-  )
   const [expandedId, setExpandedId] = useState<string | null>(
     initialOperationId ?? null,
   )
@@ -285,9 +281,6 @@ export function FinanceCalendarScreen({
         >
           + Добавить операцию
         </button>
-        <button type="button" onClick={onCopyReport}>
-          Скопировать отчёт
-        </button>
       </div>
 
       {navigationMessage && (
@@ -300,7 +293,7 @@ export function FinanceCalendarScreen({
         <button
           type="button"
           aria-label="Предыдущий месяц"
-          onClick={() => setMonthId(addMonthsToYearMonth(monthId, -1))}
+          onClick={() => onMonthIdChange(addMonthsToYearMonth(monthId, -1))}
         >
           ‹
         </button>
@@ -309,13 +302,13 @@ export function FinanceCalendarScreen({
           <input
             type="month"
             value={monthId}
-            onChange={(event) => setMonthId(event.currentTarget.value)}
+            onChange={(event) => onMonthIdChange(event.currentTarget.value)}
           />
         </label>
         <button
           type="button"
           aria-label="Следующий месяц"
-          onClick={() => setMonthId(addMonthsToYearMonth(monthId, 1))}
+          onClick={() => onMonthIdChange(addMonthsToYearMonth(monthId, 1))}
         >
           ›
         </button>
@@ -343,22 +336,9 @@ export function FinanceCalendarScreen({
               testingOperationId={testingOperationId}
             />
             <CalendarGroup
-              title="Предстоящие расходы"
-              group="upcomingExpenses"
-              items={calendarGroups.upcomingExpenses}
-              expandedId={expandedId}
-              highlightedId={highlightedId}
-              onToggle={(id) => setExpandedId((current) => current === id ? null : id)}
-              onStatusChange={requestOperationStatusChange}
-              onEdit={(operation) => { setEditingOperation(operation); setShowOperationDialog(true) }}
-              onDelete={deleteManualOperation}
-              onTestNotification={(item) => { void testOperationNotification(item) }}
-              testingOperationId={testingOperationId}
-            />
-            <CalendarGroup
-              title="Ожидаемые поступления"
-              group="upcomingIncome"
-              items={calendarGroups.upcomingIncome}
+              title="Предстоящие операции"
+              group="upcoming"
+              items={calendarGroups.upcoming}
               expandedId={expandedId}
               highlightedId={highlightedId}
               onToggle={(id) => setExpandedId((current) => current === id ? null : id)}
@@ -537,12 +517,17 @@ function CalendarGroupItems({
 }: CalendarGroupProps) {
   return (
     <div className="finance-calendar-group-items">
-      {items.map((item, index) => (
+      {items.map((item) => (
         <CalendarOperationCard
           key={item.operation.id}
           item={item}
           group={group}
-          isNextPayment={group === 'upcomingExpenses' && index === 0}
+          isNextPayment={
+            group === 'upcoming' &&
+            item.operation.direction === 'expense' &&
+            items.find((candidate) => candidate.operation.direction === 'expense')
+              ?.operation.id === item.operation.id
+          }
           expanded={expandedId === item.operation.id}
           highlighted={highlightedId === item.operation.id}
           onToggle={() => onToggle(item.operation.id)}
@@ -588,7 +573,7 @@ function CalendarOperationCard({
     isNextPayment,
     operation.direction,
   )
-  const isEarlyPayment =
+  const isEarlyCompletion =
     operation.status === 'completed' &&
     operation.completedDate !== undefined &&
     operation.scheduledDate !== undefined &&
@@ -621,10 +606,11 @@ function CalendarOperationCard({
             </span>
             <small>{item.sourceLabel}</small>
           </span>
-          {isEarlyPayment && (
+          {isEarlyCompletion && (
             <small className="finance-early-payment">
               <span>
-                Оплачено досрочно {formatFullNumericDate(operation.completedDate!)}
+                {operation.direction === 'income' ? 'Получено' : 'Оплачено'} досрочно{' '}
+                {formatFullNumericDate(operation.completedDate!)}
               </span>
               <span>
                 По графику: {formatFullNumericDate(operation.scheduledDate!)}
@@ -711,13 +697,13 @@ function getStatusPresentation(
   if (group === 'overdueExpenses') {
     return { label: 'Просрочено', icon: '!', tone: 'overdue' }
   }
-  if (group === 'upcomingExpenses') {
+  if (group === 'upcoming') {
+    if (direction === 'income') {
+      return { label: 'Ожидается', icon: '+', tone: 'income' }
+    }
     return isNextPayment
       ? { label: 'Следующий платёж', icon: '>', tone: 'next' }
       : { label: 'Предстоит', icon: '~', tone: 'planned' }
-  }
-  if (group === 'upcomingIncome') {
-    return { label: 'Ожидается', icon: '+', tone: 'income' }
   }
   if (group === 'completed') {
     return {

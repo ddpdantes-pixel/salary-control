@@ -90,7 +90,7 @@ function PersonalExpenseCard({
   onEdit: () => void
 }) {
   const amountKopecks = resolvePersonalExpenseAmount(expense, currentMonth)
-  const configured = amountKopecks !== null && expense.paymentDay !== null
+  const configured = amountKopecks !== null
   const hasOverride = expense.monthOverrides.some(
     (override) => override.monthId === currentMonth,
   )
@@ -104,7 +104,9 @@ function PersonalExpenseCard({
       <strong>{configured ? formatMoney(amountKopecks) : 'Не настроено'}</strong>
       <p>
         {configured
-          ? getSalaryFieldLabel(getPersonalExpenseSalaryField(expense))
+          ? expense.paymentDay === null
+            ? 'Дата не указана'
+            : getSalaryFieldLabel(getPersonalExpenseSalaryField(expense))
           : expense.id === 'rent'
             ? 'Удерживается из выплаты 15-го'
             : 'Укажите сумму и день оплаты'}
@@ -149,7 +151,12 @@ function PersonalExpenseEditor({
   function submit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     const amountKopecks = parseMoneyInput(amountText)
-    const normalizedDay = expense.id === 'rent' ? 15 : Number(paymentDay)
+    const normalizedDay =
+      expense.id === 'rent'
+        ? 15
+        : paymentDay === ''
+          ? null
+          : Number(paymentDay)
 
     if (amountKopecks === null || amountKopecks < 0) {
       setError('Введите корректную сумму расхода.')
@@ -161,6 +168,7 @@ function PersonalExpenseEditor({
     }
     if (
       expense.id !== 'rent' &&
+      normalizedDay !== null &&
       (!Number.isInteger(normalizedDay) || normalizedDay < 1 || normalizedDay > 31)
     ) {
       setError('Укажите день оплаты от 1 до 31.')
@@ -203,7 +211,7 @@ function PersonalExpenseEditor({
       </label>
       {expense.id !== 'rent' && (
         <label>
-          <span>День оплаты</span>
+          <span>День оплаты <small>необязательно</small></span>
           <input
             type="number"
             min="1"

@@ -63,10 +63,7 @@ export function generateObligationOperations(input: {
         compareIsoDates(payment.date, effectiveEndDate) <= 0,
     )
     .map((payment, index) => {
-      const operationDate =
-        payment.status === 'completed' && payment.completedDate
-          ? payment.completedDate
-          : payment.date
+      const operationDate = payment.date
 
       return createOperation({
         obligation: input.obligation,
@@ -177,10 +174,8 @@ export function setFinanceOperationStatus(input: {
   const scheduledDate = input.operation.scheduledDate ?? input.operation.date
   const becomesCompleted = input.nextStatus === 'completed'
   const isNewCompletion = becomesCompleted && input.operation.status !== 'completed'
-  const recordsActualPayment =
-    becomesCompleted &&
-    input.operation.direction === 'expense'
-  const actualDate = recordsActualPayment
+  const recordsActualCompletion = becomesCompleted
+  const actualDate = recordsActualCompletion
     ? input.actualDate ?? input.todayIsoDate
     : becomesCompleted
       ? input.operation.actualDate ?? input.operation.completedDate ?? input.operation.date
@@ -190,17 +185,12 @@ export function setFinanceOperationStatus(input: {
       ? input.nowIso
       : input.operation.completedAt ?? input.nowIso
     : undefined
-  const date =
-    recordsActualPayment
-      ? actualDate!
-      : input.nextStatus !== 'completed' && input.operation.scheduledDate
-        ? scheduledDate
-        : input.operation.date
+  const date = scheduledDate
   const updatedOperation: FinanceOperation = {
     ...input.operation,
     date,
     scheduledDate:
-      recordsActualPayment || input.operation.scheduledDate
+      recordsActualCompletion || input.operation.scheduledDate
         ? scheduledDate
         : undefined,
     actualDate,
@@ -229,9 +219,9 @@ export function setFinanceOperationStatus(input: {
             ? {
                 ...payment,
                 status: input.nextStatus,
-                actualDate: recordsActualPayment ? actualDate : undefined,
+                actualDate: recordsActualCompletion ? actualDate : undefined,
                 completedDate:
-                  recordsActualPayment ? actualDate : undefined,
+                  recordsActualCompletion ? actualDate : undefined,
                 completedAt: becomesCompleted ? completedAt : undefined,
                 updatedAt: input.nowIso,
               }

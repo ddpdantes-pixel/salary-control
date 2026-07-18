@@ -3,7 +3,11 @@ import { createSalaryMonth } from './calculations'
 import { createDefaultFinanceState } from './financeDefaults'
 import { rublesToKopecks } from './financeMoney'
 import { setFinanceOperationStatus } from './financeObligations'
-import { buildFinanceOverview, buildOverviewOperations } from './financeOverview'
+import {
+  buildFinanceMonthSummary,
+  buildFinanceOverview,
+  buildOverviewOperations,
+} from './financeOverview'
 import type { SalaryMonth } from './types'
 
 describe('данные финансового обзора', () => {
@@ -301,6 +305,66 @@ describe('данные финансового обзора', () => {
     expect(upcomingIds).not.toContain(split.id)
     expect(upcomingIds).not.toContain(tbank.id)
     expect(upcomingIds[0]).toBe('yandex-credit-2026-07-24')
+  })
+
+  it('считает планово-фактические итоги по плановой дате без отменённых операций', () => {
+    const summary = buildFinanceMonthSummary({
+      monthId: '2026-08',
+      operations: [
+        {
+          id: 'early-income',
+          date: '2026-08-25',
+          scheduledDate: '2026-08-25',
+          actualDate: '2026-07-18',
+          completedDate: '2026-07-18',
+          completedAt: '2026-07-18T10:00:00.000Z',
+          title: 'Досрочное поступление',
+          amountKopecks: rublesToKopecks(8_390),
+          direction: 'income',
+          status: 'completed',
+          source: 'manual',
+          category: 'manualIncome',
+          amountSource: 'explicit',
+          sortOrder: 1,
+          createdAt: '2026-07-18T10:00:00.000Z',
+          updatedAt: '2026-07-18T10:00:00.000Z',
+        },
+        {
+          id: 'planned-expense',
+          date: '2026-08-25',
+          title: 'Плановый расход',
+          amountKopecks: rublesToKopecks(3_000),
+          direction: 'expense',
+          status: 'planned',
+          source: 'manual',
+          category: 'manualExpense',
+          amountSource: 'explicit',
+          sortOrder: 2,
+          createdAt: '2026-07-18T10:00:00.000Z',
+          updatedAt: '2026-07-18T10:00:00.000Z',
+        },
+        {
+          id: 'cancelled',
+          date: '2026-08-26',
+          title: 'Отменённый расход',
+          amountKopecks: rublesToKopecks(9_000),
+          direction: 'expense',
+          status: 'cancelled',
+          source: 'manual',
+          category: 'manualExpense',
+          amountSource: 'explicit',
+          sortOrder: 3,
+          createdAt: '2026-07-18T10:00:00.000Z',
+          updatedAt: '2026-07-18T10:00:00.000Z',
+        },
+      ],
+    })
+
+    expect(summary).toEqual({
+      monthId: '2026-08',
+      incomeKopecks: rublesToKopecks(8_390),
+      expenseKopecks: rublesToKopecks(3_000),
+    })
   })
 })
 

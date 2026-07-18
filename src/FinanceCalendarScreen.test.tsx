@@ -3,7 +3,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { FinanceCalendarScreen } from './FinanceCalendarScreen'
 import { createDefaultFinanceState } from './financeDefaults'
 import type { FinanceOperation, FinanceState } from './financeTypes'
@@ -18,6 +18,29 @@ describe('календарь денег', () => {
       .getAttribute('aria-expanded')).toBe('false')
     expect(screen.getByRole('button', { name: /Отменено — \d+ операций/ })
       .getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('показывает единый блок предстоящих операций без отдельного блока поступлений и отчёта', () => {
+    renderCalendar([
+      operation({
+        id: 'expected-income',
+        title: 'Ожидаемое поступление',
+        date: '2026-07-20',
+        direction: 'income',
+        status: 'planned',
+      }),
+      operation({
+        id: 'upcoming-expense',
+        title: 'Предстоящий расход',
+        date: '2026-07-21',
+        direction: 'expense',
+        status: 'planned',
+      }),
+    ])
+
+    expect(screen.getByRole('region', { name: 'Предстоящие операции' })).not.toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Ожидаемые поступления' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Скопировать отчёт' })).toBeNull()
   })
 
   it('игнорирует сохранённые значения старых фильтров', () => {
@@ -122,14 +145,15 @@ function CalendarHarness({
   initialOperationId?: string
 }) {
   const [state, setState] = useState(initialState)
+  const [monthId, setMonthId] = useState('2026-07')
   return (
     <FinanceCalendarScreen
       state={state}
       salaryMonths={[]}
       todayIsoDate="2026-07-11"
       onChangeState={(updater) => setState((current) => updater(current))}
-      onCopyReport={vi.fn()}
-      initialMonthId="2026-07"
+      monthId={monthId}
+      onMonthIdChange={setMonthId}
       initialOperationId={initialOperationId}
     />
   )

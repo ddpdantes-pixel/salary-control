@@ -44,7 +44,7 @@ describe('финансовый календарь', () => {
     expect(filtered.map((item) => item.operation.id)).toEqual(['overdue'])
   })
 
-  it('раскладывает операции по приоритету календаря без смешивания расходов и поступлений', () => {
+  it('объединяет предстоящие операции в стабильную хронологию', () => {
     const grouped = groupFinanceCalendarItems(
       buildFinanceCalendarTimeline({
         anchors: [INITIAL_CREDIT_ACCOUNT_ANCHOR],
@@ -77,12 +77,10 @@ describe('финансовый календарь', () => {
       'overdue-early',
       'overdue-late',
     ])
-    expect(grouped.upcomingExpenses.map((item) => item.operation.id)).toEqual([
+    expect(grouped.upcoming.map((item) => item.operation.id)).toEqual([
       'next-payment',
-      'later-payment',
-    ])
-    expect(grouped.upcomingIncome.map((item) => item.operation.id)).toEqual([
       'expected-income',
+      'later-payment',
     ])
     expect(grouped.completed.map((item) => item.operation.id)).toEqual([
       'received-income',
@@ -90,6 +88,27 @@ describe('финансовый календарь', () => {
     ])
     expect(grouped.cancelled.map((item) => item.operation.id)).toEqual([
       'cancelled',
+    ])
+  })
+
+  it('ставит поступление перед расходом в одну плановую дату и считает остаток в этом порядке', () => {
+    const items = buildFinanceCalendarTimeline({
+      anchors: [{ ...INITIAL_CREDIT_ACCOUNT_ANCHOR, date: '2026-07-10', balanceKopecks: 10_000 }],
+      todayIsoDate: '2026-07-11',
+      operations: [
+        operation('same-day-expense', '2026-07-20', 'expense', 7_000),
+        operation('same-day-income', '2026-07-20', 'income', 5_000),
+      ],
+    })
+    const upcoming = groupFinanceCalendarItems(items, '2026-07').upcoming
+
+    expect(upcoming.map((item) => item.operation.id)).toEqual([
+      'same-day-income',
+      'same-day-expense',
+    ])
+    expect(upcoming.map((item) => item.balanceAfterKopecks)).toEqual([
+      rublesToKopecks(5_100),
+      rublesToKopecks(-1_900),
     ])
   })
 

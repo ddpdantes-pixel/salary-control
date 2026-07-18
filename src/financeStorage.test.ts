@@ -86,7 +86,7 @@ describe('локальное хранение финансов', () => {
     }
 
     expect(migratedPayment?.status).toBe('planned')
-    expect(saved.schemaVersion).toBe(7)
+    expect(saved.schemaVersion).toBe(8)
   })
 
   it('мигрирует досрочную оплату и сохраняет исходную дату графика', () => {
@@ -107,7 +107,7 @@ describe('локальное хранение финансов', () => {
       ?.payments.find((payment) => payment.date === '2026-07-12')
 
     expect(operation).toMatchObject({
-      date: '2026-07-11',
+      date: '2026-07-12',
       scheduledDate: '2026-07-12',
       completedDate: '2026-07-11',
       status: 'completed',
@@ -219,12 +219,57 @@ describe('локальное хранение финансов', () => {
       (expense) => expense.id === 'rent',
     )!
 
-    expect(migrated.schemaVersion).toBe(7)
-    expect(migrated.personalExpenses).toHaveLength(3)
+    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.personalExpenses).toHaveLength(6)
     expect(rent.active).toBe(true)
     expect(rent.amountHistory[0].amountKopecks).toBe(
       rublesToKopecks(30_000),
     )
+    expect(
+      migrated.personalExpenses
+        .filter((expense) => ['barber', 'browist', 'chatgpt'].includes(expense.id))
+        .map((expense) => [expense.id, expense.paymentDay]),
+    ).toEqual([
+      ['barber', null],
+      ['browist', null],
+      ['chatgpt', null],
+    ])
+  })
+
+  it('не дублирует расход, который пользователь уже создал с тем же названием', () => {
+    const oldState = JSON.parse(
+      JSON.stringify(createDefaultFinanceState()),
+    ) as Record<string, unknown>
+    oldState.schemaVersion = 7
+    oldState.personalExpenses = (oldState.personalExpenses as Array<Record<string, unknown>>)
+      .filter((expense) => expense.id !== 'barber')
+      .concat({
+        id: 'manual-barber',
+        title: '  барбер  ',
+        active: true,
+        paymentDay: 9,
+        startMonth: '2026-07',
+        amountHistory: [{
+          id: 'manual-barber-2026-07',
+          effectiveMonth: '2026-07',
+          amountKopecks: rublesToKopecks(2_700),
+          createdAt: '2026-07-11T12:00:00.000Z',
+        }],
+        monthOverrides: [],
+        updatedAt: '2026-07-11T12:00:00.000Z',
+      })
+
+    const migrated = normalizeFinanceState(oldState, '2026-07-11')!
+    const barber = migrated.personalExpenses.filter(
+      (expense) => expense.title === '  барбер  ' || expense.id === 'barber',
+    )
+
+    expect(barber).toHaveLength(1)
+    expect(barber[0]).toMatchObject({
+      id: 'barber',
+      paymentDay: 9,
+    })
+    expect(barber[0].amountHistory[0].amountKopecks).toBe(rublesToKopecks(2_700))
   })
 
   it('повторная миграция не создаёт дубликаты', () => {
@@ -239,7 +284,7 @@ describe('локальное хранение финансов', () => {
 
     expect(second.operations).toHaveLength(first.operations.length)
     expect(second.obligations).toHaveLength(first.obligations.length)
-    expect(second.personalExpenses).toHaveLength(3)
+    expect(second.personalExpenses).toHaveLength(6)
     expect(new Set(second.operations.map((item) => item.id)).size).toBe(
       second.operations.length,
     )
@@ -270,7 +315,7 @@ describe('локальное хранение финансов', () => {
 
     expect(restoredOperation).toMatchObject({
       status: 'completed',
-      date: '2026-07-10',
+      date: '2026-07-12',
       completedDate: '2026-07-10',
       scheduledDate: '2026-07-12',
     })

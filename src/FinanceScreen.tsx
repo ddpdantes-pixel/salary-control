@@ -21,6 +21,7 @@ import {
   formatMonthLabel,
 } from './format'
 import {
+  buildFinanceMonthSummary,
   buildFinanceOverview,
   buildOverviewOperations,
 } from './financeOverview'
@@ -36,7 +37,6 @@ type FinanceSection =
   | 'obligations'
   | 'settings'
   | 'cash'
-type FinanceQuickAction = 'operation' | 'obligation' | null
 
 const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string; icon: ComponentType }> = [
   { id: 'overview', label: 'Обзор', icon: OverviewIcon },
@@ -61,7 +61,7 @@ export function FinanceScreen({
   todayIsoDate,
   onCompleteSetup,
   onAddAnchor,
-  onOpenSalaryMonth,
+  onOpenSalaryMonth: _onOpenSalaryMonth,
   onChangeState,
   cashAtHome,
   onChangeCashAtHome,
@@ -92,8 +92,9 @@ export function FinanceScreen({
     )
   const [showBalanceDialog, setShowBalanceDialog] = useState(false)
   const [featureMessage, setFeatureMessage] = useState<string | null>(null)
-  const [quickAction, setQuickAction] = useState<FinanceQuickAction>(null)
-  const [showReportDialog, setShowReportDialog] = useState(false)
+  const [selectedFinanceMonth, setSelectedFinanceMonth] = useState(
+    initialCalendarTarget?.monthId ?? getDateYearMonth(todayIsoDate),
+  )
   const overview = useMemo(
     () =>
       state
@@ -101,6 +102,20 @@ export function FinanceScreen({
         : null,
     [salaryMonths, state, todayIsoDate],
   )
+  const monthSummary = useMemo(() => {
+    if (!state) return null
+    const operations = buildOverviewOperations({
+      state,
+      salaryMonths,
+      todayIsoDate,
+      rangeStartDate: `${selectedFinanceMonth}-01`,
+      rangeEndDate: getMonthEndDate(selectedFinanceMonth),
+    })
+    return buildFinanceMonthSummary({
+      operations,
+      monthId: selectedFinanceMonth,
+    })
+  }, [salaryMonths, selectedFinanceMonth, state, todayIsoDate])
 
   if (!state || !overview) {
     return <FinanceSetupWizard onComplete={onCompleteSetup} />
@@ -153,49 +168,19 @@ export function FinanceScreen({
             )}
           </section>
 
-          <NextPaymentCard payment={overview.nextPayment} />
-          <NextIncomeCard
-            income={overview.nextIncome}
-            sourceMonthExists={
-              overview.nextIncome
-                ? salaryMonths.some(
-                    (month) =>
-                      month.id ===
-                      overview.nextIncome?.linkedIncome.sourceSalesMonth,
-                  )
-                : false
-            }
-            onOpenSalaryMonth={onOpenSalaryMonth}
-          />
-
-          <section className="finance-card finance-obligations-card">
-            <div className="finance-card-heading">
-              <h2>Ближайшие обязательства</h2>
-              <span>{overview.upcomingObligations.length}</span>
-            </div>
-            {overview.upcomingObligations.length > 0 ? (
-              <div className="finance-obligation-list">
-                {overview.upcomingObligations.map((item) => (
-                  <article key={item.operation.id}>
-                    <time dateTime={item.operation.date}>
-                      {formatCompactDate(item.operation.date)}
-                    </time>
-                    <div>
-                      <b>{item.operation.title}</b>
-                      <span>{item.displayStatus}</span>
-                    </div>
-                    <strong>
-                      {item.operation.amountKopecks === null
-                        ? 'Не указано'
-                        : formatMoney(item.operation.amountKopecks)}
-                    </strong>
-                  </article>
-                ))}
+          {monthSummary && (
+            <section className="finance-card finance-month-summary">
+              <h2>{formatMonthLabel(monthSummary.monthId)}</h2>
+              <div>
+                <span>Расходы</span>
+                <strong>{formatMoney(monthSummary.expenseKopecks)}</strong>
               </div>
-            ) : (
-              <p className="finance-empty">Ближайших платежей пока нет.</p>
-            )}
-          </section>
+              <div>
+                <span>Доходы</span>
+                <strong>{formatMoney(monthSummary.incomeKopecks)}</strong>
+              </div>
+            </section>
+          )}
 
           <section className="finance-actions" aria-label="Быстрые действия">
             <button
@@ -206,24 +191,6 @@ export function FinanceScreen({
               <RefreshIcon />
               <span>Обновить остаток</span>
             </button>
-            <button type="button" onClick={() => {
-              setQuickAction('operation')
-              setActiveSection('calendar')
-            }}>
-              <PlusIcon />
-              <span>Добавить операцию</span>
-            </button>
-            <button type="button" onClick={() => {
-              setQuickAction('obligation')
-              setActiveSection('obligations')
-            }}>
-              <PlusIcon />
-              <span>Добавить обязательство</span>
-            </button>
-            <button type="button" onClick={() => setShowReportDialog(true)}>
-              <CopyIcon />
-              <span>Скопировать отчёт</span>
-            </button>
           </section>
         </>
       ) : activeSection === 'calendar' ? (
@@ -232,10 +199,8 @@ export function FinanceScreen({
           salaryMonths={salaryMonths}
           todayIsoDate={todayIsoDate}
           onChangeState={onChangeState}
-          onCopyReport={() => setShowReportDialog(true)}
-          openEditorOnMount={quickAction === 'operation'}
-          onEditorOpened={() => setQuickAction(null)}
-          initialMonthId={initialCalendarTarget?.monthId}
+          monthId={selectedFinanceMonth}
+          onMonthIdChange={setSelectedFinanceMonth}
           initialOperationId={initialCalendarTarget?.operationId}
         />
       ) : activeSection === 'obligations' ? (
@@ -243,14 +208,12 @@ export function FinanceScreen({
           state={state}
           todayIsoDate={todayIsoDate}
           onChangeState={onChangeState}
-          openEditorOnMount={quickAction === 'obligation'}
-          onEditorOpened={() => setQuickAction(null)}
           defaultPaymentInstruction={notificationSettings.defaultInstruction}
         />
       ) : activeSection === 'settings' ? (
         <FinanceSettingsScreen
           state={state}
-          currentMonth={getDateYearMonth(todayIsoDate)}
+          currentMonth={selectedFinanceMonth}
           onChangeState={onChangeState}
           notificationSettings={notificationSettings}
           todayIsoDate={todayIsoDate}
@@ -282,21 +245,6 @@ export function FinanceScreen({
         </FinanceDialog>
       )}
 
-      {showReportDialog && (
-        <FinanceDialog className="finance-editor-dialog" labelledBy="report-dialog-title">
-            <FinanceReportDialog
-              state={state}
-              salaryMonths={salaryMonths}
-              todayIsoDate={todayIsoDate}
-              overview={overview}
-              onCopied={() => {
-                setShowReportDialog(false)
-                setFeatureMessage('Финансовый отчёт скопирован')
-              }}
-              onCancel={() => setShowReportDialog(false)}
-            />
-        </FinanceDialog>
-      )}
     </section>
   )
 }
@@ -476,7 +424,7 @@ export function FinanceSectionTabs({
   )
 }
 
-function NextPaymentCard({
+export function NextPaymentCard({
   payment,
 }: {
   payment: ReturnType<typeof buildFinanceOverview>['nextPayment']
@@ -515,7 +463,7 @@ function NextPaymentCard({
   )
 }
 
-function NextIncomeCard({
+export function NextIncomeCard({
   income,
   sourceMonthExists,
   onOpenSalaryMonth,
@@ -593,7 +541,7 @@ function NextIncomeCard({
   )
 }
 
-function FinanceReportDialog({
+export function FinanceReportDialog({
   state,
   salaryMonths,
   todayIsoDate,
@@ -700,11 +648,6 @@ function moneyText(kopecks: number): string {
   return formatMoney(kopecks).replace(/ ₽$/, '')
 }
 
-function formatCompactDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-')
-  return `${day}.${month}.${year.slice(2)}`
-}
-
 function WalletIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -785,7 +728,7 @@ function RefreshIcon() {
   )
 }
 
-function PlusIcon() {
+export function PlusIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 5v14M5 12h14" />
@@ -793,7 +736,7 @@ function PlusIcon() {
   )
 }
 
-function CopyIcon() {
+export function CopyIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <rect x="8" y="8" width="11" height="11" rx="2" />

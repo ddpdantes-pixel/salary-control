@@ -11,7 +11,7 @@ import type {
 const INITIAL_CREATED_AT = '2026-06-25T12:00:00.000Z'
 const INITIAL_CONFIRMED_THROUGH = '2026-07-10'
 
-export const FINANCE_SCHEMA_VERSION = 7
+export const FINANCE_SCHEMA_VERSION = 8
 export const DEPOSIT_INTEREST_SCHEDULE_ID = 'deposit-interest-monthly-v1'
 
 export const INITIAL_FUTURE_OPERATION_IDS: ReadonlySet<string> = new Set([
@@ -70,6 +70,57 @@ export function createDefaultPersonalExpenses(
       paymentDay: null,
       startMonth: '2026-07',
       amountHistory: [],
+      monthOverrides: [],
+      updatedAt: nowIso,
+    },
+    {
+      id: 'barber',
+      title: 'Барбер',
+      active: true,
+      paymentDay: null,
+      startMonth: '2026-01',
+      amountHistory: [
+        {
+          id: 'barber-2026-01',
+          effectiveMonth: '2026-01',
+          amountKopecks: rublesToKopecks(2_500),
+          createdAt: nowIso,
+        },
+      ],
+      monthOverrides: [],
+      updatedAt: nowIso,
+    },
+    {
+      id: 'browist',
+      title: 'Бровист',
+      active: true,
+      paymentDay: null,
+      startMonth: '2026-01',
+      amountHistory: [
+        {
+          id: 'browist-2026-01',
+          effectiveMonth: '2026-01',
+          amountKopecks: rublesToKopecks(1_800),
+          createdAt: nowIso,
+        },
+      ],
+      monthOverrides: [],
+      updatedAt: nowIso,
+    },
+    {
+      id: 'chatgpt',
+      title: 'ChatGPT',
+      active: true,
+      paymentDay: null,
+      startMonth: '2026-01',
+      amountHistory: [
+        {
+          id: 'chatgpt-2026-01',
+          effectiveMonth: '2026-01',
+          amountKopecks: rublesToKopecks(2_000),
+          createdAt: nowIso,
+        },
+      ],
       monthOverrides: [],
       updatedAt: nowIso,
     },
