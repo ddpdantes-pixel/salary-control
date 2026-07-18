@@ -358,6 +358,171 @@ button:active {
   overflow-wrap: anywhere;
 }
 
+.work-schedule-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.work-schedule-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.work-schedule-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.work-schedule-heading h2 {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.work-schedule-heading p,
+.work-schedule-empty p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.work-schedule-edit {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 6px 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.work-schedule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.work-schedule-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.work-schedule-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.work-schedule-legend .work { background: var(--accent); }
+.work-schedule-legend .rest { background: var(--surface-muted); }
+.work-schedule-legend .today { border: 2px solid var(--accent); background: transparent; }
+
+.work-schedule-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+.work-schedule-weekday,
+.work-schedule-day {
+  display: grid;
+  min-width: 0;
+  min-height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.work-schedule-weekday {
+  min-height: 20px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.work-schedule-day.work {
+  color: #073a35;
+  background: var(--accent-soft);
+  font-weight: 750;
+}
+
+.work-schedule-day.rest,
+.work-schedule-day.unknown {
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+}
+
+.work-schedule-day.today {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.work-schedule-day.empty {
+  min-height: 0;
+  background: transparent;
+}
+
+.work-schedule-counters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.work-schedule-counters div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  border-radius: 8px;
+  padding: 9px;
+  background: var(--surface-muted);
+}
+
+.work-schedule-counters dt {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.work-schedule-counters dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.work-schedule-empty {
+  display: grid;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-muted);
+}
+
+.work-schedule-empty button {
+  width: fit-content;
+  min-height: 38px;
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .money-field {
   display: grid;
   gap: 8px;
@@ -861,6 +1026,38 @@ button.danger {
 @media (max-width: 340px) {
   .hero-total {
     padding: 18px;
+  }
+
+  .work-schedule-card {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .work-schedule-heading h2 {
+    font-size: 17px;
+  }
+
+  .work-schedule-calendar {
+    gap: 3px;
+  }
+
+  .work-schedule-weekday,
+  .work-schedule-day {
+    min-height: 30px;
+    font-size: 12px;
+  }
+
+  .work-schedule-weekday {
+    min-height: 18px;
+    font-size: 10px;
+  }
+
+  .work-schedule-counters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .work-schedule-counters div:first-child {
+    grid-column: 1 / -1;
   }
 
   .bottom-nav {

@@ -20,15 +20,18 @@ type DayMode = 'automatic' | DailySalesDayOverride
 
 export function DailySalesScreen({
   state,
+  monthId,
   todayIsoDate,
+  onMonthChange,
   onChange,
 }: {
   state: DailySalesState
+  monthId: string
   todayIsoDate: string
+  onMonthChange: (monthId: string) => void
   onChange: (updater: (state: DailySalesState) => DailySalesState) => void
 }) {
   const currentMonthId = getLocalMonthId()
-  const [monthId, setMonthId] = useState(currentMonthId)
   const [editingDate, setEditingDate] = useState<string | null>(null)
   const [planText, setPlanText] = useState(() =>
     formatAmountInput(state.settings.monthlyPlanKopecks),
@@ -89,7 +92,7 @@ export function DailySalesScreen({
         <button
           type="button"
           aria-label="Предыдущий месяц продаж"
-          onClick={() => setMonthId((current) => addMonths(current, -1))}
+          onClick={() => onMonthChange(addMonths(monthId, -1))}
         >
           ‹
         </button>
@@ -97,14 +100,14 @@ export function DailySalesScreen({
         <button
           type="button"
           aria-label="Следующий месяц продаж"
-          onClick={() => setMonthId((current) => addMonths(current, 1))}
+          onClick={() => onMonthChange(addMonths(monthId, 1))}
         >
           ›
         </button>
         <button
           type="button"
           className="daily-sales-today"
-          onClick={() => setMonthId(currentMonthId)}
+          onClick={() => onMonthChange(currentMonthId)}
         >
           Текущий месяц
         </button>

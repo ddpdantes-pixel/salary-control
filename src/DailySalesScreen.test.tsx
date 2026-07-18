@@ -249,11 +249,14 @@ function TestScreen({
   onStateChange?: (state: DailySalesState) => void
 }) {
   const [state, setState] = React.useState(initialState)
+  const [monthId, setMonthId] = React.useState(getLocalMonthId())
 
   return (
     <DailySalesScreen
       state={state}
+      monthId={monthId}
       todayIsoDate={getLocalIsoDate()}
+      onMonthChange={setMonthId}
       onChange={(updater) => {
         setState((current) => {
           const next = updater(current)

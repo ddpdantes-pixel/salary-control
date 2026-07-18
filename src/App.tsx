@@ -72,6 +72,7 @@ import {
   type HealthSettings,
 } from './healthSettings'
 import { DailySalesScreen } from './DailySalesScreen'
+import { WorkScheduleCard } from './WorkScheduleCard'
 import {
   consumeDailySalesStorageIssues,
   loadStoredDailySalesState,
@@ -814,12 +815,19 @@ function App() {
         <HomeScreen
           month={currentMonth}
           summary={summary}
+          dailySalesState={dailySalesState}
+          todayIsoDate={getDailySalesLocalIsoDate()}
           onMonthChange={selectOrCreateMonth}
           onShiftMonth={(offset) =>
             selectOrCreateMonth(
               addMonthsToSalesMonth(currentMonth.salesMonth, offset),
             )
           }
+          onOpenWorkSchedule={() => {
+            setSalaryView('sales')
+            setActiveTab('salary')
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+          }}
         />
       )}
       {activeTab === 'salary' && (
@@ -851,7 +859,9 @@ function App() {
           <div role="tabpanel" aria-label="Продажи" hidden={salaryView !== 'sales'}>
             <DailySalesScreen
               state={dailySalesState}
+              monthId={currentMonth.salesMonth}
               todayIsoDate={getDailySalesLocalIsoDate()}
+              onMonthChange={selectOrCreateMonth}
               onChange={(updater) =>
                 setDailySalesState((current) =>
                   current ? updater(current) : current,
@@ -985,13 +995,19 @@ interface ScreenProps {
 function HomeScreen({
   month,
   summary,
+  dailySalesState,
+  todayIsoDate,
   onMonthChange,
   onShiftMonth,
+  onOpenWorkSchedule,
 }: {
   month: SalaryMonth
   summary: CalculationSummary
+  dailySalesState: DailySalesState
+  todayIsoDate: string
   onMonthChange: (monthId: string) => void
   onShiftMonth: (offset: number) => void
+  onOpenWorkSchedule: () => void
 }) {
   return (
     <section className="screen">
@@ -1041,6 +1057,12 @@ function HomeScreen({
       </section>
 
       <Warnings summary={summary} />
+      <WorkScheduleCard
+        state={dailySalesState}
+        monthId={month.salesMonth}
+        todayIsoDate={todayIsoDate}
+        onOpen={onOpenWorkSchedule}
+      />
     </section>
   )
 }

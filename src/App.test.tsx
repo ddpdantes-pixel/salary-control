@@ -336,6 +336,45 @@ describe('оболочка приложения', () => {
     expect(loadStoredMonths()[0].salesTotal).toBe(1_234_567)
   })
 
+  it('показывает на «Главном» тот же рабочий график и открывает его на выбранном месяце', async () => {
+    const user = userEvent.setup()
+    const june = createSalaryMonth('2026-06', '2026-06-01T00:00:00.000Z')
+    const july = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const dailySales = createDefaultDailySalesState()
+    dailySales.settings.cycleAnchorDate = '2026-06-01'
+    saveStoredMonths([july, june])
+    saveStoredSelectedMonthId(june.id)
+    saveStoredDailySalesState(dailySales)
+
+    await renderApp()
+
+    expect(screen.getByRole('heading', { name: 'Рабочий график — Июнь 2026' })).not.toBeNull()
+    expect(screen.getByText('Рабочих дней')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Открыть рабочий график за июнь 2026' }))
+
+    expect(screen.getByRole('tab', { name: 'Продажи' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('heading', { name: 'Июнь 2026' })).not.toBeNull()
+  })
+
+  it('меняет карточку графика вместе с расчётным месяцем без нового хранилища', async () => {
+    const user = userEvent.setup()
+    const june = createSalaryMonth('2026-06', '2026-06-01T00:00:00.000Z')
+    const july = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const dailySales = createDefaultDailySalesState()
+    dailySales.settings.cycleAnchorDate = '2026-06-01'
+    dailySales.dayOverrides['2026-07-01'] = 'rest'
+    saveStoredMonths([july, june])
+    saveStoredSelectedMonthId(june.id)
+    saveStoredDailySalesState(dailySales)
+    const storedBefore = window.localStorage.getItem(DAILY_SALES_STATE_KEY)
+
+    await renderApp()
+    await user.click(screen.getByRole('button', { name: 'Следующий месяц' }))
+
+    expect(screen.getByRole('heading', { name: 'Рабочий график — Июль 2026' })).not.toBeNull()
+    expect(window.localStorage.getItem(DAILY_SALES_STATE_KEY)).toBe(storedBefore)
+  })
+
   it('показывает единый блок порогов, сравнение и начисленные бонусы в нужном порядке', async () => {
     const user = userEvent.setup()
     const june = {
