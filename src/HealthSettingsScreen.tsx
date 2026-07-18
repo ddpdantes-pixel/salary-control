@@ -4,8 +4,10 @@ import {
   createDefaultHealthSettings,
   formatDailyWaterGoal,
   getRelaxationMinutes,
+  getLearningActivityTypes,
   parseDecimalSetting,
   validateHealthSettings,
+  type LearningScheduleItem,
   type HealthSettings,
 } from './healthSettings'
 import type { HealthEntry, PlannedWorkoutDay, WorkoutDefinition } from './healthTypes'
@@ -92,6 +94,20 @@ export function HealthSettingsScreen({
       ...current,
       workouts: current.workouts.map((workout) =>
         workout.id === workoutId ? { ...workout, ...patch, id: workout.id } : workout,
+      ),
+    }))
+  }
+
+  function updateLearningScheduleItem(
+    itemId: string,
+    patch: Partial<LearningScheduleItem>,
+  ): void {
+    updateDraft((current) => ({
+      ...current,
+      learningSchedule: current.learningSchedule.map((item) =>
+        item.id === itemId
+          ? { ...item, ...patch, id: item.id, direction: item.direction, cadence: item.cadence }
+          : item,
       ),
     }))
   }
@@ -287,6 +303,41 @@ export function HealthSettingsScreen({
         <NumberSetting label="Максимум алкогольных вечеров в неделю" value={draft.alcoholMaxEvenings} min={0} max={7} error={errors.alcoholMaxEvenings} onChange={(alcoholMaxEvenings) => updateDraft((current) => ({ ...current, alcoholMaxEvenings }))} />
       </SettingsGroup>
 
+      <SettingsGroup title="Обучение">
+        <p className="health-muted">Расписание используется на Главном только для текущей недели. Изменения не меняют сохранённые записи обучения.</p>
+        <div className="health-settings-workout-list">
+          {draft.learningSchedule.map((item) => {
+            const title = getLearningScheduleTitle(item)
+            return (
+              <article key={item.id} className="health-settings-workout">
+                <h3>{title}</h3>
+                <div className="health-settings-grid">
+                  <label className="health-settings-field">
+                    <span>День недели</span>
+                    <select aria-label={`День недели: ${title}`} value={item.weekday} onChange={(event) => updateLearningScheduleItem(item.id, { weekday: event.currentTarget.value as PlannedWorkoutDay })}>
+                      {WEEKDAYS.map((day) => <option key={day.id} value={day.id}>{day.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="health-settings-field">
+                    <span>Тип</span>
+                    <select aria-label={`Тип: ${title}`} value={item.activityType} onChange={(event) => updateLearningScheduleItem(item.id, { activityType: event.currentTarget.value as LearningScheduleItem['activityType'] })}>
+                      {getLearningActivityTypes(item.direction).map((activityType) => <option key={activityType} value={activityType}>{getLearningActivityLabel(activityType)}</option>)}
+                    </select>
+                  </label>
+                  {item.cadence === 'biweekly' && (
+                    <label className="health-settings-field">
+                      <span>Дата начала двухнедельного цикла</span>
+                      <input type="date" aria-label={`Дата начала цикла: ${title}`} value={item.cycleStartDate ?? ''} onChange={(event) => updateLearningScheduleItem(item.id, { cycleStartDate: event.currentTarget.value || null })} />
+                    </label>
+                  )}
+                </div>
+                {errors[`learningSchedule.${draft.learningSchedule.indexOf(item)}.cycleStartDate`] && <small className="health-settings-error">{errors[`learningSchedule.${draft.learningSchedule.indexOf(item)}.cycleStartDate`]}</small>}
+              </article>
+            )
+          })}
+        </div>
+      </SettingsGroup>
+
       <SettingsGroup title="Восстановление стандартных настроек">
         <p className="health-muted">Будут восстановлены только цели и графики. Записи здоровья, изображения и остальные данные приложения сохранятся.</p>
         <button type="button" className="health-settings-restore" onClick={() => setConfirmation({ kind: 'restore' })}>Восстановить стандартные настройки</button>
@@ -311,6 +362,23 @@ export function HealthSettingsScreen({
       )}
     </div>
   )
+}
+
+function getLearningScheduleTitle(item: LearningScheduleItem): string {
+  const direction = item.direction === 'speech'
+    ? 'Речь и дикция'
+    : item.direction === 'cavist'
+      ? 'Кавист'
+      : 'Керамогранит'
+  return `${direction} — ${getLearningActivityLabel(item.activityType)}`
+}
+
+function getLearningActivityLabel(activityType: LearningScheduleItem['activityType']): string {
+  return activityType === 'session'
+    ? 'Занятие'
+    : activityType === 'lesson'
+      ? 'Урок'
+      : 'Практика'
 }
 
 function SettingsGroup({ title, open = false, children }: { title: string; open?: boolean; children: React.ReactNode }) {

@@ -93,4 +93,21 @@ describe('экран настроек здоровья', () => {
     await user.click(screen.getByRole('button', { name: 'Восстановить' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ water: { goalCups: 6, cupVolumeMl: 300 } }))
   })
+
+  it('сохраняет изменённый день обучения в существующих настройках', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(() => true)
+    render(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{}} onSave={onSave} onDirtyChange={() => {}} />)
+
+    await user.click(screen.getByText('Обучение'))
+    await user.selectOptions(screen.getAllByLabelText(/^День недели: Речь и дикция — Занятие$/)[0], 'monday')
+    await user.selectOptions(screen.getAllByLabelText(/^Тип: Речь и дикция — Занятие$/)[0], 'practice')
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }))
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      learningSchedule: expect.arrayContaining([
+        expect.objectContaining({ id: 'speech-tuesday', weekday: 'monday', activityType: 'practice' }),
+      ]),
+    }))
+  })
 })

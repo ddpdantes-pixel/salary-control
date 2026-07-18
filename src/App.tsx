@@ -73,6 +73,9 @@ import {
 } from './healthSettings'
 import { DailySalesScreen } from './DailySalesScreen'
 import { WorkScheduleCard } from './WorkScheduleCard'
+import { HomeTodayCard } from './HomeTodayCard'
+import { buildFinanceOverview } from './financeOverview'
+import { getDateYearMonth } from './financeDates'
 import { CloudBackupSection } from './CloudBackupSection'
 import {
   clearCloudRestoreSnapshot,
@@ -136,7 +139,7 @@ interface RestorePreview {
 
 function App() {
   const [initialState, setInitialState] = useState<InitialState | null>(null)
-  const [paymentNavigationTarget] =
+  const [calendarNavigationTarget, setCalendarNavigationTarget] =
     useState<PaymentNotificationNavigationTarget | null>(() =>
       typeof window === 'undefined'
         ? null
@@ -152,7 +155,7 @@ function App() {
   const [selectedMonthId, setSelectedMonthId] = useState('')
   const [isBooting, setIsBooting] = useState(true)
   const [activeTab, setActiveTab] = useState<TabId>(
-    paymentNavigationTarget ? 'money' : 'home',
+    calendarNavigationTarget ? 'money' : 'home',
   )
   const [salaryView, setSalaryView] = useState<SalaryView>('current')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -165,6 +168,7 @@ function App() {
     null,
   )
   const [healthSettingsDirty, setHealthSettingsDirty] = useState(false)
+  const [learningFocusRequest, setLearningFocusRequest] = useState(0)
   const [pendingAppTab, setPendingAppTab] = useState<TabId | null>(null)
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
@@ -373,7 +377,7 @@ function App() {
   }, [financeState, isBooting, paymentNotificationSettings])
 
   if (isBooting || !dailySalesState) {
-    return <AppLoadingShell openingOperation={paymentNavigationTarget !== null} />
+    return <AppLoadingShell openingOperation={calendarNavigationTarget !== null} />
   }
 
   function showStorageIssues(): boolean {
@@ -853,6 +857,10 @@ function App() {
           summary={summary}
           dailySalesState={dailySalesState}
           todayIsoDate={getDailySalesLocalIsoDate()}
+          financeState={financeState}
+          salaryMonths={months}
+          healthEntries={loadStoredHealthState().state.entries}
+          healthSettings={loadStoredHealthSettings()}
           onMonthChange={selectOrCreateMonth}
           onShiftMonth={(offset) =>
             selectOrCreateMonth(
@@ -864,6 +872,20 @@ function App() {
             setActiveTab('salary')
             window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
           }}
+          onOpenFinanceOverview={() => {
+            setCalendarNavigationTarget(null)
+            setActiveTab('money')
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+          }}
+          onOpenFinanceOperation={(operation) => {
+            setCalendarNavigationTarget({
+              monthId: getDateYearMonth(operation.date),
+              operationId: operation.id,
+            })
+            setActiveTab('money')
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+          }}
+          onOpenLearning={() => { setLearningFocusRequest((value) => value + 1); setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
         />
       )}
       {activeTab === 'salary' && (
@@ -933,7 +955,7 @@ function App() {
           onStopFutureDepositInterest={stopScheduledDepositInterest}
           notificationSettings={paymentNotificationSettings}
           onChangeNotificationSettings={setPaymentNotificationSettings}
-          initialCalendarTarget={paymentNavigationTarget}
+          initialCalendarTarget={calendarNavigationTarget}
           onOpenSalaryMonth={(monthId) => {
             selectOrCreateMonth(monthId)
             setSalaryView('current')
@@ -942,7 +964,7 @@ function App() {
         />
       )}
       {activeTab === 'health' && (
-        <HealthScreen onSettingsDirtyChange={setHealthSettingsDirty} />
+        <HealthScreen onSettingsDirtyChange={setHealthSettingsDirty} learningFocusRequest={learningFocusRequest} />
       )}
 
       <nav className="bottom-nav" aria-label="Разделы приложения">
@@ -1035,18 +1057,39 @@ function HomeScreen({
   summary,
   dailySalesState,
   todayIsoDate,
+  financeState,
+  salaryMonths,
+  healthEntries,
+  healthSettings,
   onMonthChange,
   onShiftMonth,
   onOpenWorkSchedule,
+  onOpenFinanceOverview,
+  onOpenFinanceOperation,
+  onOpenLearning,
 }: {
   month: SalaryMonth
   summary: CalculationSummary
   dailySalesState: DailySalesState
   todayIsoDate: string
+  financeState: FinanceState | null
+  salaryMonths: SalaryMonth[]
+  healthEntries: HealthState['entries']
+  healthSettings: HealthSettings
   onMonthChange: (monthId: string) => void
   onShiftMonth: (offset: number) => void
   onOpenWorkSchedule: () => void
+  onOpenFinanceOverview: () => void
+  onOpenFinanceOperation: (operation: import('./financeTypes').FinanceOperation) => void
+  onOpenLearning: () => void
 }) {
+  const financeOverview = useMemo(
+    () => financeState
+      ? buildFinanceOverview({ state: financeState, salaryMonths, todayIsoDate })
+      : null,
+    [financeState, salaryMonths, todayIsoDate],
+  )
+
   return (
     <section className="screen">
       {month.isClosed && <StatusBadge label="Закрыт" />}
@@ -1100,6 +1143,16 @@ function HomeScreen({
         monthId={month.salesMonth}
         todayIsoDate={todayIsoDate}
         onOpen={onOpenWorkSchedule}
+      />
+      <HomeTodayCard
+        overview={financeOverview}
+        entries={healthEntries}
+        settings={healthSettings}
+        todayIsoDate={todayIsoDate}
+        title={formatTodayTitle(todayIsoDate)}
+        onOpenFinanceOverview={onOpenFinanceOverview}
+        onOpenOperation={onOpenFinanceOperation}
+        onOpenLearning={onOpenLearning}
       />
     </section>
   )
@@ -1970,6 +2023,11 @@ function getLocalIsoDate(date = new Date()): string {
   const day = String(date.getDate()).padStart(2, '0')
 
   return `${year}-${month}-${day}`
+}
+
+function formatTodayTitle(dateId: string): string {
+  const [year, month, day] = dateId.split('-').map(Number)
+  return `Сегодня, ${new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(year, month - 1, day, 12))}`
 }
 
 function getNextAvailableMonthId(months: SalaryMonth[]): string {

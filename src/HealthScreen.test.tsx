@@ -349,6 +349,27 @@ describe('экран здоровья сегодня', () => {
     })
   })
 
+  it('подставляет следующий номер только из сохранённой истории того же типа', async () => {
+    const user = userEvent.setup()
+    const previous = createHealthEntry('2026-07-01')
+    previous.learning.speech = {
+      status: 'done', activityType: 'session', number: 7, note: '',
+    }
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify({
+      schemaVersion: 4,
+      entries: { [previous.date]: previous },
+    }))
+    render(<HealthScreen />)
+
+    const speech = screen.getByRole('region', { name: 'Речь и дикция' })
+    await user.click(within(speech).getByRole('button', { name: 'Занимался' }))
+    await user.click(within(speech).getByRole('button', { name: 'Занятие' }))
+    expect((within(speech).getByLabelText('Номер') as HTMLInputElement).value).toBe('8')
+
+    await user.click(within(speech).getByRole('button', { name: 'Практика' }))
+    expect((within(speech).getByLabelText('Номер') as HTMLInputElement).value).toBe('')
+  })
+
   it.each(['Кавист', 'Керамогранит'])(
     'для направления «%s» предлагает урок и практику',
     async (title) => {

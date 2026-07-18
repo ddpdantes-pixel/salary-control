@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ComponentType } from 'react'
 import { FinanceCalendarScreen } from './FinanceCalendarScreen'
 import { FinanceCashAtHomeScreen } from './FinanceCashAtHomeScreen'
@@ -95,6 +95,11 @@ export function FinanceScreen({
   const [selectedFinanceMonth, setSelectedFinanceMonth] = useState(
     initialCalendarTarget?.monthId ?? getDateYearMonth(todayIsoDate),
   )
+  useEffect(() => {
+    if (!initialCalendarTarget) return
+    setActiveSection('calendar')
+    setSelectedFinanceMonth(initialCalendarTarget.monthId)
+  }, [initialCalendarTarget])
   const overview = useMemo(
     () =>
       state

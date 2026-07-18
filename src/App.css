@@ -360,10 +360,10 @@ button:active {
 
 .work-schedule-card {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
   border-radius: var(--radius);
-  padding: 14px;
+  padding: 12px;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
 }
@@ -389,14 +389,14 @@ button:active {
 .work-schedule-heading p,
 .work-schedule-empty p {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
 .work-schedule-edit {
   flex: 0 0 auto;
-  min-height: 34px;
-  padding: 6px 9px;
+  min-height: 32px;
+  padding: 5px 8px;
   color: var(--accent);
   background: var(--accent-soft);
   box-shadow: none;
@@ -407,9 +407,9 @@ button:active {
 .work-schedule-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: 4px 10px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
 }
 
@@ -432,7 +432,7 @@ button:active {
 .work-schedule-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -440,7 +440,7 @@ button:active {
 .work-schedule-day {
   display: grid;
   min-width: 0;
-  min-height: 34px;
+  min-height: 32px;
   place-items: center;
   border-radius: 8px;
   font-size: 13px;
@@ -480,7 +480,7 @@ button:active {
 .work-schedule-counters {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .work-schedule-counters div {
@@ -488,7 +488,7 @@ button:active {
   min-width: 0;
   gap: 3px;
   border-radius: 8px;
-  padding: 9px;
+  padding: 7px;
   background: var(--surface-muted);
 }
 
@@ -501,7 +501,7 @@ button:active {
 .work-schedule-counters dd {
   margin: 0;
   color: var(--text-primary);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 750;
   line-height: 1;
 }
@@ -523,6 +523,100 @@ button:active {
   font-size: 13px;
   font-weight: 750;
 }
+
+.home-today-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.home-today-card > h2,
+.home-today-section h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.home-today-card > h2 { font-size: 18px; }
+
+.home-today-section {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.home-today-section h3 {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.home-today-balance,
+.home-today-operation {
+  width: 100%;
+  text-align: left;
+  box-shadow: none;
+}
+.home-today-operation.expense, .home-today-deficit { color: var(--warning); }
+.home-today-operation.income { color: var(--accent); }
+.home-today-deficit { margin: 0; font-size: 12px; font-weight: 700; }
+
+.home-today-balance {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  color: var(--text-primary);
+  background: var(--surface-muted);
+}
+
+.home-today-balance span,
+.home-today-balance small,
+.home-today-muted,
+.home-today-more {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.home-today-balance strong {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.home-today-operation {
+  padding: 8px 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.home-today-learning {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-today-learning li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.home-today-learning button { width: 100%; padding: 0; color: inherit; text-align: left; background: transparent; box-shadow: none; font: inherit; }
+
+.home-today-learning li.missed { color: var(--warning); }
+.home-today-muted,
+.home-today-more { margin: 0; }
 
 .money-field {
   display: grid;

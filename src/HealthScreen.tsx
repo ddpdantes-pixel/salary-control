@@ -5,6 +5,7 @@ import type { HealthView, VisibleHealthView } from './appNavigation'
 import { HealthAttachmentsSection } from './HealthAttachmentsSection'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
+import { getNextLearningNumber } from './learningSchedule'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
 import type { HealthAttachment } from './healthAttachments'
@@ -84,9 +85,11 @@ const ALCOHOL_REASONS: Array<{ id: AlcoholReason; label: string }> = [
 export function HealthScreen({
   initialTab = 'today',
   onSettingsDirtyChange,
+  learningFocusRequest = 0,
 }: {
   initialTab?: HealthView
   onSettingsDirtyChange?: (dirty: boolean) => void
+  learningFocusRequest?: number
 } = {}) {
   const [loaded] = useState(loadStoredHealthState)
   const [state, setState] = useState(loaded.state)
@@ -108,6 +111,10 @@ export function HealthScreen({
   useEffect(() => {
     onSettingsDirtyChange?.(settingsDirty)
   }, [onSettingsDirtyChange, settingsDirty])
+  useEffect(() => {
+    if (learningFocusRequest === 0 || activeTab !== 'today') return
+    document.getElementById('health-learning')?.scrollIntoView({ block: 'start', behavior: 'auto' })
+  }, [activeTab, learningFocusRequest])
 
   useEffect(() => {
     if (!settingsDirty) return
@@ -189,6 +196,7 @@ export function HealthScreen({
       {activeTab === 'today' ? (
         <HealthToday
           entry={entry}
+          entries={state.entries}
           settings={settings}
           hasSavedEntry={Boolean(state.entries[selectedDate])}
           selectedDate={selectedDate}
@@ -263,6 +271,7 @@ function HealthTabs({
 
 function HealthToday({
   entry,
+  entries,
   settings,
   hasSavedEntry,
   selectedDate,
@@ -273,6 +282,7 @@ function HealthToday({
   onBackToHistory,
 }: {
   entry: HealthEntry
+  entries: Record<string, HealthEntry>
   settings: HealthSettings
   hasSavedEntry: boolean
   selectedDate: string
@@ -771,12 +781,13 @@ function HealthToday({
         )}
       </HealthBlock>
 
-      <HealthBlock title="Обучение">
+      <HealthBlock title="Обучение" id="health-learning">
         <div className="health-learning-list">
           <LearningDirectionField
             title="Речь и дикция"
             direction={entry.learning.speech}
             activityTypes={[['session', 'Занятие'], ['practice', 'Практика']]}
+            getNextNumber={(activityType) => getNextLearningNumber(entries, 'speech', activityType)}
             onChange={(speech) => onChange((current) => ({
               ...current,
               learning: { ...current.learning, speech },
@@ -786,6 +797,7 @@ function HealthToday({
             title="Кавист"
             direction={entry.learning.cavist}
             activityTypes={[['lesson', 'Урок'], ['practice', 'Практика']]}
+            getNextNumber={(activityType) => getNextLearningNumber(entries, 'cavist', activityType)}
             onChange={(cavist) => onChange((current) => ({
               ...current,
               learning: { ...current.learning, cavist },
@@ -795,6 +807,7 @@ function HealthToday({
             title="Керамогранит"
             direction={entry.learning.porcelain}
             activityTypes={[['lesson', 'Урок'], ['practice', 'Практика']]}
+            getNextNumber={(activityType) => getNextLearningNumber(entries, 'porcelain', activityType)}
             onChange={(porcelain) => onChange((current) => ({
               ...current,
               learning: { ...current.learning, porcelain },
@@ -874,13 +887,15 @@ function HealthChecklistDownload({ file }: { file: File }) {
 
 function HealthBlock({
   title,
+  id,
   children,
 }: {
   title: string
+  id?: string
   children: ReactNode
 }) {
   return (
-    <section className="health-block">
+    <section id={id} className="health-block">
       <h2>{title}</h2>
       {children}
     </section>
@@ -1023,11 +1038,13 @@ function LearningDirectionField<TActivityType extends string>({
   title,
   direction,
   activityTypes,
+  getNextNumber,
   onChange,
 }: {
   title: string
   direction: LearningDirection<TActivityType>
   activityTypes: ReadonlyArray<readonly [TActivityType, string]>
+  getNextNumber: (activityType: TActivityType) => number | null
   onChange: (direction: LearningDirection<TActivityType>) => void
 }) {
   return (
@@ -1056,7 +1073,13 @@ function LearningDirectionField<TActivityType extends string>({
                 type="button"
                 className={direction.activityType === value ? 'selected' : ''}
                 aria-pressed={direction.activityType === value}
-                onClick={() => onChange({ ...direction, activityType: value })}
+                onClick={() => onChange({
+                  ...direction,
+                  activityType: value,
+                  number: direction.activityType === value
+                    ? direction.number
+                    : getNextNumber(value),
+                })}
               >
                 {label}
               </button>

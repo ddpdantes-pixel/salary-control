@@ -1,6 +1,8 @@
 import type {
+  LessonActivityType,
   PlannedWorkoutDay,
   RelaxationState,
+  SpeechActivityType,
   WorkoutDefinition,
 } from './healthTypes'
 
@@ -14,6 +16,18 @@ export type QuickItemKey =
   | 'morningSquats'
 export type RelaxationKey = keyof RelaxationState
 export type MinoxidilMode = 'daily' | 'selected' | 'hidden'
+export type LearningScheduleDirection = 'speech' | 'cavist' | 'porcelain'
+export type LearningScheduleActivityType = SpeechActivityType | LessonActivityType
+export type LearningScheduleCadence = 'weekly' | 'biweekly'
+
+export interface LearningScheduleItem {
+  id: string
+  direction: LearningScheduleDirection
+  activityType: LearningScheduleActivityType
+  weekday: PlannedWorkoutDay
+  cadence: LearningScheduleCadence
+  cycleStartDate: string | null
+}
 
 export interface RelaxationSetting {
   field: RelaxationKey
@@ -35,6 +49,7 @@ export interface HealthSettings {
   shampooDays: PlannedWorkoutDay[]
   minoxidil: { mode: MinoxidilMode; days: PlannedWorkoutDay[] }
   alcoholMaxEvenings: number
+  learningSchedule: LearningScheduleItem[]
 }
 
 export interface HealthSettingsValidation {
@@ -91,33 +106,32 @@ const DEFAULT_WORKOUTS: WorkoutDefinition[] = [
   },
 ]
 
-export const DEFAULT_HEALTH_SETTINGS: HealthSettings = {
-  schemaVersion: HEALTH_SETTINGS_SCHEMA_VERSION,
-  water: { goalCups: 6, cupVolumeMl: 300 },
-  coffee: { maxPerDay: 2 },
-  quickItems: {
-    psyllium: true,
-    fruit: true,
-    toiletWithoutStraining: true,
-    morningSquats: true,
-    squatsRepetitions: 15,
-  },
-  workouts: DEFAULT_WORKOUTS,
-  relaxation: {
-    ninetyNinety: { field: 'ninetyNinety', label: '90/90', minutes: 5, enabled: true, order: 0 },
-    childPose: { field: 'childPose', label: 'Поза ребёнка', minutes: 5, enabled: true, order: 1 },
-    butterfly: { field: 'butterfly', label: 'Бабочка', minutes: 2, enabled: true, order: 2 },
-    figureFour: { field: 'figureFour', label: 'Фигура «4»', minutes: 2, enabled: true, order: 3 },
-  },
-  urgeReference: 0.5,
-  bristolNormalTypes: [3, 4],
-  shampooDays: ['monday', 'wednesday', 'saturday'],
-  minoxidil: { mode: 'daily', days: [] },
-  alcoholMaxEvenings: 2,
+export const DEFAULT_HEALTH_SETTINGS: HealthSettings = createHealthSettingsDefaults(
+  new Date(),
+)
+
+export function createDefaultHealthSettings(now = new Date()): HealthSettings {
+  return createHealthSettingsDefaults(now)
 }
 
-export function createDefaultHealthSettings(): HealthSettings {
-  return structuredClone(DEFAULT_HEALTH_SETTINGS)
+export function getLearningActivityTypes(
+  direction: LearningScheduleDirection,
+): LearningScheduleActivityType[] {
+  return direction === 'speech' ? ['session', 'practice'] : ['lesson', 'practice']
+}
+
+export function createDefaultLearningSchedule(
+  now = new Date(),
+): LearningScheduleItem[] {
+  return [
+    { id: 'speech-tuesday', direction: 'speech', activityType: 'session', weekday: 'tuesday', cadence: 'weekly', cycleStartDate: null },
+    { id: 'speech-thursday', direction: 'speech', activityType: 'session', weekday: 'thursday', cadence: 'weekly', cycleStartDate: null },
+    { id: 'speech-saturday', direction: 'speech', activityType: 'session', weekday: 'saturday', cadence: 'weekly', cycleStartDate: null },
+    { id: 'cavist-thursday', direction: 'cavist', activityType: 'lesson', weekday: 'thursday', cadence: 'weekly', cycleStartDate: null },
+    { id: 'cavist-sunday', direction: 'cavist', activityType: 'practice', weekday: 'sunday', cadence: 'weekly', cycleStartDate: null },
+    { id: 'porcelain-friday-lesson', direction: 'porcelain', activityType: 'lesson', weekday: 'friday', cadence: 'weekly', cycleStartDate: null },
+    { id: 'porcelain-friday-practice', direction: 'porcelain', activityType: 'practice', weekday: 'friday', cadence: 'biweekly', cycleStartDate: getNextFridayDateId(now) },
+  ]
 }
 
 export function loadStoredHealthSettings(): HealthSettings {
@@ -193,6 +207,10 @@ export function normalizeHealthSettings(value: unknown): HealthSettings {
       days: normalizeDays(minoxidil.days, defaults.minoxidil.days),
     },
     alcoholMaxEvenings: integerInRange(value.alcoholMaxEvenings, 0, 7) ?? defaults.alcoholMaxEvenings,
+    learningSchedule: normalizeLearningSchedule(
+      value.learningSchedule,
+      defaults.learningSchedule,
+    ),
   }
   if (!validateHealthSettings(normalized).valid) {
     console.warn('Health settings contained invalid fields; safe values were restored.')
@@ -235,6 +253,16 @@ export function validateHealthSettings(settings: HealthSettings): HealthSettings
   if (new Set(settings.minoxidil.days).size !== settings.minoxidil.days.length || settings.minoxidil.days.some((day) => !isWeekday(day))) {
     errors.minoxidilDays = 'Дни миноксидила должны быть уникальными.'
   }
+  const learningIds = new Set<string>()
+  settings.learningSchedule.forEach((item, index) => {
+    if (!item.id.trim() || learningIds.has(item.id)) errors[`learningSchedule.${index}.id`] = 'Пункты расписания должны быть уникальными.'
+    learningIds.add(item.id)
+    if (!isLearningDirection(item.direction)) errors[`learningSchedule.${index}.direction`] = 'Укажите направление обучения.'
+    if (!isWeekday(item.weekday)) errors[`learningSchedule.${index}.weekday`] = 'Выберите день недели.'
+    if (!getLearningActivityTypes(item.direction).includes(item.activityType)) errors[`learningSchedule.${index}.activityType`] = 'Выберите подходящий тип занятия.'
+    if (item.cadence !== 'weekly' && item.cadence !== 'biweekly') errors[`learningSchedule.${index}.cadence`] = 'Укажите периодичность.'
+    if (item.cadence === 'biweekly' && !isIsoDate(item.cycleStartDate)) errors[`learningSchedule.${index}.cycleStartDate`] = 'Укажите дату начала двухнедельного цикла.'
+  })
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -313,6 +341,75 @@ function normalizeDays(value: unknown, fallback: PlannedWorkoutDay[]): PlannedWo
   return WEEKDAYS.map((day) => day.id).filter((day) => value.includes(day))
 }
 
+function normalizeLearningSchedule(
+  value: unknown,
+  fallback: LearningScheduleItem[],
+): LearningScheduleItem[] {
+  if (!Array.isArray(value)) return structuredClone(fallback)
+  return fallback.map((fallbackItem) => {
+    const item = value.find(
+      (candidate) => isRecord(candidate) && candidate.id === fallbackItem.id,
+    )
+    if (!isRecord(item)) return { ...fallbackItem }
+    const direction = isLearningDirection(item.direction)
+      ? item.direction
+      : fallbackItem.direction
+    const activityType = getLearningActivityTypes(direction).includes(
+      item.activityType as LearningScheduleActivityType,
+    )
+      ? item.activityType as LearningScheduleActivityType
+      : fallbackItem.activityType
+    const cadence = item.cadence === 'biweekly' ? 'biweekly' : 'weekly'
+    return {
+      id: fallbackItem.id,
+      direction,
+      activityType,
+      weekday: isWeekday(item.weekday) ? item.weekday : fallbackItem.weekday,
+      cadence,
+      cycleStartDate: cadence === 'biweekly' && isIsoDate(item.cycleStartDate)
+        ? item.cycleStartDate
+        : cadence === 'biweekly'
+          ? fallbackItem.cycleStartDate
+          : null,
+    }
+  })
+}
+
+function createHealthSettingsDefaults(now: Date): HealthSettings {
+  return {
+    schemaVersion: HEALTH_SETTINGS_SCHEMA_VERSION,
+    water: { goalCups: 6, cupVolumeMl: 300 },
+    coffee: { maxPerDay: 2 },
+    quickItems: {
+      psyllium: true,
+      fruit: true,
+      toiletWithoutStraining: true,
+      morningSquats: true,
+      squatsRepetitions: 15,
+    },
+    workouts: structuredClone(DEFAULT_WORKOUTS),
+    relaxation: {
+      ninetyNinety: { field: 'ninetyNinety', label: '90/90', minutes: 5, enabled: true, order: 0 },
+      childPose: { field: 'childPose', label: 'Поза ребёнка', minutes: 5, enabled: true, order: 1 },
+      butterfly: { field: 'butterfly', label: 'Бабочка', minutes: 2, enabled: true, order: 2 },
+      figureFour: { field: 'figureFour', label: 'Фигура «4»', minutes: 2, enabled: true, order: 3 },
+    },
+    urgeReference: 0.5,
+    bristolNormalTypes: [3, 4],
+    shampooDays: ['monday', 'wednesday', 'saturday'],
+    minoxidil: { mode: 'daily', days: [] },
+    alcoholMaxEvenings: 2,
+    learningSchedule: createDefaultLearningSchedule(now),
+  }
+}
+
+function getNextFridayDateId(now: Date): string {
+  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12)
+  const daysUntilFriday = (5 - date.getDay() + 7) % 7 || 7
+  date.setDate(date.getDate() + daysUntilFriday)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 function integerInRange(value: unknown, min: number, max: number): number | null {
   const number = Number(value)
   return Number.isInteger(number) && number >= min && number <= max ? number : null
@@ -336,6 +433,14 @@ function requireInteger(errors: Record<string, string>, key: string, value: numb
 
 function isWeekday(value: unknown): value is PlannedWorkoutDay {
   return WEEKDAYS.some((day) => day.id === value)
+}
+
+function isLearningDirection(value: unknown): value is LearningScheduleDirection {
+  return value === 'speech' || value === 'cavist' || value === 'porcelain'
+}
+
+function isIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T12:00:00`).getTime())
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

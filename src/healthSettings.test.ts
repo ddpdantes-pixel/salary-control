@@ -37,6 +37,21 @@ describe('настройки здоровья', () => {
     expect(window.localStorage.getItem(HEALTH_SETTINGS_KEY)).not.toBeNull()
   })
 
+  it('безопасно добавляет расписание обучения в существующие настройки', () => {
+    const legacy = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
+    delete (legacy as Partial<typeof legacy>).learningSchedule
+    window.localStorage.setItem(HEALTH_SETTINGS_KEY, JSON.stringify(legacy))
+
+    const settings = loadStoredHealthSettings()
+    expect(settings.learningSchedule).toHaveLength(7)
+    expect(settings.learningSchedule.at(-1)).toMatchObject({
+      direction: 'porcelain',
+      activityType: 'practice',
+      cadence: 'biweekly',
+    })
+    expect(loadStoredHealthSettings().learningSchedule).toEqual(settings.learningSchedule)
+  })
+
   it('не перезаписывает пользовательские настройки при повторной загрузке', () => {
     const custom = createDefaultHealthSettings()
     custom.water.goalCups = 7
@@ -232,6 +247,7 @@ describe('настройки здоровья', () => {
     settings.alcoholMaxEvenings = 1
     settings.workouts[0].title = 'Обновлённая тренировка'
     settings.relaxation.ninetyNinety.minutes = 6
+    settings.learningSchedule[0].weekday = 'monday'
     const month = createSalaryMonth('2026-07')
     const entry = createHealthEntry('2026-07-14')
     entry.waterCups = 7
@@ -245,6 +261,7 @@ describe('настройки здоровья', () => {
     expect(first.healthState?.entries[entry.date]).toEqual(entry)
     expect(Object.keys(first.healthState?.entries ?? {})).toHaveLength(1)
     expect(second.healthSettings?.workouts).toHaveLength(settings.workouts.length)
+    expect(second.healthSettings?.learningSchedule[0].weekday).toBe('monday')
   })
 
   it('читает старую копию без настроек здоровья', () => {
