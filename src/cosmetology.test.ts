@@ -26,4 +26,29 @@ describe('косметология', () => {
     expect(completed.cosmetology).toEqual({ toplash: true })
     expect(toggleCosmetologyCompletion(completed, 'toplash').cosmetology).toEqual({})
   })
+
+  it('показывает кровавый пилинг четырьмя компактными пунктами без инструкций и дублей', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
+    const procedures = getCosmetologyForDate(settings, '2026-07-19')
+
+    expect(procedures).toHaveLength(4)
+    expect(procedures.map((item) => item.title)).toEqual([
+      'Кровавый пилинг ART&FACT',
+      'Нейтрализатор',
+      'Vichy H.A. Epidermic Filler',
+      'Крем для лица',
+    ])
+    expect(procedures.find((item) => item.id === 'neutralizer-timer')).toMatchObject({ durationLabel: '4 минуты' })
+    expect(procedures.filter((item) => item.id === 'face-cream')).toHaveLength(1)
+    expect(procedures.filter((item) => /vichy|serum|сыворот/i.test(`${item.id} ${item.title}`))).toHaveLength(1)
+    expect(procedures.map((item) => item.title).join(' ').toLowerCase()).not.toMatch(/очист|высуш|нанест|смыть/)
+  })
+
+  it('скрывает прежние технические отметки, не удаляя их из записи дня', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
+    const entry = { ...createHealthEntry('2026-07-19'), cosmetology: { 'blood-peel-clean': true, 'blood-peel-timer': true } }
+
+    expect(getCosmetologyForDate(settings, entry.date, entry).map((item) => item.id)).not.toContain('blood-peel-clean')
+    expect(entry.cosmetology['blood-peel-clean']).toBe(true)
+  })
 })

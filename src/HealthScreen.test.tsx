@@ -331,6 +331,16 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByRole('region', { name: 'Керамогранит' })).not.toBeNull()
   })
 
+  it('показывает косметологию последним блоком после обучения без подробных инструкций', () => {
+    const { container } = render(<HealthScreen />)
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
+    const cosmetologyIndex = headings.indexOf('Косметология')
+
+    expect(cosmetologyIndex).toBe(headings.length - 1)
+    expect(cosmetologyIndex).toBe(headings.indexOf('Обучение') + 1)
+    expect(container.textContent?.toLowerCase()).not.toMatch(/очистить|высушить|нанести|смыть/)
+  })
+
   it('не показывает поля заметок у всех направлений обучения', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)

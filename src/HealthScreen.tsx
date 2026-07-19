@@ -609,24 +609,6 @@ function HealthToday({
         )}
       </HealthBlock>
 
-      <HealthBlock title="Косметология">
-        {cosmeticProcedures.length === 0 ? <p className="health-muted">На этот день косметологических процедур нет</p> : (
-          <div className="health-cosmetology-list">
-            {cosmeticProcedures.map((procedure) => {
-              const checked = entry.cosmetology[procedure.id] === true
-              return <label className="health-cosmetology-row" key={procedure.id}>
-                <input type="checkbox" checked={checked} onChange={() => {
-                  onChange((current) => toggleCosmetologyCompletion(current, procedure.id))
-                  onIntervalCompletion(procedure.id, !checked)
-                }} />
-                <span><strong>{procedure.title}</strong>{procedure.instruction && <small className={procedure.overdue ? 'health-amber-note' : ''}>{procedure.instruction}</small>}{procedure.durationLabel && <small>{procedure.durationLabel}</small>}</span>
-                {procedure.id === 'face-cool-water' && <button type="button" onClick={(event) => { event.preventDefault(); onOpenTimers() }}>Запустить таймер</button>}
-              </label>
-            })}
-          </div>
-        )}
-      </HealthBlock>
-
       <HealthBlock title="Алкоголь">
         <p className="health-muted">Не больше {settings.alcoholMaxEvenings} {settings.alcoholMaxEvenings === 1 ? 'вечера' : 'вечеров'} из 7</p>
         <div className="health-chip-grid alcohol-choices" role="group" aria-label="Что пил">
@@ -846,6 +828,24 @@ function HealthToday({
             }))}
           />
         </div>
+      </HealthBlock>
+
+      <HealthBlock title="Косметология">
+        {cosmeticProcedures.length === 0 ? <p className="health-muted">На этот день косметологических процедур нет</p> : (
+          <div className="health-cosmetology-list">
+            {cosmeticProcedures.map((procedure) => {
+              const checked = entry.cosmetology[procedure.id] === true
+              return <label className="health-cosmetology-row" key={procedure.id}>
+                <input type="checkbox" checked={checked} onChange={() => {
+                  onChange((current) => toggleCosmetologyCompletion(current, procedure.id))
+                  onIntervalCompletion(procedure.id, !checked)
+                }} />
+                <span><strong>{procedure.durationLabel ? `${procedure.title} — ${procedure.durationLabel}` : procedure.title}</strong></span>
+                {procedure.id === 'face-cool-water' && <button type="button" onClick={(event) => { event.preventDefault(); onOpenTimers() }}>Запустить таймер</button>}
+              </label>
+            })}
+          </div>
+        )}
       </HealthBlock>
 
       <div className="health-finish-actions">

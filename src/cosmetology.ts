@@ -15,16 +15,58 @@ export function getCosmetologyForDate(
   dateId: string,
   entry?: HealthEntry,
 ): PlannedCosmeticProcedure[] {
-  const scheduled = settings.cosmetology.procedures
+  const scheduled = simplifyCosmetologyProcedures(settings.cosmetology.procedures
     .filter((item) => isCosmeticScheduled(item, dateId))
-    .map(toPlanned)
+    .map(toPlanned))
   const intervals = settings.cosmetology.intervals
     .filter((item) => item.active && item.nextDate !== null && item.nextDate <= dateId)
     .map((item) => intervalPlanned(item, dateId))
   const saved = Object.keys(entry?.cosmetology ?? {})
+    .filter((id) => !HIDDEN_LEGACY_PROCEDURE_IDS.has(id))
     .filter((id) => !scheduled.some((item) => item.id === id) && !intervals.some((item) => item.id === id))
     .map((id) => ({ id, title: id, instruction: 'Сохранённая отметка', durationLabel: '', timerSeconds: null, overdue: false }))
   return [...scheduled, ...intervals, ...saved]
+}
+
+const HIDDEN_LEGACY_PROCEDURE_IDS = new Set([
+  'blood-peel-clean',
+  'blood-peel-apply',
+  'neutralizer-apply',
+  'blood-peel-rinse',
+])
+
+function simplifyCosmetologyProcedures(
+  procedures: PlannedCosmeticProcedure[],
+): PlannedCosmeticProcedure[] {
+  const simplified = procedures
+    .filter((item) => !HIDDEN_LEGACY_PROCEDURE_IDS.has(item.id))
+    .map((item) => {
+      if (item.id === 'blood-peel-timer') {
+        return { ...item, title: 'Кровавый пилинг ART&FACT', instruction: '', durationLabel: '18 минут' }
+      }
+      if (item.id === 'neutralizer-timer') {
+        return { ...item, title: 'Нейтрализатор', instruction: '', durationLabel: '4 минуты' }
+      }
+      return { ...item, instruction: '' }
+    })
+
+  if (!simplified.some((item) => item.id === 'blood-peel-timer')) {
+    return simplified
+  }
+
+  const firstSerumId = simplified.find((item) => isSerum(item.id))?.id
+  const bloodPeel = simplified.find((item) => item.id === 'blood-peel-timer')
+  const neutralizer = simplified.find((item) => item.id === 'neutralizer-timer')
+  const serum = simplified.find((item) => item.id === firstSerumId)
+  const cream = simplified.find((item) => item.id === 'face-cream')
+  const shownIds = new Set([bloodPeel?.id, neutralizer?.id, serum?.id, cream?.id])
+  return [bloodPeel, neutralizer, serum, cream].filter(
+    (item): item is PlannedCosmeticProcedure => item !== undefined,
+  ).concat(simplified.filter((item) => !shownIds.has(item.id) && !isSerum(item.id)))
+}
+
+function isSerum(id: string): boolean {
+  return ['vichy-filler', 'vichy-vitamin-c', 'artfact-serum'].includes(id)
 }
 
 export function isCosmeticScheduled(item: CosmeticProcedureSetting, dateId: string): boolean {
