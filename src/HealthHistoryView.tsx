@@ -23,6 +23,7 @@ import {
 } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
 import { formatRelaxationExerciseLabel } from './healthWeek'
+import { getCosmetologyForDate, getCosmetologySummary } from './cosmetology'
 import type { AlcoholChoice, HealthEntry, LearningDirection, ScalpNote } from './healthTypes'
 import {
   DEFAULT_HEALTH_SETTINGS,
@@ -166,6 +167,8 @@ export function HealthHistoryView({
       ) : (
         <HealthHistoryCalendar
           days={calendar}
+          entries={entries}
+          settings={settings}
           selectedDate={navigation.selectedDate}
           onSelectDate={selectDate}
         />
@@ -266,10 +269,14 @@ function HealthHistoryList({
 
 function HealthHistoryCalendar({
   days,
+  entries,
+  settings,
   selectedDate,
   onSelectDate,
 }: {
   days: ReturnType<typeof getHealthHistoryCalendar>
+  entries: Record<string, HealthEntry>
+  settings: HealthSettings
   selectedDate: string | null
   onSelectDate: (dateId: string) => void
 }) {
@@ -294,6 +301,7 @@ function HealthHistoryCalendar({
             <span className="health-history-day-markers" aria-hidden="true">
               {day.hasWorkout && <i>Т</i>}
               {day.hasAlcohol && <i>А</i>}
+              {(getCosmetologyForDate(settings, day.dateId, entries[day.dateId]).length > 0) && <i>К</i>}
             </span>
           </button>
         ) : <span key={`empty-${index}`} aria-hidden="true" />)}
@@ -303,6 +311,7 @@ function HealthHistoryCalendar({
         <span><i className="draft" /> Черновик</span>
         <span><b>Т</b> тренировка</span>
         <span><b>А</b> алкоголь</span>
+        <span><b>К</b> косметология</span>
       </div>
     </section>
   )
@@ -330,6 +339,8 @@ function HealthHistoryDayDetails({
     [`Приседания утром — ${settings.quickItems.squatsRepetitions} раз`, entry.morningSquats, settings.quickItems.morningSquats],
   ].filter(([, completed, enabled]) => completed || enabled) as Array<[string, boolean, boolean]>
   const alcoholReasons = formatAlcoholReasons(entry)
+  const cosmetology = getCosmetologyForDate(settings, entry.date, entry)
+  const cosmetologySummary = getCosmetologySummary(settings, entry)
 
   return (
     <section className="health-history-details" aria-label={`Подробности дня ${formatHistoryDate(entry.date)}`}>
@@ -371,6 +382,10 @@ function HealthHistoryDayDetails({
         )}
         <p className="health-history-note">Временные скриншоты в историю не сохраняются</p>
       </DetailBlock>
+
+      {(cosmetology.length > 0 || Object.keys(entry.cosmetology).length > 0) && <DetailBlock title={`Косметология — ${cosmetologySummary.completed} из ${cosmetologySummary.assigned}`}>
+        {cosmetology.map((item) => <DetailRow key={item.id} label={item.title} value={entry.cosmetology[item.id] ? 'Выполнено' : 'Не выполнено'} />)}
+      </DetailBlock>}
 
       <DetailBlock title="Расслабление">
         {getRelaxationSettings(settings).filter((item) => item.enabled || entry.relaxation[item.field]).map(({ field, label, minutes }) => (

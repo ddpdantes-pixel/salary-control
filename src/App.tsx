@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { registerSW } from 'virtual:pwa-register'
 import {
   createBackupData,
-  createBackupFileName,
   parseBackupData,
 } from './backup'
 import {
@@ -518,24 +517,6 @@ function App() {
     )
   }
 
-  function downloadBackup(): void {
-    const backup = createCurrentBackupData()
-    const blob = new Blob([JSON.stringify(backup, null, 2)], {
-      type: 'application/json',
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = createBackupFileName()
-    document.body.append(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(url), 0)
-    setBackupMessage(
-      'Резервная копия создана. Зарплата, продажи, деньги и здоровье включены. Временные изображения не включены.',
-    )
-  }
-
   function createCurrentBackupData() {
     return createBackupData(
       months,
@@ -551,10 +532,6 @@ function App() {
 
   function createCurrentBackupText(): string {
     return JSON.stringify(createCurrentBackupData())
-  }
-
-  function openRestorePicker(): void {
-    restoreInputRef.current?.click()
   }
 
   function readBackupFile(file: File | null): void {
@@ -933,8 +910,6 @@ function App() {
               selectedMonthId={currentMonth.id}
               onCreate={createNextMonth}
               onDelete={deleteMonth}
-              onDownloadBackup={downloadBackup}
-              onRestoreRequest={openRestorePicker}
               createBackupPayload={createCurrentBackupText}
               onCloudRestore={prepareBackupRestore}
               onOpen={openMonthFromHistory}
@@ -1348,8 +1323,6 @@ function HistoryScreen({
   selectedMonthId,
   onCreate,
   onDelete,
-  onDownloadBackup,
-  onRestoreRequest,
   createBackupPayload,
   onCloudRestore,
   onOpen,
@@ -1358,8 +1331,6 @@ function HistoryScreen({
   selectedMonthId: string
   onCreate: () => void
   onDelete: (monthId: string) => void
-  onDownloadBackup: () => void
-  onRestoreRequest: () => void
   createBackupPayload: () => string
   onCloudRestore: (
     payload: string,
@@ -1373,12 +1344,6 @@ function HistoryScreen({
       <div className="history-toolbar">
         <button type="button" className="primary-action" onClick={onCreate}>
           Создать следующий месяц
-        </button>
-        <button type="button" onClick={onDownloadBackup}>
-          Скачать резервную копию
-        </button>
-        <button type="button" onClick={onRestoreRequest}>
-          Восстановить из резервной копии
         </button>
       </div>
 

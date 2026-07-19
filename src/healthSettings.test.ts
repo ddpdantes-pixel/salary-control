@@ -251,7 +251,7 @@ describe('настройки здоровья', () => {
     const month = createSalaryMonth('2026-07')
     const entry = createHealthEntry('2026-07-14')
     entry.waterCups = 7
-    const healthState = { schemaVersion: 4 as const, entries: { [entry.date]: entry } }
+    const healthState = { schemaVersion: 5 as const, entries: { [entry.date]: entry } }
 
     const text = JSON.stringify(createBackupData([month], month.id, null, null, healthState, settings))
     const first = parseBackupData(text)

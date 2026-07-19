@@ -30,6 +30,7 @@ describe('карточка Сегодня', () => {
 
   it('не показывает будущие занятия как пропущенные и оставляет номер пустым без надёжной истории', () => {
     const settings = createDefaultHealthSettings(new Date(2026, 6, 13, 12))
+    settings.learningSchedule = settings.learningSchedule.filter((item) => item.direction === 'speech')
     const preview = buildHomeLearningPreview(settings, {}, '2026-07-14')
 
     expect(preview.lines).toEqual([
@@ -48,5 +49,15 @@ describe('карточка Сегодня', () => {
       expect.objectContaining({ label: 'Сегодня: Речь и дикция — занятие №5' }),
       expect.objectContaining({ label: 'Сегодня: Кавист — урок' }),
     ])
+  })
+
+  it('нумерует два пропущенных занятия речи последовательно', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 13, 12))
+    settings.learningSchedule = settings.learningSchedule.filter((item) => item.direction === 'speech')
+    const entry = createHealthEntry('2026-07-14')
+    entry.learning.speech = { status: 'done', activityType: 'session', number: 6, note: '' }
+    const preview = buildHomeLearningPreview(settings, { [entry.date]: entry }, '2026-07-18')
+    expect(preview.lines.map((item) => item.label)).toContain('Пропущено: Речь и дикция — занятие №7 за четверг')
+    expect(preview.lines.map((item) => item.label).some((label) => label.includes('Речь и дикция — занятие №8'))).toBe(true)
   })
 })

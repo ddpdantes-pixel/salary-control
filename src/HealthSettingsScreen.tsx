@@ -338,6 +338,23 @@ export function HealthSettingsScreen({
         </div>
       </SettingsGroup>
 
+      <SettingsGroup title="Косметология">
+        <p className="health-muted">Расписание не создаёт отметки задним числом. Выполнение остаётся в истории выбранного дня.</p>
+        <div className="health-settings-workouts">
+          {draft.cosmetology.procedures.map((item) => (
+            <article key={item.id} className="health-settings-workout compact">
+              <label className="health-settings-switch"><input type="checkbox" checked={item.active} onChange={(event) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, procedures: current.cosmetology.procedures.map((candidate) => candidate.id === item.id ? { ...candidate, active: event.currentTarget.checked } : candidate) } }))} /><span>{item.title}</span><small>{item.active ? 'Показывается' : 'Отключена'}</small></label>
+              <TextSetting label="Название" value={item.title} onChange={(title) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, procedures: current.cosmetology.procedures.map((candidate) => candidate.id === item.id ? { ...candidate, title } : candidate) } }))} />
+              <TextSetting label="Краткая инструкция" value={item.instruction} onChange={(instruction) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, procedures: current.cosmetology.procedures.map((candidate) => candidate.id === item.id ? { ...candidate, instruction } : candidate) } }))} />
+              <WeekdaySetting legend="Дни" selected={item.days} onChange={(days) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, procedures: current.cosmetology.procedures.map((candidate) => candidate.id === item.id ? { ...candidate, days } : candidate) } }))} />
+              {item.cadence === 'biweekly' && <label className="health-settings-field"><span>Дата начала двухнедельного цикла</span><input type="date" value={item.cycleStartDate ?? ''} onChange={(event) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, procedures: current.cosmetology.procedures.map((candidate) => candidate.id === item.id ? { ...candidate, cycleStartDate: event.currentTarget.value || null } : candidate) } }))} /></label>}
+              {item.timerSeconds !== null && <NumberSetting label="Таймер, секунд" value={item.timerSeconds} min={1} max={7200} onChange={(timerSeconds) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, procedures: current.cosmetology.procedures.map((candidate) => candidate.id === item.id ? { ...candidate, timerSeconds } : candidate) } }))} />}
+            </article>
+          ))}
+          {draft.cosmetology.intervals.map((item) => <article key={item.id} className="health-settings-workout compact"><label className="health-settings-switch"><input type="checkbox" checked={item.active} onChange={(event) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, active: event.currentTarget.checked } : candidate) } }))} /><span>{item.title}</span><small>{item.nextDate ? `Следующая: ${item.nextDate}` : 'Укажите следующую дату'}</small></label><div className="health-settings-grid"><NumberSetting label="Интервал, недель" value={item.intervalWeeks} min={1} max={52} onChange={(intervalWeeks) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, intervalWeeks } : candidate) } }))} /><label className="health-settings-field"><span>Следующая дата</span><input type="date" value={item.nextDate ?? ''} onChange={(event) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, nextDate: event.currentTarget.value || null } : candidate) } }))} /></label></div></article>)}
+        </div>
+      </SettingsGroup>
+
       <SettingsGroup title="Восстановление стандартных настроек">
         <p className="health-muted">Будут восстановлены только цели и графики. Записи здоровья, изображения и остальные данные приложения сохранятся.</p>
         <button type="button" className="health-settings-restore" onClick={() => setConfirmation({ kind: 'restore' })}>Восстановить стандартные настройки</button>

@@ -11,6 +11,7 @@ import type {
   LearningDirection,
   ScalpNote,
 } from './healthTypes'
+import { getCosmetologyForDate } from './cosmetology'
 
 const SCALP_LABELS: Record<ScalpNote, string> = {
   none: 'нет',
@@ -70,6 +71,11 @@ export function buildHealthChecklistText(
 
   if (entry.selectedWorkouts.length > 0) {
     lines.push(`Самочувствие после: ${yesNo(entry.workoutWellbeing)}`)
+  }
+
+  const cosmetology = getCosmetologyForDate(settings, entry.date, entry)
+  if (cosmetology.length > 0) {
+    lines.push('', 'Косметология:', ...cosmetology.map((item) => `- ${item.title}: ${yesNo(entry.cosmetology[item.id] === true)}`))
   }
 
   const relaxationLines = getRelaxationSettings(settings)

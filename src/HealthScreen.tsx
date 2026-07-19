@@ -5,6 +5,7 @@ import type { HealthView, VisibleHealthView } from './appNavigation'
 import { HealthAttachmentsSection } from './HealthAttachmentsSection'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
+import { getCosmetologyForDate, nextIntervalDate, toggleCosmetologyCompletion } from './cosmetology'
 import { getNextLearningNumber } from './learningSchedule'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
@@ -105,6 +106,7 @@ export function HealthScreen({
     createHealthHistoryNavigationState,
   )
   const [canReturnToHistory, setCanReturnToHistory] = useState(false)
+  const [timerScreen, setTimerScreen] = useState(false)
   const initialStateRef = useRef(state)
   const saveTimerRef = useRef<number | undefined>(undefined)
 
@@ -189,9 +191,23 @@ export function HealthScreen({
     return true
   }
 
+  function completeInterval(id: string, completed: boolean): void {
+    if (!completed || !settings.cosmetology.intervals.some((item) => item.id === id)) return
+    saveSettings({
+      ...settings,
+      cosmetology: {
+        ...settings.cosmetology,
+        intervals: settings.cosmetology.intervals.map((item) => item.id === id
+          ? { ...item, lastCompletedDate: selectedDate, nextDate: nextIntervalDate(selectedDate, item.intervalWeeks) }
+          : item),
+      },
+    })
+  }
+
   return (
     <section className="health-screen">
-      <HealthTabs activeTab={activeTab} onChange={changeHealthTab} />
+      {timerScreen ? <HealthTimers onBack={() => setTimerScreen(false)} onFaceDone={() => changeEntry((current) => ({ ...current, cosmetology: { ...current.cosmetology, 'face-cool-water': true } }))} onRelaxationDone={() => changeEntry((current) => markAllRelaxation(current, settings))} /> : <>
+      <HealthTabs activeTab={activeTab} onChange={changeHealthTab} onOpenTimers={() => setTimerScreen(true)} />
 
       {activeTab === 'today' ? (
         <HealthToday
@@ -204,6 +220,8 @@ export function HealthScreen({
           storageIssue={loaded.issue}
           onDateChange={setSelectedDate}
           onChange={changeEntry}
+          onIntervalCompletion={completeInterval}
+          onOpenTimers={() => setTimerScreen(true)}
           onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
         />
       ) : activeTab === 'history' ? (
@@ -223,7 +241,7 @@ export function HealthScreen({
           onSave={saveSettings}
           onDirtyChange={setSettingsDirty}
         />
-      )}
+      )}</>}
 
       {pendingHealthTab && (
         <div className="dialog-backdrop" role="presentation">
@@ -247,11 +265,15 @@ export function HealthScreen({
 function HealthTabs({
   activeTab,
   onChange,
+  onOpenTimers,
 }: {
   activeTab: VisibleHealthView
   onChange: (tab: HealthView) => void
+  onOpenTimers: () => void
 }) {
   return (
+    <>
+    <div className="health-screen-heading"><strong>Здоровье</strong><button type="button" onClick={onOpenTimers}>Таймеры</button></div>
     <div className="section-tabs section-tabs-3" role="tablist" aria-label="Раздел здоровья">
       {HEALTH_TABS.map((tab) => (
         <button
@@ -265,7 +287,7 @@ function HealthTabs({
           {tab.label}
         </button>
       ))}
-    </div>
+    </div></>
   )
 }
 
@@ -279,6 +301,8 @@ function HealthToday({
   storageIssue,
   onDateChange,
   onChange,
+  onIntervalCompletion,
+  onOpenTimers,
   onBackToHistory,
 }: {
   entry: HealthEntry
@@ -290,6 +314,8 @@ function HealthToday({
   storageIssue: string | null
   onDateChange: (date: string) => void
   onChange: (updater: (current: HealthEntry) => HealthEntry) => void
+  onIntervalCompletion: (id: string, completed: boolean) => void
+  onOpenTimers: () => void
   onBackToHistory?: () => void
 }) {
   const dateHeading = formatHealthDate(selectedDate)
@@ -309,6 +335,7 @@ function HealthToday({
   const visibleRelaxation = getRelaxationSettings(settings).filter(
     (item) => item.enabled || entry.relaxation[item.field],
   )
+  const cosmeticProcedures = getCosmetologyForDate(settings, selectedDate, entry)
   const [attachments, setAttachments] = useState<HealthAttachment[]>([])
   const [attachmentRefreshToken, setAttachmentRefreshToken] = useState(0)
   const [shareResult, setShareResult] = useState<HealthShareResult | null>(null)
@@ -579,6 +606,24 @@ function HealthToday({
               onChange((current) => ({ ...current, scalpOtherNote }))
             }
           />
+        )}
+      </HealthBlock>
+
+      <HealthBlock title="Косметология">
+        {cosmeticProcedures.length === 0 ? <p className="health-muted">На этот день косметологических процедур нет</p> : (
+          <div className="health-cosmetology-list">
+            {cosmeticProcedures.map((procedure) => {
+              const checked = entry.cosmetology[procedure.id] === true
+              return <label className="health-cosmetology-row" key={procedure.id}>
+                <input type="checkbox" checked={checked} onChange={() => {
+                  onChange((current) => toggleCosmetologyCompletion(current, procedure.id))
+                  onIntervalCompletion(procedure.id, !checked)
+                }} />
+                <span><strong>{procedure.title}</strong>{procedure.instruction && <small className={procedure.overdue ? 'health-amber-note' : ''}>{procedure.instruction}</small>}{procedure.durationLabel && <small>{procedure.durationLabel}</small>}</span>
+                {procedure.id === 'face-cool-water' && <button type="button" onClick={(event) => { event.preventDefault(); onOpenTimers() }}>Запустить таймер</button>}
+              </label>
+            })}
+          </div>
         )}
       </HealthBlock>
 
@@ -871,6 +916,56 @@ function HealthChecklistDownload({ file }: { file: File }) {
     </a>
   )
 }
+
+const GYM_STAGES = [
+  ['90/90', 300], ['Фигура «4», первая сторона', 60], ['Фигура «4», вторая сторона', 60], ['Бабочка', 120], ['Поза ребёнка', 300],
+] as const
+
+function HealthTimers({ onBack, onFaceDone, onRelaxationDone }: { onBack: () => void; onFaceDone: () => void; onRelaxationDone: () => void }) {
+  const [faceStep, setFaceStep] = useState(0)
+  const [faceRunning, setFaceRunning] = useState(false)
+  const [gymRunning, setGymRunning] = useState(false)
+  const [gymElapsedBeforePause, setGymElapsedBeforePause] = useState(0)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!faceRunning && !gymRunning) return
+    const timer = window.setInterval(() => setNow(Date.now()), 250)
+    return () => window.clearInterval(timer)
+  }, [faceRunning, gymRunning])
+  const gymElapsed = Math.min(840, gymElapsedBeforePause + (gymRunning && startedAt ? Math.floor((now - startedAt) / 1000) : 0))
+  const faceRemaining = faceRunning && startedAt ? Math.max(0, 20 - Math.floor((now - startedAt) / 1000)) : 20
+  useEffect(() => {
+    if (faceRunning && faceRemaining === 0) {
+      setFaceRunning(false)
+      setFaceStep((step) => {
+        const next = Math.min(3, step + 1)
+        if (next === 3) onFaceDone()
+        return next
+      })
+      signalTimer()
+    }
+  }, [faceRemaining, faceRunning, onFaceDone])
+  useEffect(() => {
+    if (gymRunning && gymElapsed >= 840) { setGymRunning(false); setGymElapsedBeforePause(840); onRelaxationDone(); signalTimer() }
+  }, [gymElapsed, gymRunning, onRelaxationDone])
+  const stageOffset = (index: number): number => GYM_STAGES.slice(0, index).reduce((sum, stage) => sum + stage[1], 0)
+  const gymStage = GYM_STAGES.findIndex((_, index) => gymElapsed < stageOffset(index) + GYM_STAGES[index][1])
+  const activeStage = GYM_STAGES[Math.max(0, gymStage)]
+  return <div className="health-timers">
+    <div className="health-screen-heading"><strong>Таймеры</strong><button type="button" onClick={onBack}>Назад</button></div>
+    <section className="health-timer-card"><h2>Лицо — 20 секунд</h2><p>Подход {Math.min(faceStep + 1, 3)} из 3 · {faceStep === 3 ? 'Готово' : `${faceRemaining} сек.`}</p>
+      {faceStep < 3 && <button type="button" onClick={() => { setStartedAt(Date.now()); setNow(Date.now()); setFaceRunning(true) }}>{faceRunning ? 'Идёт таймер' : faceStep > 0 ? 'Следующий подход' : 'Запустить'}</button>}
+      <button type="button" className="secondary" onClick={() => { setFaceStep(0); setFaceRunning(false) }}>Сбросить</button>
+    </section>
+    <section className="health-timer-card"><h2>Вечерняя гимнастика — 14 минут</h2><strong>{activeStage[0]}</strong><p>Этап {Math.max(1, gymStage + 1)} из 5 · прошло {formatTimer(gymElapsed)} · осталось {formatTimer(840 - gymElapsed)}</p>
+      <div className="health-timer-actions"><button type="button" onClick={() => { if (gymRunning) { setGymElapsedBeforePause(gymElapsed); setGymRunning(false) } else { setStartedAt(Date.now()); setNow(Date.now()); setGymRunning(true) } }}>{gymRunning ? 'Пауза' : gymElapsed ? 'Продолжить' : 'Запустить'}</button><button type="button" className="secondary" onClick={() => { setGymRunning(false); setGymElapsedBeforePause(0) }}>Начать заново</button><button type="button" className="secondary" onClick={() => { setGymRunning(false); setGymElapsedBeforePause(0) }}>Завершить досрочно</button></div>
+    </section>
+  </div>
+}
+
+function formatTimer(seconds: number): string { return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}` }
+function signalTimer(): void { window.navigator.vibrate?.(80) }
 
 function HealthBlock({
   title,

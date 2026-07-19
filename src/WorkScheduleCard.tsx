@@ -48,7 +48,8 @@ export function WorkScheduleCard({
       ) : (
         <>
           <div className="work-schedule-legend" aria-label="Легенда рабочего графика">
-            <span><i className="work" aria-hidden="true" />Рабочий</span>
+            <span><i className="work-past" aria-hidden="true" />Прошедший рабочий</span>
+            <span><i className="work-future" aria-hidden="true" />Будущий рабочий</span>
             <span><i className="rest" aria-hidden="true" />Выходной</span>
             <span><i className="today" aria-hidden="true" />Сегодня</span>
           </div>
@@ -58,7 +59,7 @@ export function WorkScheduleCard({
               <span
                 key={day.date}
                 role="gridcell"
-                className={`work-schedule-day ${day.type ?? 'unknown'} ${day.date === todayIsoDate ? 'today' : ''}`}
+                className={`work-schedule-day ${day.type ?? 'unknown'} ${day.date < todayIsoDate ? 'past' : day.date > todayIsoDate ? 'future' : ''} ${day.date === todayIsoDate ? 'today' : ''}`}
                 aria-label={getWorkScheduleDayLabel(day, todayIsoDate)}
               >
                 {day.dayOfMonth}

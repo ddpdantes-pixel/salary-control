@@ -53,6 +53,10 @@ export function saveStoredHealthState(state: HealthState): boolean {
 export function migrateHealthState(value: unknown): HealthState {
   if (!isRecord(value)) throw new Error('Invalid health state')
 
+  if (value.schemaVersion === 5 && isRecord(value.entries)) {
+    return normalizeEntries(Object.values(value.entries), false, true)
+  }
+
   if (value.schemaVersion === 4 && isRecord(value.entries)) {
     return normalizeEntries(Object.values(value.entries), false, true)
   }
@@ -171,10 +175,20 @@ function normalizeEntry(
       cavist: normalizeLearningDirection(learning.cavist, ['lesson', 'practice']),
       porcelain: normalizeLearningDirection(learning.porcelain, ['lesson', 'practice']),
     },
+    cosmetology: normalizeCosmetology(value.cosmetology),
     completed: Boolean(value.completed),
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : fallback.createdAt,
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : fallback.updatedAt,
   }
+}
+
+function normalizeCosmetology(value: unknown): Record<string, boolean> {
+  if (!isRecord(value)) return {}
+  const normalized: Record<string, boolean> = {}
+  Object.entries(value).forEach(([id, completed]) => {
+    if (id.trim() && completed === true) normalized[id] = true
+  })
+  return normalized
 }
 
 function normalizeLearningDirection<TActivityType extends string>(

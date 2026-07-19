@@ -84,9 +84,12 @@ export function buildHomeLearningPreview(
     return { lines: [], extraCount: 0, emptyLabel: 'По графику всё выполнено' }
   }
 
+  const numberedOpenItems = plan.items.filter((item) => !item.fulfilled)
   return {
-    lines: plan.openItems.map((item) => {
-      const nextNumber = getNextLearningNumber(entries, item.direction, item.activityType)
+    lines: numberedOpenItems.slice(0, 4).map((item, index) => {
+      const baseNumber = getNextLearningNumber(entries, item.direction, item.activityType)
+      const sameBefore = numberedOpenItems.slice(0, index).filter((candidate) => candidate.direction === item.direction && candidate.activityType === item.activityType).length
+      const nextNumber = baseNumber === null ? null : baseNumber + sameBefore
       const description = `${getLearningDirectionLabel(item.direction)} — ${getLearningActivityLabel(item.activityType)}${nextNumber ? ` №${nextNumber}` : ''}`
       return {
         id: item.id,

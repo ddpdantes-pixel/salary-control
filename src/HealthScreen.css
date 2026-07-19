@@ -1432,6 +1432,22 @@
 }
 
 .health-settings { display: grid; gap: 12px; padding-bottom: 24px; }
+
+.health-screen-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.health-screen-heading h1, .health-screen-heading strong { margin: 0; font-size: 22px; }
+.health-screen-heading button, .health-cosmetology-row button { min-height: 36px; padding: 6px 10px; color: var(--accent); background: var(--accent-soft); font-size: 13px; }
+.health-cosmetology-list { display: grid; gap: 8px; }
+.health-cosmetology-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: start; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); }
+.health-cosmetology-row input { width: 20px; height: 20px; margin: 1px 0 0; }
+.health-cosmetology-row span { display: grid; min-width: 0; gap: 3px; }
+.health-cosmetology-row strong, .health-cosmetology-row small { overflow-wrap: anywhere; }
+.health-cosmetology-row small { color: var(--text-secondary); font-size: 12px; }
+.health-timers { display: grid; gap: 12px; padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+.health-timer-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.health-timer-card h2, .health-timer-card p { margin: 0; }
+.health-timer-card strong { font-size: 20px; }
+.health-timer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.health-timer-actions button { flex: 1 1 130px; }
 .health-settings-heading, .health-settings-history-note, .health-settings-group, .health-settings-savebar { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .health-settings-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 16px; }
 .health-settings-heading h2, .health-settings-heading p, .health-settings-history-note, .health-settings-savebar p, .health-settings-workout p { margin: 0; }

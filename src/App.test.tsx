@@ -200,12 +200,8 @@ describe('оболочка приложения', () => {
     await user.click(screen.getByRole('tab', { name: 'История' }))
     expect(screen.getByRole('tabpanel', { name: 'История' })).not.toBeNull()
     expect(screen.getByRole('heading', { name: 'Облачная копия' })).not.toBeNull()
-    expect(
-      screen.getByRole('button', { name: 'Скачать резервную копию' }),
-    ).not.toBeNull()
-    expect(
-      screen.getByRole('button', { name: 'Восстановить из резервной копии' }),
-    ).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Скачать резервную копию' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Восстановить из резервной копии' })).toBeNull()
 
     await user.click(screen.getByRole('tab', { name: 'Реализация' }))
     expect(screen.getByRole('tabpanel', { name: 'Реализация' })).not.toBeNull()
@@ -523,26 +519,15 @@ describe('оболочка приложения', () => {
     })
   })
 
-  it('показывает понятное подтверждение создания полной резервной копии', async () => {
+  it('оставляет в обычном интерфейсе только облачную резервную копию', async () => {
     const user = userEvent.setup()
-    const clickSpy = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => undefined)
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn(() => 'blob:backup'),
-      revokeObjectURL: vi.fn(),
-    })
     await renderApp()
 
     await user.click(screen.getByRole('button', { name: 'Зарплата' }))
     await user.click(screen.getByRole('tab', { name: 'История' }))
-    await user.click(screen.getByRole('button', { name: 'Скачать резервную копию' }))
-
-    expect(clickSpy).toHaveBeenCalledOnce()
-    expect(screen.getByText(/Резервная копия создана/)).not.toBeNull()
-    expect(screen.getByText(/Зарплата, продажи, деньги и здоровье включены/)).not.toBeNull()
-    expect(screen.getByText(/Временные изображения не включены/)).not.toBeNull()
+    expect(screen.getByRole('region', { name: 'Облачная копия' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Скачать резервную копию' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Восстановить из резервной копии' })).toBeNull()
   })
 
   it('восстанавливает старую копию с отчётом и не удаляет отсутствующие продажи и здоровье', async () => {

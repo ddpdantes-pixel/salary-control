@@ -37,6 +37,34 @@ export interface RelaxationSetting {
   order: number
 }
 
+export type CosmeticCadence = 'weekly' | 'biweekly'
+
+export interface CosmeticProcedureSetting {
+  id: string
+  title: string
+  instruction: string
+  active: boolean
+  days: PlannedWorkoutDay[]
+  cadence: CosmeticCadence
+  cycleStartDate: string | null
+  durationLabel: string
+  timerSeconds: number | null
+}
+
+export interface CosmeticIntervalSetting {
+  id: string
+  title: string
+  active: boolean
+  intervalWeeks: number
+  lastCompletedDate: string | null
+  nextDate: string | null
+}
+
+export interface CosmetologySettings {
+  procedures: CosmeticProcedureSetting[]
+  intervals: CosmeticIntervalSetting[]
+}
+
 export interface HealthSettings {
   schemaVersion: 1
   water: { goalCups: number; cupVolumeMl: number }
@@ -50,6 +78,7 @@ export interface HealthSettings {
   minoxidil: { mode: MinoxidilMode; days: PlannedWorkoutDay[] }
   alcoholMaxEvenings: number
   learningSchedule: LearningScheduleItem[]
+  cosmetology: CosmetologySettings
 }
 
 export interface HealthSettingsValidation {
@@ -211,6 +240,7 @@ export function normalizeHealthSettings(value: unknown): HealthSettings {
       value.learningSchedule,
       defaults.learningSchedule,
     ),
+    cosmetology: normalizeCosmetologySettings(value.cosmetology, defaults.cosmetology),
   }
   if (!validateHealthSettings(normalized).valid) {
     console.warn('Health settings contained invalid fields; safe values were restored.')
@@ -262,6 +292,12 @@ export function validateHealthSettings(settings: HealthSettings): HealthSettings
     if (!getLearningActivityTypes(item.direction).includes(item.activityType)) errors[`learningSchedule.${index}.activityType`] = 'Выберите подходящий тип занятия.'
     if (item.cadence !== 'weekly' && item.cadence !== 'biweekly') errors[`learningSchedule.${index}.cadence`] = 'Укажите периодичность.'
     if (item.cadence === 'biweekly' && !isIsoDate(item.cycleStartDate)) errors[`learningSchedule.${index}.cycleStartDate`] = 'Укажите дату начала двухнедельного цикла.'
+  })
+  settings.cosmetology.procedures.forEach((item, index) => {
+    if (!item.id.trim() || !item.title.trim()) errors[`cosmetology.procedures.${index}`] = 'Укажите название процедуры.'
+    if (!item.days.every(isWeekday)) errors[`cosmetology.procedures.${index}.days`] = 'Выберите дни недели.'
+    if (item.cadence === 'biweekly' && !isIsoDate(item.cycleStartDate)) errors[`cosmetology.procedures.${index}.cycleStartDate`] = 'Укажите дату начала цикла.'
+    if (item.timerSeconds !== null) requireInteger(errors, `cosmetology.procedures.${index}.timerSeconds`, item.timerSeconds, 1, 7200)
   })
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -400,7 +436,74 @@ function createHealthSettingsDefaults(now: Date): HealthSettings {
     minoxidil: { mode: 'daily', days: [] },
     alcoholMaxEvenings: 2,
     learningSchedule: createDefaultLearningSchedule(now),
+    cosmetology: createDefaultCosmetologySettings(now),
   }
+}
+
+export function createDefaultCosmetologySettings(now = new Date()): CosmetologySettings {
+  const next = (weekday: number) => getNextWeekdayDateId(now, weekday)
+  const procedure = (id: string, title: string, days: PlannedWorkoutDay[], instruction = '', durationLabel = '', cadence: CosmeticCadence = 'weekly', cycleStartDate: string | null = null, timerSeconds: number | null = null): CosmeticProcedureSetting => ({ id, title, days, instruction, durationLabel, cadence, cycleStartDate, timerSeconds, active: true })
+  return {
+    procedures: [
+      procedure('legs-cool-water', 'Ноги в прохладную воду', ['monday', 'friday'], 'После процедуры хорошо высушить стопы, особенно между пальцами', '20 минут'),
+      procedure('face-cool-water', 'Лицо в прохладную воду', ['tuesday', 'thursday', 'saturday'], '20 секунд × 3 подхода', '20 секунд × 3', 'weekly', null, 20),
+      procedure('toplash', 'Toplash — ресницы и брови', ['tuesday', 'saturday']),
+      procedure('sadoer-mask', 'Кислородная маска Sadoer', ['wednesday'], '', '10–15 минут', 'biweekly', next(3)),
+      procedure('vichy-vitamin-c', 'Vichy Liftactiv Vitamin C', ['wednesday'], '', '', 'biweekly', next(3)),
+      procedure('sebo-mask', 'Sebo Norm — детокс-маска Parli Factory', ['wednesday'], '', '10 минут', 'biweekly', getFollowingWeekDate(next(3))),
+      procedure('artfact-serum', 'ART&FACT — сыворотка с ниацинамидом и витаминами', ['wednesday'], '', '', 'biweekly', getFollowingWeekDate(next(3))),
+      procedure('face-cream', 'Крем для лица', ['wednesday', 'sunday']),
+      procedure('conditioner', 'Кондиционер для волос после шампуня', ['wednesday', 'saturday'], 'Нанести по длине волос, не на кожу головы.'),
+      procedure('body-scrub', 'Скраб для тела', ['saturday']),
+      procedure('body-butter', 'Крем-масло для тела после скраба', ['saturday'], 'Бархатные ручки — Нежная вуаль'),
+      procedure('scalp-scrub', 'Скраб кожи головы перед шампунем', ['saturday'], 'Перед шампунем', '', 'biweekly', next(6)),
+      procedure('blood-peel-clean', 'Кровавый пилинг ART&FACT — очистить и высушить лицо', ['sunday']),
+      procedure('blood-peel-apply', 'Кровавый пилинг ART&FACT — нанести пилинг', ['sunday']),
+      procedure('blood-peel-timer', 'Кровавый пилинг ART&FACT — выдержать', ['sunday'], '', '18 минут', 'weekly', null, 1080),
+      procedure('neutralizer-apply', 'Нейтрализатор — нанести поверх пилинга', ['sunday']),
+      procedure('neutralizer-timer', 'Нейтрализатор — выдержать', ['sunday'], '', '2 минуты', 'weekly', null, 120),
+      procedure('blood-peel-rinse', 'Кровавый пилинг ART&FACT — смыть прохладной водой', ['sunday']),
+      procedure('vichy-filler', 'Vichy H.A. Epidermic Filler', ['sunday']),
+    ],
+    intervals: [
+      { id: 'barber', title: 'Барбер', active: true, intervalWeeks: 5, lastCompletedDate: null, nextDate: null },
+      { id: 'browist', title: 'Бровист', active: true, intervalWeeks: 6, lastCompletedDate: null, nextDate: null },
+      { id: 'nails', title: 'Подстричь ногти', active: true, intervalWeeks: 3, lastCompletedDate: null, nextDate: null },
+      { id: 'underarms', title: 'Побрить подмышки', active: true, intervalWeeks: 2, lastCompletedDate: null, nextDate: null },
+    ],
+  }
+}
+
+function normalizeCosmetologySettings(value: unknown, fallback: CosmetologySettings): CosmetologySettings {
+  if (!isRecord(value)) return structuredClone(fallback)
+  const procedures = Array.isArray(value.procedures) ? value.procedures : []
+  const intervals = Array.isArray(value.intervals) ? value.intervals : []
+  return {
+    procedures: fallback.procedures.map((base) => {
+      const item = procedures.find((candidate) => isRecord(candidate) && candidate.id === base.id)
+      if (!isRecord(item)) return { ...base, days: [...base.days] }
+      const cadence: CosmeticCadence = item.cadence === 'biweekly' ? 'biweekly' : 'weekly'
+      return { ...base, active: booleanValue(item.active, base.active), title: typeof item.title === 'string' && item.title.trim() ? item.title.slice(0, 160) : base.title, instruction: typeof item.instruction === 'string' ? item.instruction.slice(0, 250) : base.instruction, durationLabel: typeof item.durationLabel === 'string' ? item.durationLabel.slice(0, 50) : base.durationLabel, days: normalizeDays(item.days, base.days), cadence, cycleStartDate: cadence === 'biweekly' && isIsoDate(item.cycleStartDate) ? item.cycleStartDate : base.cycleStartDate, timerSeconds: integerInRange(item.timerSeconds, 1, 7200) ?? base.timerSeconds }
+    }),
+    intervals: fallback.intervals.map((base) => {
+      const item = intervals.find((candidate) => isRecord(candidate) && candidate.id === base.id)
+      if (!isRecord(item)) return { ...base }
+      return { ...base, active: booleanValue(item.active, base.active), title: typeof item.title === 'string' && item.title.trim() ? item.title.slice(0, 160) : base.title, intervalWeeks: integerInRange(item.intervalWeeks, 1, 52) ?? base.intervalWeeks, lastCompletedDate: isIsoDate(item.lastCompletedDate) ? item.lastCompletedDate : null, nextDate: isIsoDate(item.nextDate) ? item.nextDate : null }
+    }),
+  }
+}
+
+function getNextWeekdayDateId(now: Date, weekday: number): string {
+  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12)
+  const days = (weekday - date.getDay() + 7) % 7
+  date.setDate(date.getDate() + days)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function getFollowingWeekDate(dateId: string): string {
+  const [year, month, day] = dateId.split('-').map(Number)
+  const date = new Date(year, month - 1, day + 7, 12)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function getNextFridayDateId(now: Date): string {

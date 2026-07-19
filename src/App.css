@@ -425,7 +425,8 @@ button:active {
   border-radius: 50%;
 }
 
-.work-schedule-legend .work { background: var(--accent); }
+.work-schedule-legend .work-past { background: #b79f8b; }
+.work-schedule-legend .work-future { background: #52a99d; }
 .work-schedule-legend .rest { background: var(--surface-muted); }
 .work-schedule-legend .today { border: 2px solid var(--accent); background: transparent; }
 
@@ -460,6 +461,10 @@ button:active {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
   font-weight: 800;
 }
+.work-schedule-day.work.past { color: #493c33; background: #e1d4c7; box-shadow: inset 0 0 0 1px #c7b4a2; }
+.work-schedule-day.work.future { color: #113e39; background: #8dd4c9; box-shadow: inset 0 0 0 1px #52a99d; }
+.work-schedule-day.rest.past { color: color-mix(in srgb, var(--text-secondary) 72%, transparent); background: color-mix(in srgb, var(--surface-muted) 82%, #d8d8d8); }
+.work-schedule-day.rest.future { background: color-mix(in srgb, var(--surface-muted) 82%, white); }
 
 .work-schedule-day.rest,
 .work-schedule-day.unknown {

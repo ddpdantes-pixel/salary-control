@@ -100,12 +100,14 @@ export interface HealthEntry {
   replacement: string
   soberEveningRating: number | null
   learning: LearningState
+  /** Completed cosmetic procedure ids for this day. Schedule stays in HealthSettings. */
+  cosmetology: Record<string, boolean>
   completed: boolean
   createdAt: string
   updatedAt: string
 }
 
 export interface HealthState {
-  schemaVersion: 4
+  schemaVersion: 5
   entries: Record<string, HealthEntry>
 }
