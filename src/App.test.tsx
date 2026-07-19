@@ -141,6 +141,19 @@ describe('оболочка приложения', () => {
     expect(screen.getByText('Выбрать дату')).not.toBeNull()
   })
 
+  it('открывает защищённый раздел Пароли с Главного без пятой нижней вкладки', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+
+    const navigation = screen.getByRole('navigation', { name: 'Разделы приложения' })
+    expect(within(navigation).getAllByRole('button')).toHaveLength(4)
+    await user.click(screen.getByRole('button', { name: /Пароли.*Защищённое хранилище/ }))
+
+    expect(screen.getByRole('heading', { name: 'Создание защищённого хранилища' })).not.toBeNull()
+    expect(screen.getByLabelText('Мастер-пароль')).not.toBeNull()
+    expect(screen.getByText('Я понимаю, что мастер-пароль нельзя восстановить')).not.toBeNull()
+  })
+
   it('предупреждает при переходе из несохранённых настроек в нижний раздел', async () => {
     const user = userEvent.setup()
     await renderApp()

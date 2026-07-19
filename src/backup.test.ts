@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createSalaryMonth } from './calculations'
+import type { PasswordVaultEnvelope } from './passwordVaultCrypto'
 import {
   createBackupData,
   createBackupFileName,
@@ -14,6 +15,27 @@ import { createDefaultPaymentNotificationSettings } from './paymentNotifications
 import { CLOUD_BACKUP_KEY_STORAGE } from './cloudBackup'
 
 describe('резервная копия', () => {
+  it('включает только зашифрованный envelope паролей и читает старую копию без него', () => {
+    const month = createSalaryMonth('2026-07')
+    const passwordVault: PasswordVaultEnvelope = {
+      version: 1,
+      kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations: 600_000, salt: 'AAAAAAAAAAAAAAAAAAAAAA==' },
+      cipher: { name: 'AES-GCM', iv: 'AAAAAAAAAAAAAAAA' },
+      ciphertext: 'AAAAAAAAAAAAAAAAAAAAAA==',
+      updatedAt: '2026-07-19T00:00:00.000Z',
+    }
+    const backup = createBackupData(
+      [month], month.id, null, null, null, null, null, null, passwordVault,
+    )
+    const serialized = JSON.stringify(backup)
+    expect(serialized).toContain('"passwordVault"')
+    expect(serialized).not.toContain('"entries"')
+    expect(parseBackupData(serialized).passwordVault).toEqual(passwordVault)
+
+    const legacy = { ...backup, structureVersion: 7, schemaVersion: 7 }
+    delete (legacy as { passwordVault?: PasswordVaultEnvelope }).passwordVault
+    expect(parseBackupData(JSON.stringify(legacy)).passwordVault).toBeNull()
+  })
   it('не включает облачный ключ в обычный JSON backup', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backupJson = JSON.stringify(createBackupData([month], month.id))
@@ -25,8 +47,8 @@ describe('резервная копия', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backup = createBackupData([month], month.id)
 
-    expect(backup.structureVersion).toBe(7)
-    expect(backup.schemaVersion).toBe(7)
+    expect(backup.structureVersion).toBe(8)
+    expect(backup.schemaVersion).toBe(8)
     expect(backup.appName).toBe('Мой ритм')
     expect(backup.createdAt).toEqual(expect.any(String))
     expect(backup.months).toHaveLength(1)
@@ -205,7 +227,7 @@ describe('резервная копия', () => {
       (operation) => operation.id === splitOperation.id,
     )
 
-    expect(backup.structureVersion).toBe(7)
+    expect(backup.structureVersion).toBe(8)
     expect(restored.months).toHaveLength(1)
     expect(restored.financeState?.operations).toHaveLength(
       completed.operations.length,

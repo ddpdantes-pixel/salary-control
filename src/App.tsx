@@ -106,6 +106,12 @@ import {
   type PaymentNotificationNavigationTarget,
 } from './paymentNotifications'
 import { markAppStage } from './appPerformance'
+import { PasswordVaultScreen } from './PasswordVaultScreen'
+import {
+  loadPasswordVaultEnvelope,
+  savePasswordVaultEnvelope,
+} from './passwordVaultStorage'
+import type { PasswordVaultEnvelope } from './passwordVaultCrypto'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
@@ -134,6 +140,7 @@ interface RestorePreview {
   healthSettings: HealthSettings | null
   cashAtHome: CashAtHomeState | null
   paymentNotificationSettings: PaymentNotificationSettings | null
+  passwordVault: PasswordVaultEnvelope | null
 }
 
 function App() {
@@ -169,6 +176,7 @@ function App() {
   const [healthSettingsDirty, setHealthSettingsDirty] = useState(false)
   const [learningFocusRequest, setLearningFocusRequest] = useState(0)
   const [pendingAppTab, setPendingAppTab] = useState<TabId | null>(null)
+  const [passwordVaultOpen, setPasswordVaultOpen] = useState(false)
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
   const financeDidMountRef = useRef(false)
@@ -527,6 +535,7 @@ function App() {
       loadStoredHealthSettings(),
       cashAtHome,
       paymentNotificationSettings,
+      loadPasswordVaultEnvelopeSafely(),
     )
   }
 
@@ -577,6 +586,7 @@ function App() {
         cashAtHome: parsedBackup.cashAtHome,
         paymentNotificationSettings:
           parsedBackup.paymentNotificationSettings,
+        passwordVault: parsedBackup.passwordVault,
       })
     } catch (error) {
       setStorageMessage(
@@ -630,6 +640,9 @@ function App() {
       pendingRestore.paymentNotificationSettings ??
         createDefaultPaymentNotificationSettings(),
     )
+    if (pendingRestore.passwordVault) {
+      savePasswordVaultEnvelope(pendingRestore.passwordVault)
+    }
     setActiveTab('salary')
     setSalaryView('history')
     setBackupMessage(
@@ -743,6 +756,7 @@ function App() {
   }
 
   function openAppTab(tabId: TabId): void {
+    setPasswordVaultOpen(false)
     if (activeTab === 'health' && healthSettingsDirty && tabId !== 'health') {
       setPendingAppTab(tabId)
       return
@@ -757,7 +771,7 @@ function App() {
 
   return (
     <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''} ${dailySalesActive ? 'daily-sales-active' : ''}`}>
-      <header className="top-bar">
+      {!passwordVaultOpen && <header className="top-bar">
         <div>
           <p className="eyebrow">
             {activeTab === 'money'
@@ -789,7 +803,7 @@ function App() {
                 : 'Сохранено'}
           </span>
         )}
-      </header>
+      </header>}
 
       {storageMessage && (
         <AppNotice
@@ -828,7 +842,9 @@ function App() {
         onChange={(event) => readBackupFile(event.currentTarget.files?.[0] ?? null)}
       />
 
-      {activeTab === 'home' && (
+      {passwordVaultOpen ? (
+        <PasswordVaultScreen onBack={() => setPasswordVaultOpen(false)} />
+      ) : activeTab === 'home' && (
         <HomeScreen
           month={currentMonth}
           summary={summary}
@@ -863,6 +879,7 @@ function App() {
             window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
           }}
           onOpenLearning={() => { setLearningFocusRequest((value) => value + 1); setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
+          onOpenPasswords={() => { setPasswordVaultOpen(true); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
         />
       )}
       {activeTab === 'salary' && (
@@ -987,6 +1004,14 @@ function App() {
   )
 }
 
+function loadPasswordVaultEnvelopeSafely(): PasswordVaultEnvelope | null {
+  try {
+    return loadPasswordVaultEnvelope()
+  } catch {
+    return null
+  }
+}
+
 function SectionTabs<T extends string>({
   label,
   tabs,
@@ -1042,6 +1067,7 @@ function HomeScreen({
   onOpenFinanceOverview,
   onOpenFinanceOperation,
   onOpenLearning,
+  onOpenPasswords,
 }: {
   month: SalaryMonth
   summary: CalculationSummary
@@ -1057,6 +1083,7 @@ function HomeScreen({
   onOpenFinanceOverview: () => void
   onOpenFinanceOperation: (operation: import('./financeTypes').FinanceOperation) => void
   onOpenLearning: () => void
+  onOpenPasswords: () => void
 }) {
   const financeOverview = useMemo(
     () => financeState
@@ -1129,6 +1156,11 @@ function HomeScreen({
         onOpenOperation={onOpenFinanceOperation}
         onOpenLearning={onOpenLearning}
       />
+      <button type="button" className="home-password-vault-card" onClick={onOpenPasswords}>
+        <span aria-hidden="true">🔒</span>
+        <span><strong>Пароли</strong><small>Защищённое хранилище</small></span>
+        <b aria-hidden="true">›</b>
+      </button>
     </section>
   )
 }
@@ -1798,6 +1830,7 @@ function RestoreDialog({
           <div><dt>Ежедневные продажи</dt><dd>{Object.keys(preview.dailySalesState?.entries ?? {}).length}</dd></div>
           <div><dt>Дни здоровья</dt><dd>{Object.keys(preview.healthState?.entries ?? {}).length}</dd></div>
           <div><dt>Настройки здоровья</dt><dd>{preview.healthSettings ? 'Включены' : 'Стандартные'}</dd></div>
+          <div><dt>Зашифрованное хранилище паролей включено</dt><dd>{preview.passwordVault ? 'Да' : 'Нет'}</dd></div>
         </dl>
         <p>
           Зарплатные данные будут заменены данными из резервной копии.
@@ -1805,6 +1838,7 @@ function RestoreDialog({
           {!preview.dailySalesState && ' Ежедневные продажи в этом файле отсутствуют и изменены не будут.'}
           {!preview.healthState && ' Данные здоровья в этом файле отсутствуют и изменены не будут.'}
           {!preview.healthSettings && ' Настройки здоровья будут восстановлены стандартными.'}
+          {preview.passwordVault && ' Текущая локальная зашифрованная версия паролей будет заменена; после восстановления хранилище останется заблокированным.'}
         </p>
         <div className="dialog-actions">
           <button type="button" className="primary-action" onClick={onConfirm}>

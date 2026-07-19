@@ -539,6 +539,27 @@ button:active {
   box-shadow: var(--shadow-soft);
 }
 
+.home-password-vault-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 68px;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+  text-align: left;
+}
+
+.home-password-vault-card > span:first-child { font-size: 22px; }
+.home-password-vault-card > span:nth-child(2) { display: grid; min-width: 0; gap: 2px; }
+.home-password-vault-card strong, .home-password-vault-card small { overflow-wrap: anywhere; }
+.home-password-vault-card small { color: var(--text-secondary); font-size: 12px; }
+.home-password-vault-card b { color: var(--accent); font-size: 24px; }
+
 .home-today-card > h2,
 .home-today-section h3 {
   margin: 0;
