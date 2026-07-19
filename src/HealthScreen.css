@@ -2,7 +2,7 @@
 .health-today,
 .health-week {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .health-screen {
@@ -373,9 +373,9 @@
 .health-date-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px 10px;
+  gap: 8px 10px;
   align-items: start;
-  padding: 16px;
+  padding: 14px 16px;
 }
 
 .health-date-panel > div {
@@ -468,13 +468,21 @@
 
 .health-block {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 9px;
+  padding: 14px 16px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .health-block h2 {
-  font-size: 18px;
+  font-size: 20px;
+  line-height: 1.2;
 }
+
+.health-water-coffee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.health-water-coffee .health-block { min-width: 0; padding: 14px; }
+.health-water-coffee .health-block:first-child { border-left-color: #77bddf; }
+.health-water-coffee .health-block:last-child { border-left-color: #d7ad72; }
+.health-water-coffee .health-block h2 { font-size: 17px; }
 
 .number-choices,
 .bristol-grid {
@@ -489,7 +497,7 @@
 .binary-choice button {
   min-width: 0;
   min-height: 44px;
-  padding: 8px 6px;
+  padding: 6px 5px;
   color: var(--text-secondary);
   background: var(--surface-muted);
   box-shadow: none;
@@ -517,18 +525,18 @@
 .hair-schedule,
 .scale-field {
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 
 .health-toggle,
 .workout-option {
   display: grid;
   width: 100%;
-  min-height: 52px;
+  min-height: 48px;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 8px 10px;
   text-align: left;
   background: var(--surface-muted);
   box-shadow: none;
@@ -704,15 +712,15 @@
 
 .health-learning-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .health-learning-direction {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
+  padding-top: 8px;
 }
 
 .health-learning-direction:first-child {
@@ -746,6 +754,18 @@
 .health-finish-actions {
   display: grid;
   gap: 8px;
+}
+
+@media (min-width: 350px) {
+  .health-toggle-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .health-toggle-list .health-toggle { min-height: 50px; }
+  .health-toggle-list .health-toggle:only-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 340px) {
+  .health-water-coffee { grid-template-columns: 1fr; }
+  .health-block { padding: 13px 14px; }
+  .health-block h2 { font-size: 19px; }
 }
 
 .health-share-hint,

@@ -382,30 +382,17 @@ function HealthToday({
 
       {storageIssue && <p className="health-storage-issue">{storageIssue}</p>}
 
-      <HealthBlock title={`Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
-        <NumberChoices
-          values={waterValues}
-          selected={entry.waterCups}
-          label="Количество кружек воды"
-          onSelect={(waterCups) => onChange((current) => ({ ...current, waterCups }))}
-        />
-        <p className="health-result">
-          {entry.waterCups} из {settings.water.goalCups} — {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л
-        </p>
-      </HealthBlock>
-
-      <HealthBlock title="Кофе">
-        <NumberChoices
-          values={coffeeValues}
-          selected={entry.coffeeCups}
-          label="Количество кружек кофе"
-          onSelect={(coffeeCups) => onChange((current) => ({ ...current, coffeeCups }))}
-        />
-        <p className="health-muted">Цель — не больше {settings.coffee.maxPerDay}</p>
-        {isCoffeeOverGoal(entry.coffeeCups, settings.coffee.maxPerDay) && (
-          <p className="health-amber-note">Сегодня кофе больше выбранной цели</p>
-        )}
-      </HealthBlock>
+      <div className="health-water-coffee" aria-label="Вода и кофе">
+        <HealthBlock title={`Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
+          <NumberChoices values={waterValues} selected={entry.waterCups} label="Количество кружек воды" onSelect={(waterCups) => onChange((current) => ({ ...current, waterCups }))} />
+          <p className="health-result">{entry.waterCups} из {settings.water.goalCups} — {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</p>
+        </HealthBlock>
+        <HealthBlock title="Кофе">
+          <NumberChoices values={coffeeValues} selected={entry.coffeeCups} label="Количество кружек кофе" onSelect={(coffeeCups) => onChange((current) => ({ ...current, coffeeCups }))} />
+          <p className="health-muted">Цель — не больше {settings.coffee.maxPerDay}</p>
+          {isCoffeeOverGoal(entry.coffeeCups, settings.coffee.maxPerDay) && <p className="health-amber-note">Сегодня кофе больше выбранной цели</p>}
+        </HealthBlock>
+      </div>
 
       <HealthBlock title="Быстрые пункты">
         <div className="health-toggle-list">

@@ -54,6 +54,19 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByText('Сегодня кофе больше выбранной цели')).not.toBeNull()
   })
 
+  it('оставляет все разделы открытыми и объединяет воду с кофе в общую карточку', () => {
+    const { container } = render(<HealthScreen />)
+    const combined = container.querySelector('.health-water-coffee')
+
+    expect(combined?.querySelectorAll('.health-block')).toHaveLength(2)
+    expect(screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Кофе' })).not.toBeNull()
+    expect(container.querySelectorAll('details')).toHaveLength(0)
+    for (const title of ['Быстрые пункты', 'Тренировки', 'Расслабление — 14 минут', 'Симптомы', 'Волосы', 'Алкоголь', 'Обучение']) {
+      expect(screen.getByRole('heading', { name: title })).not.toBeNull()
+    }
+  })
+
   it('использует сохранённую цель воды и не обрезает старое значение выше цели', () => {
     const settings = createDefaultHealthSettings()
     settings.water = { goalCups: 5, cupVolumeMl: 250 }
