@@ -85,7 +85,12 @@ export function formatHealthDate(dateId: string, todayId = getLocalDateId()): {
 }
 
 export function createEmptyHealthState(): HealthState {
-  return { schemaVersion: 5, entries: {} }
+  return {
+    schemaVersion: 6,
+    entries: {},
+    cosmetologyDebts: {},
+    cosmetologyDebtCheckedThrough: getLocalDateId(),
+  }
 }
 
 export function createHealthEntry(

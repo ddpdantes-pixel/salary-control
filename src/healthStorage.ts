@@ -3,6 +3,7 @@ import type {
   AlcoholChoice,
   AlcoholReason,
   BeerAmountChoice,
+  CosmetologyDebt,
   HealthEntry,
   HealthState,
   LearningDirection,
@@ -14,6 +15,7 @@ export const HEALTH_STATE_KEY = 'moi-ritm.health-state.v1'
 export interface HealthStorageResult {
   state: HealthState
   issue: string | null
+  needsSave: boolean
 }
 
 export function loadStoredHealthState(): HealthStorageResult {
@@ -21,20 +23,27 @@ export function loadStoredHealthState(): HealthStorageResult {
     return {
       state: createEmptyHealthState(),
       issue: 'Локальное хранилище недоступно. Данные здоровья не сохраняются.',
+      needsSave: false,
     }
   }
 
   const raw = window.localStorage.getItem(HEALTH_STATE_KEY)
   if (!raw) {
-    return { state: createEmptyHealthState(), issue: null }
+    return { state: createEmptyHealthState(), issue: null, needsSave: false }
   }
 
   try {
-    return { state: migrateHealthState(JSON.parse(raw)), issue: null }
+    const parsed = JSON.parse(raw) as { schemaVersion?: unknown }
+    return {
+      state: migrateHealthState(parsed),
+      issue: null,
+      needsSave: parsed.schemaVersion !== 6,
+    }
   } catch {
     return {
       state: createEmptyHealthState(),
       issue: 'Не удалось прочитать сохранённые данные здоровья. Исходная запись не удалялась.',
+      needsSave: false,
     }
   }
 }
@@ -52,6 +61,16 @@ export function saveStoredHealthState(state: HealthState): boolean {
 
 export function migrateHealthState(value: unknown): HealthState {
   if (!isRecord(value)) throw new Error('Invalid health state')
+
+  if (value.schemaVersion === 6 && isRecord(value.entries)) {
+    return normalizeEntries(
+      Object.values(value.entries),
+      false,
+      true,
+      value.cosmetologyDebts,
+      value.cosmetologyDebtCheckedThrough,
+    )
+  }
 
   if (value.schemaVersion === 5 && isRecord(value.entries)) {
     return normalizeEntries(Object.values(value.entries), false, true)
@@ -84,13 +103,50 @@ function normalizeEntries(
   values: unknown[],
   migrateBeerAmount: boolean,
   preserveEmptySymptoms: boolean,
+  cosmetologyDebts?: unknown,
+  cosmetologyDebtCheckedThrough?: unknown,
 ): HealthState {
   const state = createEmptyHealthState()
   for (const value of values) {
     const entry = normalizeEntry(value, migrateBeerAmount, preserveEmptySymptoms)
     if (entry) state.entries[entry.date] = entry
   }
+  if (isRecord(cosmetologyDebts)) {
+    Object.values(cosmetologyDebts).forEach((debt) => {
+      const normalized = normalizeCosmetologyDebt(debt)
+      if (normalized) state.cosmetologyDebts[normalized.id] = normalized
+    })
+  }
+  if (typeof cosmetologyDebtCheckedThrough === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cosmetologyDebtCheckedThrough)) {
+    state.cosmetologyDebtCheckedThrough = cosmetologyDebtCheckedThrough
+  }
   return state
+}
+
+function normalizeCosmetologyDebt(value: unknown): CosmetologyDebt | null {
+  if (!isRecord(value)) return null
+  const id = stringValue(value.id)
+  const procedureId = stringValue(value.procedureId)
+  const title = stringValue(value.title)
+  const plannedDate = stringValue(value.plannedDate)
+  const procedureIds = Array.isArray(value.procedureIds)
+    ? value.procedureIds.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+    : []
+  if (!id || !procedureId || !title || !/^\d{4}-\d{2}-\d{2}$/.test(plannedDate) || procedureIds.length === 0) return null
+  return {
+    id,
+    procedureId,
+    title,
+    plannedDate,
+    procedureIds,
+    activeDate: nullableDate(value.activeDate),
+    completedDate: nullableDate(value.completedDate),
+    skippedDate: nullableDate(value.skippedDate),
+  }
+}
+
+function nullableDate(value: unknown): string | null {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null
 }
 
 function normalizeEntry(

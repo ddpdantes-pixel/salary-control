@@ -1,5 +1,5 @@
 import { getWeekdayForDate, type CosmeticIntervalSetting, type CosmeticProcedureSetting, type HealthSettings } from './healthSettings'
-import type { HealthEntry } from './healthTypes'
+import type { CosmetologyDebt, HealthEntry, HealthState } from './healthTypes'
 
 export interface PlannedCosmeticProcedure {
   id: string
@@ -8,6 +8,12 @@ export interface PlannedCosmeticProcedure {
   durationLabel: string
   timerSeconds: number | null
   overdue: boolean
+}
+
+export interface CosmetologyDebtCandidate {
+  procedureId: string
+  title: string
+  procedureIds: string[]
 }
 
 export function getCosmetologyForDate(
@@ -93,6 +99,123 @@ export function getCosmetologySummary(settings: HealthSettings, entry: HealthEnt
   return { assigned: procedures.length, completed: procedures.filter((item) => entry.cosmetology[item.id]).length }
 }
 
+export function getOverdueCosmetologyDebts(state: HealthState): CosmetologyDebt[] {
+  return Object.values(state.cosmetologyDebts)
+    .filter((debt) => debt.completedDate === null && debt.skippedDate === null)
+    .sort((left, right) => left.plannedDate.localeCompare(right.plannedDate))
+}
+
+export function getCosmetologyDebtCandidates(
+  settings: HealthSettings,
+  dateId: string,
+): CosmetologyDebtCandidate[] {
+  const procedures = getCosmetologyForDate(settings, dateId)
+  const bloodPeel = procedures.find((item) => item.id === 'blood-peel-timer')
+  const bloodPeelIds = ['blood-peel-timer', 'neutralizer-timer', 'face-cream']
+  const serum = procedures.find((item) => isSerum(item.id))
+  if (bloodPeel) {
+    if (serum) bloodPeelIds.splice(2, 0, serum.id)
+  }
+
+  const candidates = procedures
+    .filter((item) => !HIDDEN_LEGACY_PROCEDURE_IDS.has(item.id))
+    .filter((item) => !bloodPeel || !bloodPeelIds.includes(item.id) || item.id === 'blood-peel-timer')
+    .map((item) => ({ procedureId: item.id, title: item.title, procedureIds: [item.id] }))
+
+  return candidates.map((candidate) => candidate.procedureId === 'blood-peel-timer'
+    ? { ...candidate, procedureIds: bloodPeelIds.filter((id) => procedures.some((item) => item.id === id)) }
+    : candidate)
+}
+
+export function getCosmetologyDebtProcedures(
+  settings: HealthSettings,
+  debt: CosmetologyDebt,
+): PlannedCosmeticProcedure[] {
+  const settingsById = new Map(settings.cosmetology.procedures.map((item) => [item.id, item]))
+  const planned = debt.procedureIds.map((id) => {
+    const setting = settingsById.get(id)
+    return setting
+      ? toPlanned(setting)
+      : { id, title: id, instruction: '', durationLabel: '', timerSeconds: null, overdue: false }
+  })
+  return simplifyCosmetologyProcedures(planned)
+}
+
+export function reconcileCosmetologyDebts(
+  state: HealthState,
+  settings: HealthSettings,
+  todayId: string,
+): HealthState {
+  const checkedThrough = state.cosmetologyDebtCheckedThrough
+  if (!checkedThrough || checkedThrough >= todayId) return state
+
+  const debts = { ...state.cosmetologyDebts }
+  for (let dateId = checkedThrough; dateId < todayId; dateId = nextDate(dateId)) {
+    const entry = state.entries[dateId]
+    getCosmetologyDebtCandidates(settings, dateId).forEach((candidate) => {
+      const completedOnPlanDate = candidate.procedureIds.every((id) => entry?.cosmetology[id] === true)
+      const unresolved = Object.values(debts).some((debt) =>
+        debt.procedureId === candidate.procedureId && debt.completedDate === null && debt.skippedDate === null,
+      )
+      if (!completedOnPlanDate && !unresolved) {
+        const id = `${candidate.procedureId}:${dateId}`
+        debts[id] = {
+          id,
+          procedureId: candidate.procedureId,
+          title: candidate.title,
+          plannedDate: dateId,
+          procedureIds: candidate.procedureIds,
+          activeDate: null,
+          completedDate: null,
+          skippedDate: null,
+        }
+      }
+    })
+  }
+
+  return { ...state, cosmetologyDebts: debts, cosmetologyDebtCheckedThrough: todayId }
+}
+
+export function activateCosmetologyDebt(
+  state: HealthState,
+  debtId: string,
+  dateId: string,
+): HealthState {
+  const debt = state.cosmetologyDebts[debtId]
+  if (!debt || debt.completedDate || debt.skippedDate) return state
+  return {
+    ...state,
+    cosmetologyDebts: { ...state.cosmetologyDebts, [debtId]: { ...debt, activeDate: dateId } },
+  }
+}
+
+export function skipCosmetologyDebt(
+  state: HealthState,
+  debtId: string,
+  dateId: string,
+): HealthState {
+  const debt = state.cosmetologyDebts[debtId]
+  if (!debt || debt.completedDate || debt.skippedDate) return state
+  return {
+    ...state,
+    cosmetologyDebts: { ...state.cosmetologyDebts, [debtId]: { ...debt, skippedDate: dateId, activeDate: null } },
+  }
+}
+
+export function resolveActiveCosmetologyDebts(
+  state: HealthState,
+  entry: HealthEntry,
+): HealthState {
+  let changed = false
+  const debts = Object.fromEntries(Object.entries(state.cosmetologyDebts).map(([id, debt]) => {
+    const complete = debt.activeDate === entry.date && debt.procedureIds.every((procedureId) => entry.cosmetology[procedureId] === true)
+    if (!complete || debt.completedDate || debt.skippedDate) return [id, debt]
+    changed = true
+    return [id, { ...debt, completedDate: entry.date, activeDate: null }]
+  })) as Record<string, CosmetologyDebt>
+  return changed ? { ...state, cosmetologyDebts: debts } : state
+}
+
 export function nextIntervalDate(dateId: string, weeks: number): string {
   const [year, month, day] = dateId.split('-').map(Number)
   const date = new Date(year, month - 1, day + weeks * 7, 12)
@@ -110,4 +233,10 @@ function intervalPlanned(item: CosmeticIntervalSetting, dateId: string): Planned
 function daysBetween(from: string, to: string): number {
   const parse = (value: string) => new Date(`${value}T12:00:00`).getTime()
   return Math.round((parse(to) - parse(from)) / 86_400_000)
+}
+
+function nextDate(dateId: string): string {
+  const [year, month, day] = dateId.split('-').map(Number)
+  const date = new Date(year, month - 1, day + 1, 12)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }

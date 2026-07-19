@@ -341,6 +341,70 @@ describe('экран здоровья сегодня', () => {
     expect(container.textContent?.toLowerCase()).not.toMatch(/очистить|высушить|нанести|смыть/)
   })
 
+  it('переносит просроченный комплект в сегодняшний чек-лист и закрывает его только после всех отметок', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    const debtId = 'blood-peel-timer:2026-07-17'
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify({
+      schemaVersion: 6,
+      entries: {},
+      cosmetologyDebtCheckedThrough: today,
+      cosmetologyDebts: {
+        [debtId]: {
+          id: debtId,
+          procedureId: 'blood-peel-timer',
+          title: 'Кровавый пилинг ART&FACT',
+          plannedDate: '2026-07-17',
+          procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
+          activeDate: null,
+          completedDate: null,
+          skippedDate: null,
+        },
+      },
+    }))
+
+    render(<HealthScreen />)
+    expect(screen.getByRole('heading', { name: 'Не выполнено' })).not.toBeNull()
+    expect(screen.getByText(/По плану: 17 июля/)).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Выполнить сегодня' }))
+
+    for (const label of ['Кровавый пилинг ART&FACT', 'Нейтрализатор', 'Vichy H.A. Epidermic Filler', 'Крем для лица']) {
+      await user.click(screen.getByLabelText(new RegExp(label)))
+    }
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Не выполнено' })).toBeNull())
+  })
+
+  it('запрашивает подтверждение перед пропуском косметологической задолженности', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    const debtId = 'blood-peel-timer:2026-07-17'
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify({
+      schemaVersion: 6,
+      entries: {},
+      cosmetologyDebtCheckedThrough: today,
+      cosmetologyDebts: {
+        [debtId]: {
+          id: debtId,
+          procedureId: 'blood-peel-timer',
+          title: 'Кровавый пилинг ART&FACT',
+          plannedDate: '2026-07-17',
+          procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
+          activeDate: null,
+          completedDate: null,
+          skippedDate: null,
+        },
+      },
+    }))
+
+    render(<HealthScreen />)
+    await user.click(screen.getByRole('button', { name: 'Пропустить' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Пропустить эту процедуру до следующего раза?')).not.toBeNull()
+    await user.click(within(dialog).getByRole('button', { name: 'Пропустить' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Не выполнено' })).toBeNull())
+  })
+
   it('не показывает поля заметок у всех направлений обучения', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)

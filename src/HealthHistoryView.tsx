@@ -24,7 +24,7 @@ import {
 import type { HealthHistoryNavigationState } from './healthHistory'
 import { formatRelaxationExerciseLabel } from './healthWeek'
 import { getCosmetologyForDate, getCosmetologySummary } from './cosmetology'
-import type { AlcoholChoice, HealthEntry, LearningDirection, ScalpNote } from './healthTypes'
+import type { AlcoholChoice, CosmetologyDebt, HealthEntry, LearningDirection, ScalpNote } from './healthTypes'
 import {
   DEFAULT_HEALTH_SETTINGS,
   getRelaxationMinutes,
@@ -50,6 +50,7 @@ const SCALP_LABELS: Record<ScalpNote, string> = {
 
 export function HealthHistoryView({
   entries,
+  cosmetologyDebts = {},
   settings = DEFAULT_HEALTH_SETTINGS,
   navigation,
   onNavigationChange,
@@ -57,6 +58,7 @@ export function HealthHistoryView({
   todayId = getLocalDateId(),
 }: {
   entries: Record<string, HealthEntry>
+  cosmetologyDebts?: Record<string, CosmetologyDebt>
   settings?: HealthSettings
   navigation: HealthHistoryNavigationState
   onNavigationChange: (next: HealthHistoryNavigationState) => void
@@ -179,6 +181,7 @@ export function HealthHistoryView({
           <HealthHistoryDayDetails
             entry={selectedEntry}
             settings={settings}
+            cosmetologyDebts={cosmetologyDebts}
             copyMessage={copyMessage}
             onCopy={() => void copyDay(selectedEntry)}
             onEdit={() => onEditDate(selectedEntry.date)}
@@ -320,12 +323,14 @@ function HealthHistoryCalendar({
 function HealthHistoryDayDetails({
   entry,
   settings,
+  cosmetologyDebts,
   copyMessage,
   onCopy,
   onEdit,
 }: {
   entry: HealthEntry
   settings: HealthSettings
+  cosmetologyDebts: Record<string, CosmetologyDebt>
   copyMessage: string
   onCopy: () => void
   onEdit: () => void
@@ -341,6 +346,8 @@ function HealthHistoryDayDetails({
   const alcoholReasons = formatAlcoholReasons(entry)
   const cosmetology = getCosmetologyForDate(settings, entry.date, entry)
   const cosmetologySummary = getCosmetologySummary(settings, entry)
+  const cosmetologyDebtHistory = Object.values(cosmetologyDebts)
+    .filter((debt) => debt.plannedDate === entry.date || debt.completedDate === entry.date || debt.skippedDate === entry.date)
 
   return (
     <section className="health-history-details" aria-label={`Подробности дня ${formatHistoryDate(entry.date)}`}>
@@ -385,6 +392,14 @@ function HealthHistoryDayDetails({
 
       {(cosmetology.length > 0 || Object.keys(entry.cosmetology).length > 0) && <DetailBlock title={`Косметология — ${cosmetologySummary.completed} из ${cosmetologySummary.assigned}`}>
         {cosmetology.map((item) => <DetailRow key={item.id} label={item.title} value={entry.cosmetology[item.id] ? 'Выполнено' : 'Не выполнено'} />)}
+      </DetailBlock>}
+      {cosmetologyDebtHistory.length > 0 && <DetailBlock title="Косметология — история переноса">
+        {cosmetologyDebtHistory.map((debt) => <div className="health-history-workout" key={debt.id}>
+          <strong>{debt.title}</strong>
+          <span>По плану: {formatCosmetologyHistoryDate(debt.plannedDate)}</span>
+          {debt.completedDate && <span>Выполнено: {formatCosmetologyHistoryDate(debt.completedDate)}</span>}
+          {debt.skippedDate && <span>Пропущено: {formatCosmetologyHistoryDate(debt.skippedDate)}</span>}
+        </div>)}
       </DetailBlock>}
 
       <DetailBlock title="Расслабление">
@@ -516,6 +531,10 @@ function formatHistoryDate(dateId: string): string {
   const dateLabel = formatHealthDate(dateId, '').dateLabel
   const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'long' }).format(date)
   return `${dateLabel}, ${weekday}`
+}
+
+function formatCosmetologyHistoryDate(dateId: string): string {
+  return formatHealthDate(dateId, '').dateLabel
 }
 
 function formatOptionalNumber(value: number | null, fallback = '—'): string {

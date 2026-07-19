@@ -8,7 +8,7 @@ import { HealthHistoryView } from './HealthHistoryView'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
 import { createHealthEntry } from './healthModel'
-import type { HealthEntry } from './healthTypes'
+import type { CosmetologyDebt, HealthEntry } from './healthTypes'
 
 const TODAY = '2026-07-14'
 
@@ -28,10 +28,12 @@ function HistoryHarness({
   entries,
   initial,
   onEditDate = vi.fn(),
+  cosmetologyDebts,
 }: {
   entries: Record<string, HealthEntry>
   initial?: Partial<HealthHistoryNavigationState>
   onEditDate?: (dateId: string) => void
+  cosmetologyDebts?: Record<string, CosmetologyDebt>
 }) {
   const [navigation, setNavigation] = useState<HealthHistoryNavigationState>({
     ...createHealthHistoryNavigationState(TODAY),
@@ -40,6 +42,7 @@ function HistoryHarness({
   return (
     <HealthHistoryView
       entries={entries}
+      cosmetologyDebts={cosmetologyDebts}
       navigation={navigation}
       onNavigationChange={setNavigation}
       onEditDate={onEditDate}
@@ -58,6 +61,38 @@ describe('интерфейс истории здоровья', () => {
       configurable: true,
       value: vi.fn(),
     })
+  })
+
+  it('показывает исходную и фактическую дату выполненной косметологической задолженности', async () => {
+    const user = userEvent.setup()
+    const completed = entry('2026-07-14', {
+      cosmetology: {
+        'blood-peel-timer': true,
+        'neutralizer-timer': true,
+        'vichy-filler': true,
+        'face-cream': true,
+      },
+    })
+    render(<HistoryHarness
+      entries={entryMap(completed)}
+      cosmetologyDebts={{
+        'blood-peel-timer:2026-07-12': {
+          id: 'blood-peel-timer:2026-07-12',
+          procedureId: 'blood-peel-timer',
+          title: 'Кровавый пилинг ART&FACT',
+          plannedDate: '2026-07-12',
+          procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
+          activeDate: null,
+          completedDate: '2026-07-14',
+          skippedDate: null,
+        },
+      }}
+    />)
+
+    await user.click(screen.getByRole('button', { name: /Открыть запись за 14 июля/ }))
+    const details = screen.getByLabelText(/Подробности дня 14 июля/)
+    expect(within(details).getByText('По плану: 12 июля 2026')).not.toBeNull()
+    expect(within(details).getByText('Выполнено: 14 июля 2026')).not.toBeNull()
   })
 
   afterEach(() => {

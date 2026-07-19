@@ -5,7 +5,17 @@ import type { HealthView, VisibleHealthView } from './appNavigation'
 import { HealthAttachmentsSection } from './HealthAttachmentsSection'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
-import { getCosmetologyForDate, nextIntervalDate, toggleCosmetologyCompletion } from './cosmetology'
+import {
+  activateCosmetologyDebt,
+  getCosmetologyDebtProcedures,
+  getCosmetologyForDate,
+  getOverdueCosmetologyDebts,
+  nextIntervalDate,
+  reconcileCosmetologyDebts,
+  resolveActiveCosmetologyDebts,
+  skipCosmetologyDebt,
+  toggleCosmetologyCompletion,
+} from './cosmetology'
 import { getNextLearningNumber } from './learningSchedule'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
@@ -48,6 +58,7 @@ import {
 import type {
   AlcoholChoice,
   AlcoholReason,
+  CosmetologyDebt,
   HealthEntry,
   LearningDirection,
   ScalpNote,
@@ -108,6 +119,7 @@ export function HealthScreen({
   const [canReturnToHistory, setCanReturnToHistory] = useState(false)
   const [timerScreen, setTimerScreen] = useState(false)
   const initialStateRef = useRef(state)
+  const initialStatePersistedRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
@@ -133,7 +145,13 @@ export function HealthScreen({
   )
 
   useEffect(() => {
-    if (state === initialStateRef.current) return
+    if (state === initialStateRef.current) {
+      if (loaded.needsSave && !initialStatePersistedRef.current) {
+        initialStatePersistedRef.current = true
+        saveStoredHealthState(state)
+      }
+      return
+    }
 
     setSaveState('saving')
     window.clearTimeout(saveTimerRef.current)
@@ -145,17 +163,43 @@ export function HealthScreen({
       window.clearTimeout(saveTimerRef.current)
       saveStoredHealthState(state)
     }
-  }, [state])
+  }, [loaded.needsSave, state])
+
+  useEffect(() => {
+    const reconcile = () => {
+      const todayId = getLocalDateId()
+      setState((current) => reconcileCosmetologyDebts(current, settings, todayId))
+    }
+    const reconcileWhenVisible = () => {
+      if (document.visibilityState === 'visible') reconcile()
+    }
+    reconcile()
+    const interval = window.setInterval(reconcile, 60_000)
+    document.addEventListener('visibilitychange', reconcileWhenVisible)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', reconcileWhenVisible)
+    }
+  }, [settings])
 
   function changeEntry(updater: (current: HealthEntry) => HealthEntry): void {
     setState((currentState) => {
       const currentEntry =
         currentState.entries[selectedDate] ?? createHealthEntry(selectedDate)
-      return upsertHealthEntry(
+      const nextState = upsertHealthEntry(
         currentState,
         updateHealthEntry(currentEntry, updater),
       )
+      return resolveActiveCosmetologyDebts(nextState, nextState.entries[selectedDate])
     })
+  }
+
+  function activateDebt(debtId: string): void {
+    setState((current) => activateCosmetologyDebt(current, debtId, getLocalDateId()))
+  }
+
+  function skipDebt(debtId: string): void {
+    setState((current) => skipCosmetologyDebt(current, debtId, getLocalDateId()))
   }
 
   function openDateFromHistory(dateId: string): void {
@@ -213,6 +257,7 @@ export function HealthScreen({
         <HealthToday
           entry={entry}
           entries={state.entries}
+          cosmetologyDebts={state.cosmetologyDebts}
           settings={settings}
           hasSavedEntry={Boolean(state.entries[selectedDate])}
           selectedDate={selectedDate}
@@ -221,12 +266,15 @@ export function HealthScreen({
           onDateChange={setSelectedDate}
           onChange={changeEntry}
           onIntervalCompletion={completeInterval}
+          onActivateDebt={activateDebt}
+          onSkipDebt={skipDebt}
           onOpenTimers={() => setTimerScreen(true)}
           onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
         />
       ) : activeTab === 'history' ? (
         <HealthHistoryView
           entries={state.entries}
+          cosmetologyDebts={state.cosmetologyDebts}
           settings={settings}
           navigation={historyNavigation}
           onNavigationChange={(next: HealthHistoryNavigationState) => {
@@ -294,6 +342,7 @@ function HealthTabs({
 function HealthToday({
   entry,
   entries,
+  cosmetologyDebts,
   settings,
   hasSavedEntry,
   selectedDate,
@@ -302,11 +351,14 @@ function HealthToday({
   onDateChange,
   onChange,
   onIntervalCompletion,
+  onActivateDebt,
+  onSkipDebt,
   onOpenTimers,
   onBackToHistory,
 }: {
   entry: HealthEntry
   entries: Record<string, HealthEntry>
+  cosmetologyDebts: Record<string, CosmetologyDebt>
   settings: HealthSettings
   hasSavedEntry: boolean
   selectedDate: string
@@ -315,6 +367,8 @@ function HealthToday({
   onDateChange: (date: string) => void
   onChange: (updater: (current: HealthEntry) => HealthEntry) => void
   onIntervalCompletion: (id: string, completed: boolean) => void
+  onActivateDebt: (debtId: string) => void
+  onSkipDebt: (debtId: string) => void
   onOpenTimers: () => void
   onBackToHistory?: () => void
 }) {
@@ -335,7 +389,19 @@ function HealthToday({
   const visibleRelaxation = getRelaxationSettings(settings).filter(
     (item) => item.enabled || entry.relaxation[item.field],
   )
-  const cosmeticProcedures = getCosmetologyForDate(settings, selectedDate, entry)
+  const overdueDebts = getOverdueCosmetologyDebts({
+    schemaVersion: 6,
+    entries,
+    cosmetologyDebts,
+    cosmetologyDebtCheckedThrough: null,
+  })
+  const activeDebts = overdueDebts.filter((debt) => debt.activeDate === selectedDate)
+  const activeProcedureIds = new Set(activeDebts.flatMap((debt) => debt.procedureIds))
+  const cosmeticProcedures = [
+    ...getCosmetologyForDate(settings, selectedDate, entry).filter((item) => !activeProcedureIds.has(item.id)),
+    ...activeDebts.flatMap((debt) => getCosmetologyDebtProcedures(settings, debt)),
+  ]
+  const [skipConfirmation, setSkipConfirmation] = useState<CosmetologyDebt | null>(null)
   const [attachments, setAttachments] = useState<HealthAttachment[]>([])
   const [attachmentRefreshToken, setAttachmentRefreshToken] = useState(0)
   const [shareResult, setShareResult] = useState<HealthShareResult | null>(null)
@@ -831,6 +897,23 @@ function HealthToday({
       </HealthBlock>
 
       <HealthBlock title="Косметология">
+        {selectedDate === getLocalDateId() && overdueDebts.length > 0 && (
+          <section className="health-cosmetology-overdue" aria-label="Не выполнено">
+            <h3>Не выполнено</h3>
+            <div className="health-cosmetology-overdue-list">
+              {overdueDebts.map((debt) => (
+                <article className="health-cosmetology-overdue-item" key={debt.id}>
+                  <strong>{debt.title}</strong>
+                  <span>По плану: {formatCosmetologyPlanDate(debt.plannedDate)} · просрочено {getOverdueDays(debt.plannedDate, selectedDate)} {formatDays(getOverdueDays(debt.plannedDate, selectedDate))}</span>
+                  <div className="health-cosmetology-overdue-actions">
+                    <button type="button" onClick={() => onActivateDebt(debt.id)}>Выполнить сегодня</button>
+                    <button type="button" className="secondary" onClick={() => setSkipConfirmation(debt)}>Пропустить</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
         {cosmeticProcedures.length === 0 ? <p className="health-muted">На этот день косметологических процедур нет</p> : (
           <div className="health-cosmetology-list">
             {cosmeticProcedures.map((procedure) => {
@@ -847,6 +930,19 @@ function HealthToday({
           </div>
         )}
       </HealthBlock>
+
+      {skipConfirmation && <div className="dialog-backdrop" role="presentation">
+        <section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="skip-cosmetology-title">
+          <h2 id="skip-cosmetology-title">Пропустить эту процедуру до следующего раза?</h2>
+          <div className="dialog-actions">
+            <button type="button" onClick={() => setSkipConfirmation(null)}>Отмена</button>
+            <button type="button" className="primary" onClick={() => {
+              onSkipDebt(skipConfirmation.id)
+              setSkipConfirmation(null)
+            }}>Пропустить</button>
+          </div>
+        </section>
+      </div>}
 
       <div className="health-finish-actions">
         <button
@@ -966,6 +1062,27 @@ function HealthTimers({ onBack, onFaceDone, onRelaxationDone }: { onBack: () => 
 
 function formatTimer(seconds: number): string { return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}` }
 function signalTimer(): void { window.navigator.vibrate?.(80) }
+
+function getOverdueDays(plannedDate: string, currentDate: string): number {
+  const planned = new Date(`${plannedDate}T12:00:00`).getTime()
+  const current = new Date(`${currentDate}T12:00:00`).getTime()
+  return Math.max(1, Math.round((current - planned) / 86_400_000))
+}
+
+function formatDays(days: number): string {
+  const lastTwo = days % 100
+  if (lastTwo >= 11 && lastTwo <= 14) return 'дней'
+  if (days % 10 === 1) return 'день'
+  if (days % 10 >= 2 && days % 10 <= 4) return 'дня'
+  return 'дней'
+}
+
+function formatCosmetologyPlanDate(dateId: string): string {
+  return new Date(`${dateId}T12:00:00`).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+  })
+}
 
 function HealthBlock({
   title,

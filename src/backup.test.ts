@@ -368,6 +368,16 @@ describe('резервная копия', () => {
         porcelain: { status: 'not_done', activityType: null, number: null, note: '' },
       },
     }
+    healthState.cosmetologyDebts['blood-peel-timer:2026-07-13'] = {
+      id: 'blood-peel-timer:2026-07-13',
+      procedureId: 'blood-peel-timer',
+      title: 'Кровавый пилинг ART&FACT',
+      plannedDate: '2026-07-13',
+      procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
+      activeDate: null,
+      completedDate: null,
+      skippedDate: null,
+    }
 
     const backup = createBackupData(
       [month],
@@ -412,6 +422,10 @@ describe('резервная копия', () => {
         cavist: { status: 'done', activityType: 'practice', number: 7 },
         porcelain: { status: 'not_done' },
       },
+    })
+    expect(restored.healthState?.cosmetologyDebts['blood-peel-timer:2026-07-13']).toMatchObject({
+      plannedDate: '2026-07-13',
+      completedDate: null,
     })
     expect(restoredAgain).toEqual(restored)
     expect(restored.months).toHaveLength(1)

@@ -107,7 +107,23 @@ export interface HealthEntry {
   updatedAt: string
 }
 
+export interface CosmetologyDebt {
+  /** Stable identity: one scheduled procedure and its original planned date. */
+  id: string
+  procedureId: string
+  title: string
+  plannedDate: string
+  procedureIds: string[]
+  activeDate: string | null
+  completedDate: string | null
+  skippedDate: string | null
+}
+
 export interface HealthState {
-  schemaVersion: 5
+  schemaVersion: 6
   entries: Record<string, HealthEntry>
+  /** Outstanding and resolved cosmetology plans. Kept with health data and backups. */
+  cosmetologyDebts: Record<string, CosmetologyDebt>
+  /** Prevents generating historical debts during the one-time migration. */
+  cosmetologyDebtCheckedThrough: string | null
 }

@@ -50,7 +50,7 @@ describe('хранилище здоровья', () => {
 
     saveStoredHealthState(createEmptyHealthState())
 
-    expect(storage.get(HEALTH_STATE_KEY)).toContain('"schemaVersion":5')
+    expect(storage.get(HEALTH_STATE_KEY)).toContain('"schemaVersion":6')
     expect(storage.get('kontrol-zarplaty.month.2026-07')).toBe('salary-data')
     expect(storage.get('kontrol-zarplaty.finance-state.v1')).toBe('finance-data')
   })
@@ -60,7 +60,7 @@ describe('хранилище здоровья', () => {
     const second = { ...createHealthEntry('2026-07-11'), waterCups: 5 }
     const migrated = migrateHealthState({ entries: [first, second] })
 
-    expect(migrated.schemaVersion).toBe(5)
+    expect(migrated.schemaVersion).toBe(6)
     expect(Object.keys(migrated.entries)).toEqual(['2026-07-11'])
     expect(migrated.entries['2026-07-11'].waterCups).toBe(5)
   })
@@ -93,7 +93,7 @@ describe('хранилище здоровья', () => {
       entries: { '2026-07-12': legacy },
     })
 
-    expect(migrated.schemaVersion).toBe(5)
+    expect(migrated.schemaVersion).toBe(6)
     expect(migrated.entries['2026-07-12']).toMatchObject({ bloating: 0, urges: 0.5 })
   })
 
@@ -158,6 +158,27 @@ describe('хранилище здоровья', () => {
 
     const migrated = migrateHealthState({ schemaVersion: 4, entries: { [entry.date]: entry } })
     expect(migrated.entries[entry.date].selectedWorkouts).toEqual(entry.selectedWorkouts)
+  })
+
+  it('безопасно сохраняет и восстанавливает задолженность косметологии вместе с историей здоровья', () => {
+    const state = createEmptyHealthState()
+    state.cosmetologyDebts['blood-peel-timer:2026-07-19'] = {
+      id: 'blood-peel-timer:2026-07-19',
+      procedureId: 'blood-peel-timer',
+      title: 'Кровавый пилинг ART&FACT',
+      plannedDate: '2026-07-19',
+      procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
+      activeDate: null,
+      completedDate: null,
+      skippedDate: null,
+    }
+
+    const migrated = migrateHealthState(state)
+    expect(migrated.cosmetologyDebts['blood-peel-timer:2026-07-19']).toMatchObject({
+      plannedDate: '2026-07-19',
+      procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
+    })
+    expect(migrateHealthState(migrated)).toEqual(migrated)
   })
 
   it('не удаляет несовместимую исходную запись при ошибке чтения', () => {

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { getCosmetologyForDate, nextIntervalDate, toggleCosmetologyCompletion } from './cosmetology'
-import { createHealthEntry } from './healthModel'
+import {
+  activateCosmetologyDebt,
+  getCosmetologyForDate,
+  getOverdueCosmetologyDebts,
+  nextIntervalDate,
+  reconcileCosmetologyDebts,
+  resolveActiveCosmetologyDebts,
+  skipCosmetologyDebt,
+  toggleCosmetologyCompletion,
+} from './cosmetology'
+import { createEmptyHealthState, createHealthEntry, upsertHealthEntry } from './healthModel'
 import { createDefaultHealthSettings } from './healthSettings'
 
 describe('косметология', () => {
@@ -50,5 +59,57 @@ describe('косметология', () => {
 
     expect(getCosmetologyForDate(settings, entry.date, entry).map((item) => item.id)).not.toContain('blood-peel-clean')
     expect(entry.cosmetology['blood-peel-clean']).toBe(true)
+  })
+
+  it('создаёт одну задолженность для пропущенного кровавого пилинга и не дублирует её в следующем цикле', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
+    const initial = { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: '2026-07-19' }
+    const first = reconcileCosmetologyDebts(initial, settings, '2026-07-20')
+    const debts = getOverdueCosmetologyDebts(first)
+
+    expect(debts).toHaveLength(1)
+    expect(debts[0]).toMatchObject({
+      procedureId: 'blood-peel-timer',
+      title: 'Кровавый пилинг ART&FACT',
+      plannedDate: '2026-07-19',
+      procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
+    })
+    expect(getOverdueCosmetologyDebts(reconcileCosmetologyDebts(first, settings, '2026-07-27'))
+      .filter((item) => item.procedureId === 'blood-peel-timer')).toHaveLength(1)
+  })
+
+  it('закрывает задолженность только после полного выполнения связанного комплекта', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
+    const initial = reconcileCosmetologyDebts(
+      { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: '2026-07-19' },
+      settings,
+      '2026-07-20',
+    )
+    const debt = getOverdueCosmetologyDebts(initial)[0]
+    const active = activateCosmetologyDebt(initial, debt.id, '2026-07-20')
+    const partialEntry = createHealthEntry('2026-07-20')
+    partialEntry.cosmetology = { 'blood-peel-timer': true, 'neutralizer-timer': true }
+    const partial = resolveActiveCosmetologyDebts(upsertHealthEntry(active, partialEntry), partialEntry)
+    expect(getOverdueCosmetologyDebts(partial)).toHaveLength(1)
+
+    const fullEntry = { ...partialEntry, cosmetology: Object.fromEntries(debt.procedureIds.map((id) => [id, true])) }
+    const resolved = resolveActiveCosmetologyDebts(upsertHealthEntry(partial, fullEntry), fullEntry)
+    expect(getOverdueCosmetologyDebts(resolved)).toHaveLength(0)
+    expect(resolved.cosmetologyDebts[debt.id]?.completedDate).toBe('2026-07-20')
+  })
+
+  it('сохраняет пропуск отдельно от выполнения и не меняет настройки ротации', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
+    const initial = reconcileCosmetologyDebts(
+      { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: '2026-07-19' },
+      settings,
+      '2026-07-20',
+    )
+    const debt = getOverdueCosmetologyDebts(initial)[0]
+    const skipped = skipCosmetologyDebt(initial, debt.id, '2026-07-20')
+
+    expect(skipped.cosmetologyDebts[debt.id]).toMatchObject({ skippedDate: '2026-07-20', completedDate: null })
+    expect(getOverdueCosmetologyDebts(skipped)).toHaveLength(0)
+    expect(settings.cosmetology.procedures.find((item) => item.id === 'vichy-filler')).toBeDefined()
   })
 })
