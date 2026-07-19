@@ -13,6 +13,7 @@ import { createDefaultDailySalesState } from './dailySalesStorage'
 import { createEmptyHealthState, createHealthEntry } from './healthModel'
 import { createDefaultPaymentNotificationSettings } from './paymentNotifications'
 import { CLOUD_BACKUP_KEY_STORAGE } from './cloudBackup'
+import { addPlanTask, createEmptyPlansState } from './plansModel'
 
 describe('резервная копия', () => {
   it('включает только зашифрованный envelope паролей и читает старую копию без него', () => {
@@ -43,12 +44,23 @@ describe('резервная копия', () => {
     expect(backupJson).not.toContain(CLOUD_BACKUP_KEY_STORAGE)
     expect(backupJson).not.toContain('A'.repeat(43))
   })
+  it('сохраняет планы в общей копии и читает старую копию без них', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const plans = addPlanTask(createEmptyPlansState(), {
+      title: 'Подать документы', dueDate: '2026-07-21', recurrence: { kind: 'weekly' },
+    })
+    const backup = createBackupData([month], month.id, null, null, null, null, null, null, null, plans)
+    expect(parseBackupData(JSON.stringify(backup)).plansState?.tasks[0].title).toBe('Подать документы')
+    const legacy = { ...backup, structureVersion: 8, schemaVersion: 8 }
+    delete (legacy as { plansState?: unknown }).plansState
+    expect(parseBackupData(JSON.stringify(legacy)).plansState).toBeNull()
+  })
   it('сохраняет версию структуры, дату, месяцы и настройки', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backup = createBackupData([month], month.id)
 
-    expect(backup.structureVersion).toBe(8)
-    expect(backup.schemaVersion).toBe(8)
+    expect(backup.structureVersion).toBe(9)
+    expect(backup.schemaVersion).toBe(9)
     expect(backup.appName).toBe('Мой ритм')
     expect(backup.createdAt).toEqual(expect.any(String))
     expect(backup.months).toHaveLength(1)
@@ -227,7 +239,7 @@ describe('резервная копия', () => {
       (operation) => operation.id === splitOperation.id,
     )
 
-    expect(backup.structureVersion).toBe(8)
+    expect(backup.structureVersion).toBe(9)
     expect(restored.months).toHaveLength(1)
     expect(restored.financeState?.operations).toHaveLength(
       completed.operations.length,

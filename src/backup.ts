@@ -20,9 +20,11 @@ import {
   assertPasswordVaultEnvelope,
   type PasswordVaultEnvelope,
 } from './passwordVaultCrypto'
+import { normalizePlansState } from './plansStorage'
+import type { PlansState } from './plansTypes'
 
 const BACKUP_APP_ID = 'kontrol-zarplaty'
-const BACKUP_STRUCTURE_VERSION = 8
+const BACKUP_STRUCTURE_VERSION = 9
 const SUPPORTED_BACKUP_VERSIONS = new Set([
   2,
   3,
@@ -30,6 +32,7 @@ const SUPPORTED_BACKUP_VERSIONS = new Set([
   5,
   6,
   7,
+  8,
   BACKUP_STRUCTURE_VERSION,
 ])
 
@@ -50,6 +53,7 @@ export interface BackupData {
   cashAtHome?: CashAtHomeState
   paymentNotificationSettings?: PaymentNotificationSettings
   passwordVault?: PasswordVaultEnvelope
+  plansState?: PlansState
 }
 
 export interface ParsedBackup {
@@ -63,6 +67,7 @@ export interface ParsedBackup {
   cashAtHome: CashAtHomeState | null
   paymentNotificationSettings: PaymentNotificationSettings | null
   passwordVault: PasswordVaultEnvelope | null
+  plansState: PlansState | null
 }
 
 export function createBackupData(
@@ -75,6 +80,7 @@ export function createBackupData(
   cashAtHome?: CashAtHomeState | null,
   paymentNotificationSettings?: PaymentNotificationSettings | null,
   passwordVault?: PasswordVaultEnvelope | null,
+  plansState?: PlansState | null,
 ): BackupData {
   return {
     app: BACKUP_APP_ID,
@@ -95,6 +101,7 @@ export function createBackupData(
       ? { paymentNotificationSettings }
       : {}),
     ...(passwordVault ? { passwordVault } : {}),
+    ...(plansState ? { plansState } : {}),
   }
 }
 
@@ -169,6 +176,9 @@ export function parseBackupData(text: string): ParsedBackup {
   const passwordVault = parsed.passwordVault === undefined
     ? null
     : normalizePasswordVault(parsed.passwordVault)
+  const plansState = parsed.plansState === undefined
+    ? null
+    : normalizePlans(parsed.plansState)
 
   if (parsed.financeState !== undefined && financeState === null) {
     throw new Error('В резервной копии повреждены финансовые данные.')
@@ -195,6 +205,9 @@ export function parseBackupData(text: string): ParsedBackup {
   if (parsed.passwordVault !== undefined && passwordVault === null) {
     throw new Error('В резервной копии повреждено защищённое хранилище паролей.')
   }
+  if (parsed.plansState !== undefined && plansState === null) {
+    throw new Error('В резервной копии повреждены планы.')
+  }
 
   return {
     createdAt:
@@ -210,6 +223,7 @@ export function parseBackupData(text: string): ParsedBackup {
     cashAtHome,
     paymentNotificationSettings,
     passwordVault,
+    plansState,
   }
 }
 
@@ -225,6 +239,14 @@ function normalizePasswordVault(value: unknown): PasswordVaultEnvelope | null {
 function normalizeHealthState(value: unknown): HealthState | null {
   try {
     return migrateHealthState(value)
+  } catch {
+    return null
+  }
+}
+
+function normalizePlans(value: unknown): PlansState | null {
+  try {
+    return normalizePlansState(value)
   } catch {
     return null
   }

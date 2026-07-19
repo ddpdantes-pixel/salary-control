@@ -112,6 +112,10 @@ import {
   savePasswordVaultEnvelope,
 } from './passwordVaultStorage'
 import type { PasswordVaultEnvelope } from './passwordVaultCrypto'
+import { PlansHomeCard, PlansScreen } from './PlansScreen'
+import { completePlanTask } from './plansModel'
+import { loadStoredPlansState, saveStoredPlansState } from './plansStorage'
+import type { PlansState } from './plansTypes'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
@@ -141,6 +145,7 @@ interface RestorePreview {
   cashAtHome: CashAtHomeState | null
   paymentNotificationSettings: PaymentNotificationSettings | null
   passwordVault: PasswordVaultEnvelope | null
+  plansState: PlansState | null
 }
 
 function App() {
@@ -177,6 +182,10 @@ function App() {
   const [learningFocusRequest, setLearningFocusRequest] = useState(0)
   const [pendingAppTab, setPendingAppTab] = useState<TabId | null>(null)
   const [passwordVaultOpen, setPasswordVaultOpen] = useState(false)
+  const [plansOpen, setPlansOpen] = useState(false)
+  const [plansTab, setPlansTab] = useState<'today' | 'all' | 'calendar' | 'settings'>('today')
+  const [plansOpenEditor, setPlansOpenEditor] = useState(false)
+  const [plansState, setPlansState] = useState<PlansState>(() => loadStoredPlansState().state)
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
   const financeDidMountRef = useRef(false)
@@ -185,6 +194,7 @@ function App() {
   const dailySalesSaveTimerRef = useRef<number | undefined>(undefined)
   const cashAtHomeDidMountRef = useRef(false)
   const notificationSettingsDidMountRef = useRef(false)
+  const plansDidMountRef = useRef(false)
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const firstRenderRef = useRef(true)
 
@@ -356,6 +366,15 @@ function App() {
     }
     saveStoredPaymentNotificationSettings(paymentNotificationSettings)
   }, [isBooting, paymentNotificationSettings])
+
+  useEffect(() => {
+    if (isBooting) return
+    if (!plansDidMountRef.current) {
+      plansDidMountRef.current = true
+      return
+    }
+    saveStoredPlansState(plansState)
+  }, [isBooting, plansState])
 
   useEffect(() => {
     if (isBooting || !financeState) return
@@ -536,6 +555,7 @@ function App() {
       cashAtHome,
       paymentNotificationSettings,
       loadPasswordVaultEnvelopeSafely(),
+      plansState,
     )
   }
 
@@ -587,6 +607,7 @@ function App() {
         paymentNotificationSettings:
           parsedBackup.paymentNotificationSettings,
         passwordVault: parsedBackup.passwordVault,
+        plansState: parsedBackup.plansState,
       })
     } catch (error) {
       setStorageMessage(
@@ -642,6 +663,9 @@ function App() {
     )
     if (pendingRestore.passwordVault) {
       savePasswordVaultEnvelope(pendingRestore.passwordVault)
+    }
+    if (pendingRestore.plansState) {
+      setPlansState(pendingRestore.plansState)
     }
     setActiveTab('salary')
     setSalaryView('history')
@@ -771,7 +795,7 @@ function App() {
 
   return (
     <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''} ${dailySalesActive ? 'daily-sales-active' : ''}`}>
-      {!passwordVaultOpen && <header className="top-bar">
+      {!passwordVaultOpen && !plansOpen && <header className="top-bar">
         <div>
           <p className="eyebrow">
             {activeTab === 'money'
@@ -844,6 +868,14 @@ function App() {
 
       {passwordVaultOpen ? (
         <PasswordVaultScreen onBack={() => setPasswordVaultOpen(false)} />
+      ) : plansOpen ? (
+        <PlansScreen
+          state={plansState}
+          onChange={setPlansState}
+          initialTab={plansTab}
+          openEditor={plansOpenEditor}
+          onBack={() => { setPlansOpen(false); setPlansOpenEditor(false); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
+        />
       ) : activeTab === 'home' && (
         <HomeScreen
           month={currentMonth}
@@ -880,6 +912,9 @@ function App() {
           }}
           onOpenLearning={() => { setLearningFocusRequest((value) => value + 1); setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
           onOpenPasswords={() => { setPasswordVaultOpen(true); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
+          plansState={plansState}
+          onOpenPlans={(view, create) => { setPlansTab(view ?? 'today'); setPlansOpenEditor(Boolean(create)); setPlansOpen(true); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
+          onCompletePlan={(id) => setPlansState((current) => completePlanTask(current, id))}
         />
       )}
       {activeTab === 'salary' && (
@@ -1068,6 +1103,9 @@ function HomeScreen({
   onOpenFinanceOperation,
   onOpenLearning,
   onOpenPasswords,
+  plansState,
+  onOpenPlans,
+  onCompletePlan,
 }: {
   month: SalaryMonth
   summary: CalculationSummary
@@ -1084,6 +1122,9 @@ function HomeScreen({
   onOpenFinanceOperation: (operation: import('./financeTypes').FinanceOperation) => void
   onOpenLearning: () => void
   onOpenPasswords: () => void
+  plansState: PlansState
+  onOpenPlans: (view?: 'today' | 'all' | 'calendar' | 'settings', create?: boolean) => void
+  onCompletePlan: (id: string) => void
 }) {
   const financeOverview = useMemo(
     () => financeState
@@ -1156,6 +1197,7 @@ function HomeScreen({
         onOpenOperation={onOpenFinanceOperation}
         onOpenLearning={onOpenLearning}
       />
+      <PlansHomeCard state={plansState} onOpen={onOpenPlans} onComplete={onCompletePlan} />
       <button type="button" className="home-password-vault-card" onClick={onOpenPasswords}>
         <span aria-hidden="true">🔒</span>
         <span><strong>Пароли</strong><small>Защищённое хранилище</small></span>
@@ -1831,6 +1873,7 @@ function RestoreDialog({
           <div><dt>Дни здоровья</dt><dd>{Object.keys(preview.healthState?.entries ?? {}).length}</dd></div>
           <div><dt>Настройки здоровья</dt><dd>{preview.healthSettings ? 'Включены' : 'Стандартные'}</dd></div>
           <div><dt>Зашифрованное хранилище паролей включено</dt><dd>{preview.passwordVault ? 'Да' : 'Нет'}</dd></div>
+          <div><dt>Планы</dt><dd>{preview.plansState?.tasks.length ?? 0}</dd></div>
         </dl>
         <p>
           Зарплатные данные будут заменены данными из резервной копии.
@@ -1839,6 +1882,7 @@ function RestoreDialog({
           {!preview.healthState && ' Данные здоровья в этом файле отсутствуют и изменены не будут.'}
           {!preview.healthSettings && ' Настройки здоровья будут восстановлены стандартными.'}
           {preview.passwordVault && ' Текущая локальная зашифрованная версия паролей будет заменена; после восстановления хранилище останется заблокированным.'}
+          {!preview.plansState && ' Планы в этом файле отсутствуют и изменены не будут.'}
         </p>
         <div className="dialog-actions">
           <button type="button" className="primary-action" onClick={onConfirm}>
