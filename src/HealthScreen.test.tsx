@@ -67,6 +67,13 @@ describe('экран здоровья сегодня', () => {
     }
   })
 
+  it('правильно склоняет минуты в упражнениях расслабления', () => {
+    render(<HealthScreen />)
+
+    expect(screen.getByRole('button', { name: 'Бабочка — 2 минуты' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Фигура «4» — 2 минуты' })).not.toBeNull()
+  })
+
   it('использует сохранённую цель воды и не обрезает старое значение выше цели', () => {
     const settings = createDefaultHealthSettings()
     settings.water = { goalCups: 5, cupVolumeMl: 250 }

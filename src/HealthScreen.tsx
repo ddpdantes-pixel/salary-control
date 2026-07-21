@@ -96,6 +96,20 @@ const ALCOHOL_REASONS: Array<{ id: AlcoholReason; label: string }> = [
   { id: 'other', label: 'Другое' },
 ]
 
+function formatMinutes(minutes: number): string {
+  const lastTwo = minutes % 100
+  const last = minutes % 10
+  const word = lastTwo >= 11 && lastTwo <= 14
+    ? 'минут'
+    : last === 1
+      ? 'минута'
+      : last >= 2 && last <= 4
+        ? 'минуты'
+        : 'минут'
+
+  return `${minutes} ${word}`
+}
+
 export function HealthScreen({
   initialTab = 'today',
   onSettingsDirtyChange,
@@ -571,12 +585,12 @@ function HealthToday({
         onAttachmentsChange={handleAttachmentsChange}
       />
 
-      <HealthBlock title={`Расслабление — ${getRelaxationMinutes(settings)} минут`}>
+      <HealthBlock title={`Расслабление — ${formatMinutes(getRelaxationMinutes(settings))}`}>
         <div className="health-toggle-list">
           {visibleRelaxation.map((item) => (
             <ToggleButton
               key={item.field}
-              label={`${item.label} — ${item.minutes} минут`}
+              label={`${item.label} — ${formatMinutes(item.minutes)}`}
               checked={entry.relaxation[item.field]}
               onToggle={() => onChange((current) => ({
                 ...current,
