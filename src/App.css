@@ -153,6 +153,36 @@ button:active {
   background: var(--danger-soft);
 }
 
+.active-timer-banner {
+  position: sticky;
+  top: max(8px, env(safe-area-inset-top));
+  z-index: 15;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  color: #155d4b;
+  background: #e6f6ef;
+  border: 1px solid #a8d9c4;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  font-size: 14px;
+}
+
+.active-timer-banner strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.active-timer-banner span:last-child {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-badge {
   display: inline-flex;
   width: fit-content;

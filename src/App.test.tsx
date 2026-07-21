@@ -28,6 +28,7 @@ import {
   formatCloudBackupDate,
 } from './cloudBackup'
 import { PAYMENT_PUSH_DEVICE_KEY } from './paymentNotifications'
+import { ACTIVE_TIMER_STORAGE_KEY } from './healthTimer'
 
 vi.mock('virtual:pwa-register', () => ({
   registerSW: vi.fn(() => vi.fn()),
@@ -586,6 +587,36 @@ describe('оболочка приложения', () => {
       'Сохранить при старом импорте',
     )
     expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"waterCups":6')
+  })
+
+  it('оставляет активный таймер видимым между разделами и открывает его по плавающей строке', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await user.click(screen.getByRole('button', { name: 'Здоровье' }))
+    await user.click(screen.getByRole('button', { name: 'Таймеры' }))
+    await user.click(screen.getByRole('button', { name: 'Начать 20 секунд' }))
+
+    expect(window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)).toContain('"kind":"face"')
+    await user.click(screen.getByRole('button', { name: 'Главное' }))
+    const banner = screen.getByRole('button', { name: 'Открыть таймер: Лицо в холодную воду' })
+    expect(banner.textContent).toContain('Лицо в холодную воду')
+
+    await user.click(banner)
+    expect(screen.getByText('Таймеры')).not.toBeNull()
+    expect(screen.getByText('Подход 1 из 3')).not.toBeNull()
+  })
+
+  it('запрашивает подтверждение перед заменой активного таймера', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await user.click(screen.getByRole('button', { name: 'Здоровье' }))
+    await user.click(screen.getByRole('button', { name: 'Таймеры' }))
+    await user.click(screen.getByRole('button', { name: 'Начать 20 секунд' }))
+    await user.click(screen.getByRole('button', { name: 'Запустить' }))
+
+    expect(screen.getByText('Сейчас уже работает таймер «Лицо в холодную воду». Остановить его и запустить новый?')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Остановить и запустить' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Отмена' })).not.toBeNull()
   })
 })
 

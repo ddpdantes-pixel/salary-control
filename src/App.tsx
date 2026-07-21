@@ -116,6 +116,8 @@ import { PlansHomeCard, PlansScreen } from './PlansScreen'
 import { completePlanTask } from './plansModel'
 import { loadStoredPlansState, saveStoredPlansState } from './plansStorage'
 import type { PlansState } from './plansTypes'
+import { getTimerTitle, getTimerTotalRemaining } from './healthTimer'
+import { useHealthTimer } from './useHealthTimer'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
@@ -186,6 +188,8 @@ function App() {
   const [plansTab, setPlansTab] = useState<'today' | 'all' | 'calendar' | 'settings'>('today')
   const [plansOpenEditor, setPlansOpenEditor] = useState(false)
   const [plansState, setPlansState] = useState<PlansState>(() => loadStoredPlansState().state)
+  const [timerOpenRequest, setTimerOpenRequest] = useState(0)
+  const healthTimer = useHealthTimer()
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
   const financeDidMountRef = useRef(false)
@@ -791,6 +795,14 @@ function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
+  function openHealthTimers(): void {
+    setPasswordVaultOpen(false)
+    setPlansOpen(false)
+    setActiveTab('health')
+    setTimerOpenRequest((current) => current + 1)
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+
   const dailySalesActive = activeTab === 'salary' && salaryView === 'sales'
 
   return (
@@ -857,6 +869,18 @@ function App() {
           }
           onDismiss={() => setPwaMessage(null)}
         />
+      )}
+      {healthTimer.timer && healthTimer.timer.status !== 'completed' && (
+        <button
+          type="button"
+          className="active-timer-banner"
+          onClick={openHealthTimers}
+          aria-label={`Открыть таймер: ${getTimerTitle(healthTimer.timer.kind)}`}
+        >
+          <span aria-hidden="true">⏱</span>
+          <strong>{getTimerTitle(healthTimer.timer.kind)}</strong>
+          <span>{formatActiveTimer(getTimerTotalRemaining(healthTimer.timer, healthTimer.now))}</span>
+        </button>
       )}
       <input
         ref={restoreInputRef}
@@ -991,7 +1015,12 @@ function App() {
         />
       )}
       {activeTab === 'health' && (
-        <HealthScreen onSettingsDirtyChange={setHealthSettingsDirty} learningFocusRequest={learningFocusRequest} />
+        <HealthScreen
+          onSettingsDirtyChange={setHealthSettingsDirty}
+          learningFocusRequest={learningFocusRequest}
+          timerController={healthTimer}
+          timerOpenRequest={timerOpenRequest}
+        />
       )}
 
       <nav className="bottom-nav" aria-label="Разделы приложения">
@@ -1037,6 +1066,10 @@ function App() {
       )}
     </main>
   )
+}
+
+function formatActiveTimer(seconds: number): string {
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 function loadPasswordVaultEnvelopeSafely(): PasswordVaultEnvelope | null {

@@ -1450,9 +1450,19 @@
 .health-cosmetology-overdue-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .health-cosmetology-overdue-actions button { min-height: 34px; padding: 6px 9px; font-size: 13px; }
 .health-timers { display: grid; gap: 12px; padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
-.health-timer-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.health-timer-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
+.health-timer-settings label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+.health-timer-settings input { width: 18px; height: 18px; }
+.health-timer-settings button { min-height: 36px; padding: 7px 10px; }
+.health-timer-audio-hint, .health-timer-notice { margin: 0; padding: 9px 10px; border-radius: 6px; font-size: 13px; line-height: 1.35; }
+.health-timer-audio-hint { color: #8a5700; background: #fff1cc; }
+.health-timer-notice { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: #155d4b; background: #e6f6ef; }
+.health-timer-notice button { min-height: 28px; padding: 4px 7px; color: inherit; background: transparent; font-size: 12px; }
+.health-timer-card { display: grid; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.health-timer-card.is-active { border-color: #6ebd9d; box-shadow: 0 0 0 2px #e6f6ef; }
 .health-timer-card h2, .health-timer-card p { margin: 0; }
 .health-timer-card strong { font-size: 20px; }
+.health-timer-remaining { color: var(--accent); font-size: clamp(34px, 12vw, 48px); font-weight: 850; line-height: 1; font-variant-numeric: tabular-nums; }
 .health-timer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .health-timer-actions button { flex: 1 1 130px; }
 .health-settings-heading, .health-settings-history-note, .health-settings-group, .health-settings-savebar { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
