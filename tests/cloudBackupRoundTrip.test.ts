@@ -56,6 +56,7 @@ describe('облачный backup round-trip', () => {
     const payload = JSON.stringify(
       createBackupData([month], month.id, finance, sales, health),
     )
+    expect(payload).not.toContain('plansState')
     const envelope = await createCloudBackupEnvelope(payload, {
       backupId: '00000000-0000-4000-8000-000000000099',
       now: new Date('2026-07-18T19:15:00.000Z'),

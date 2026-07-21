@@ -69,6 +69,19 @@ describe('оболочка приложения', () => {
     expect(within(navigation).queryByRole('button', { name: 'Выплаты' })).toBeNull()
   })
 
+  it('не показывает удалённый раздел «Планы» на Главном и очищает только его прежний ключ', async () => {
+    window.localStorage.setItem('moi-ritm.plans.v1', '{"tasks":[{"title":"Не показывать"}]}')
+    window.localStorage.setItem(HEALTH_STATE_KEY, '{"schemaVersion":6,"entries":{},"cosmetologyDebts":{}}')
+
+    await renderApp()
+
+    expect(screen.queryByText('Планы')).toBeNull()
+    expect(screen.queryByRole('button', { name: /план/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /Пароли/ })).not.toBeNull()
+    expect(window.localStorage.getItem('moi-ritm.plans.v1')).toBeNull()
+    expect(window.localStorage.getItem(HEALTH_STATE_KEY)).not.toBeNull()
+  })
+
   it('сначала показывает shell при глубокой ссылке, затем открывает нужную операцию', async () => {
     const finance = createDefaultFinanceState('2026-07-17T10:00:00.000Z')
     const operation = {
