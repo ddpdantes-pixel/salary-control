@@ -34,6 +34,12 @@ vi.mock('virtual:pwa-register', () => ({
   registerSW: vi.fn(() => vi.fn()),
 }))
 
+vi.mock('./timerAudio', () => ({
+  signalHealthTimer: vi.fn(async () => true),
+  unlockTimerAudio: vi.fn(async () => true),
+  resumeTimerAudio: vi.fn(async () => undefined),
+}))
+
 describe('оболочка приложения', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -610,6 +616,7 @@ describe('оболочка приложения', () => {
     await user.click(screen.getByRole('button', { name: 'Начать 20 секунд' }))
 
     expect(window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)).toContain('"kind":"face"')
+    expect(screen.getByRole('button', { name: 'Остановить' })).not.toBeNull()
     await user.click(screen.getByRole('button', { name: 'Главное' }))
     const banner = screen.getByRole('button', { name: 'Открыть таймер: Лицо в холодную воду' })
     expect(banner.textContent).toContain('Лицо в холодную воду')

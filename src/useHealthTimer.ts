@@ -3,7 +3,6 @@ import {
   advanceActiveTimer,
   clearActiveHealthTimer,
   createActiveTimer,
-  getTimerTitle,
   loadActiveHealthTimer,
   loadTimerPreferences,
   pauseActiveTimer,
@@ -16,12 +15,14 @@ import {
   type TimerPreferences,
 } from './healthTimer'
 import { resumeTimerAudio, signalHealthTimer, unlockTimerAudio } from './timerAudio'
+import { completeHealthTimer } from './healthTimerCompletion'
 
 export interface HealthTimerController {
   timer: ActiveHealthTimer | null
   now: number
   preferences: TimerPreferences
   audioReady: boolean
+  audioWarning: string | null
   notice: string | null
   pendingStart: HealthTimerKind | null
   requestStart: (kind: HealthTimerKind) => void
@@ -35,6 +36,7 @@ export interface HealthTimerController {
   testSound: () => Promise<void>
   setPreference: (name: keyof TimerPreferences, value: boolean) => void
   dismissNotice: () => void
+  dismissAudioWarning: () => void
 }
 
 export function useHealthTimer(): HealthTimerController {
@@ -42,6 +44,7 @@ export function useHealthTimer(): HealthTimerController {
   const [now, setNow] = useState(Date.now())
   const [preferences, setPreferences] = useState<TimerPreferences>(loadTimerPreferences)
   const [audioReady, setAudioReady] = useState(false)
+  const [audioWarning, setAudioWarning] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [pendingStart, setPendingStart] = useState<HealthTimerKind | null>(null)
   const timerRef = useRef(timer)
@@ -71,26 +74,24 @@ export function useHealthTimer(): HealthTimerController {
     timerRef.current = result.timer
     setTimer(result.timer)
     if (!result.event) return
-    const nextTitle = result.event.final
-      ? null
-      : current.kind === 'gym'
-        ? getTimerTitle('gym')
-        : null
-    if (result.event.late) {
-      setNotice(result.event.final
-        ? `Во время отсутствия завершено этапов: ${result.event.completedStages}. Вечерний комплекс завершён — 14 минут.`
-        : `Во время отсутствия завершено этапов: ${result.event.completedStages}.`)
-    } else if (result.event.final) {
-      setNotice(result.event.kind === 'gym' ? 'Вечерний комплекс завершён — 14 минут' : 'Готово — 3 из 3')
+    if (result.event.final) {
+      const completion = completeHealthTimer(result.timer, currentNow)
+      setNotice(result.event.kind === 'gym'
+        ? `Вечерняя гимнастика завершена. ${completion.message}`
+        : `Все 3 подхода завершены. ${completion.message}`)
+    } else if (result.event.late) {
+      setNotice(`Во время отсутствия завершено этапов: ${result.event.completedStages}.`)
     } else if (result.event.kind === 'gym') {
       const nextStageTitle = result.timer.kind === 'gym'
         ? ['90/90', 'Переход', 'Бабочка', 'Фигура 4', 'Поза ребёнка'][result.timer.stageIndex]
-        : nextTitle
+        : null
       setNotice(`Этап завершён. Далее: ${nextStageTitle ?? 'следующий этап'}.`)
     } else {
       setNotice('Подход завершён')
     }
-    void signalHealthTimer(result.event.final, preferencesRef.current)
+    void signalHealthTimer(result.event.final, preferencesRef.current).then((played) => {
+      if (!played) setAudioWarning('Звуковой сигнал заблокирован браузером')
+    })
   }, [])
 
   useEffect(() => {
@@ -116,23 +117,34 @@ export function useHealthTimer(): HealthTimerController {
     timerRef.current = next
     setNow(next.startedAt)
     setTimer(next)
-    setNotice(audioReady ? null : 'Нажмите «Проверить звук», чтобы iPhone разрешил звуковые сигналы таймера.')
+    setNotice(null)
+  }, [])
+
+  const prepareAudioFromGesture = useCallback(() => {
+    if (audioReady || !preferencesRef.current.soundEnabled) return
+    void unlockTimerAudio().then((ready) => {
+      setAudioReady(ready)
+      if (ready) setAudioWarning(null)
+      else setAudioWarning('Safari не разрешил воспроизведение. Нажмите кнопку ещё раз и проверьте громкость мультимедиа')
+    })
   }, [audioReady])
 
   const requestStart = useCallback((kind: HealthTimerKind) => {
+    prepareAudioFromGesture()
     const current = timerRef.current
     if (current && (current.status === 'running' || current.status === 'paused')) {
       setPendingStart(kind)
       return
     }
     start(kind)
-  }, [start])
+  }, [prepareAudioFromGesture, start])
 
   const confirmStart = useCallback(() => {
+    prepareAudioFromGesture()
     const kind = pendingStart
     setPendingStart(null)
     if (kind) start(kind)
-  }, [pendingStart, start])
+  }, [pendingStart, prepareAudioFromGesture, start])
 
   const pause = useCallback(() => {
     const current = timerRef.current
@@ -144,22 +156,24 @@ export function useHealthTimer(): HealthTimerController {
   }, [])
 
   const resume = useCallback(() => {
+    prepareAudioFromGesture()
     const current = timerRef.current
     if (!current) return
     const next = resumeActiveTimer(current)
     timerRef.current = next
     setNow(Date.now())
     setTimer(next)
-  }, [])
+  }, [prepareAudioFromGesture])
 
   const nextFaceApproach = useCallback(() => {
+    prepareAudioFromGesture()
     const current = timerRef.current
     if (!current) return
     const next = startNextFaceApproach(current)
     timerRef.current = next
     setNow(Date.now())
     setTimer(next)
-  }, [])
+  }, [prepareAudioFromGesture])
 
   const stop = useCallback(() => {
     timerRef.current = null
@@ -168,12 +182,18 @@ export function useHealthTimer(): HealthTimerController {
     setNotice(null)
   }, [])
 
-  const restart = useCallback((kind: HealthTimerKind) => start(kind), [start])
+  const restart = useCallback((kind: HealthTimerKind) => {
+    prepareAudioFromGesture()
+    start(kind)
+  }, [prepareAudioFromGesture, start])
 
   const testSound = useCallback(async () => {
     const ready = await unlockTimerAudio()
     setAudioReady(ready)
-    setNotice(ready ? 'Звук включён для этой сессии.' : 'Браузер пока не разрешил звук. Повторите проверку после касания экрана.')
+    setAudioWarning(null)
+    setNotice(ready
+      ? 'Звук подготовлен'
+      : 'Safari не разрешил воспроизведение. Нажмите кнопку ещё раз и проверьте громкость мультимедиа')
   }, [])
 
   const setPreference = useCallback((name: keyof TimerPreferences, value: boolean) => {
@@ -185,6 +205,7 @@ export function useHealthTimer(): HealthTimerController {
     now,
     preferences,
     audioReady,
+    audioWarning,
     notice,
     pendingStart,
     requestStart,
@@ -198,5 +219,6 @@ export function useHealthTimer(): HealthTimerController {
     testSound,
     setPreference,
     dismissNotice: () => setNotice(null),
+    dismissAudioWarning: () => setAudioWarning(null),
   }
 }

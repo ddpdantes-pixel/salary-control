@@ -29,6 +29,20 @@ describe('устойчивые таймеры здоровья', () => {
     expect(getTimerDisplayRemaining(timer, 61_000)).toBe(240)
   })
 
+  it('восстанавливает дату запуска у старого сохранённого таймера без dateId', () => {
+    window.localStorage.setItem(ACTIVE_TIMER_STORAGE_KEY, JSON.stringify({
+      kind: 'face',
+      status: 'running',
+      startedAt: new Date(2026, 6, 21, 23, 59).getTime(),
+      stageEndTimestamp: new Date(2026, 6, 21, 23, 59, 20).getTime(),
+      stageIndex: 0,
+      completedStages: 0,
+      pausedRemainingMs: null,
+    }))
+
+    expect(loadActiveHealthTimer()?.dateId).toBe('2026-07-21')
+  })
+
   it('использует этапы 5 / 1 / 1 / 2 / 5 минут, всего 14 минут', () => {
     expect(GYM_TIMER_STAGES.map((stage) => stage.seconds)).toEqual([300, 60, 60, 120, 300])
     expect(GYM_TIMER_STAGES.reduce((total, stage) => total + stage.seconds, 0)).toBe(840)

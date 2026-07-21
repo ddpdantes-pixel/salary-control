@@ -6,6 +6,7 @@ import {
   createBackupFileName,
   parseBackupData,
 } from './backup'
+import { ACTIVE_TIMER_STORAGE_KEY } from './healthTimer'
 import { createDefaultFinanceState } from './financeDefaults'
 import { rublesToKopecks } from './financeMoney'
 import { setFinanceOperationStatus } from './financeObligations'
@@ -41,6 +42,7 @@ describe('резервная копия', () => {
     const backupJson = JSON.stringify(createBackupData([month], month.id))
 
     expect(backupJson).not.toContain(CLOUD_BACKUP_KEY_STORAGE)
+    expect(backupJson).not.toContain(ACTIVE_TIMER_STORAGE_KEY)
     expect(backupJson).not.toContain('A'.repeat(43))
   })
   it('не экспортирует планы и безопасно игнорирует поле plansState в старой копии', () => {

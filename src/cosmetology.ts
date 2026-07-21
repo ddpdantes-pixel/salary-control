@@ -16,6 +16,8 @@ export interface CosmetologyDebtCandidate {
   procedureIds: string[]
 }
 
+export const FACE_COOL_WATER_PROCEDURE_ID = 'face-cool-water'
+
 export function getCosmetologyForDate(
   settings: HealthSettings,
   dateId: string,
@@ -88,9 +90,17 @@ export function getCosmetologyCompletion(entry: HealthEntry, id: string): boolea
 }
 
 export function toggleCosmetologyCompletion(entry: HealthEntry, id: string): HealthEntry {
+  return setCosmetologyCompletion(entry, id, entry.cosmetology[id] !== true)
+}
+
+export function setCosmetologyCompletion(
+  entry: HealthEntry,
+  id: string,
+  completed: boolean,
+): HealthEntry {
   const cosmetology = { ...entry.cosmetology }
-  if (cosmetology[id]) delete cosmetology[id]
-  else cosmetology[id] = true
+  if (completed) cosmetology[id] = true
+  else delete cosmetology[id]
   return { ...entry, cosmetology }
 }
 

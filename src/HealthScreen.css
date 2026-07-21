@@ -1454,10 +1454,12 @@
 .health-timer-settings label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
 .health-timer-settings input { width: 18px; height: 18px; }
 .health-timer-settings button { min-height: 36px; padding: 7px 10px; }
-.health-timer-audio-hint, .health-timer-notice { margin: 0; padding: 9px 10px; border-radius: 6px; font-size: 13px; line-height: 1.35; }
+.health-timer-audio-hint, .health-timer-notice, .health-timer-audio-warning { margin: 0; padding: 9px 10px; border-radius: 6px; font-size: 13px; line-height: 1.35; }
 .health-timer-audio-hint { color: #8a5700; background: #fff1cc; }
-.health-timer-notice { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: #155d4b; background: #e6f6ef; }
-.health-timer-notice button { min-height: 28px; padding: 4px 7px; color: inherit; background: transparent; font-size: 12px; }
+.health-timer-notice, .health-timer-audio-warning { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.health-timer-notice { color: #155d4b; background: #e6f6ef; }
+.health-timer-audio-warning { color: #8a5700; background: #fff1cc; }
+.health-timer-notice button, .health-timer-audio-warning button { min-height: 28px; padding: 4px 7px; color: inherit; background: transparent; font-size: 12px; }
 .health-timer-card { display: grid; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .health-timer-card.is-active { border-color: #6ebd9d; box-shadow: 0 0 0 2px #e6f6ef; }
 .health-timer-card h2, .health-timer-card p { margin: 0; }

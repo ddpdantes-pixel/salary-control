@@ -2,7 +2,7 @@
 
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HealthScreen } from './HealthScreen'
@@ -10,6 +10,7 @@ import { listHealthAttachments, saveHealthAttachment } from './healthAttachmentS
 import { createEmptyHealthState, createHealthEntry, getLocalDateId } from './healthModel'
 import { HEALTH_STATE_KEY } from './healthStorage'
 import { HEALTH_SETTINGS_KEY, createDefaultHealthSettings } from './healthSettings'
+import { HEALTH_TIMER_COMPLETION_EVENT } from './healthTimerCompletion'
 
 vi.mock('./healthChecklistImage', () => ({
   createHealthChecklistImage: (entry: { date: string }) =>
@@ -72,6 +73,27 @@ describe('экран здоровья сегодня', () => {
 
     expect(screen.getByRole('button', { name: 'Бабочка — 2 минуты' })).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Фигура «4» — 2 минуты' })).not.toBeNull()
+  })
+
+  it('обновляет автогалочку таймера без перезагрузки экрана сегодня', async () => {
+    render(<HealthScreen />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), {
+      target: { value: '2026-07-21' },
+    })
+    const state = createEmptyHealthState()
+    state.entries['2026-07-21'] = {
+      ...createHealthEntry('2026-07-21'),
+      cosmetology: { 'face-cool-water': true },
+    }
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
+
+    window.dispatchEvent(new CustomEvent(HEALTH_TIMER_COMPLETION_EVENT))
+
+    await waitFor(() => {
+      expect((screen.getByRole('checkbox', {
+        name: /Лицо в прохладную воду/,
+      }) as HTMLInputElement).checked).toBe(true)
+    })
   })
 
   it('использует сохранённую цель воды и не обрезает старое значение выше цели', () => {

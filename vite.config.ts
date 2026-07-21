@@ -16,6 +16,7 @@ export default defineConfig({
         'icons.svg',
         'apple-touch-icon.png',
         'push-sw.js',
+        'timer-signal.wav',
       ],
       manifest: {
         name: 'Мой ритм',
@@ -46,7 +47,7 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,wav,webmanifest}'],
         navigateFallback: 'index.html',
         importScripts: ['push-sw.js'],
       },

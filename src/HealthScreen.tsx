@@ -6,6 +6,7 @@ import { HealthAttachmentsSection } from './HealthAttachmentsSection'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
 import {
+  FACE_COOL_WATER_PROCEDURE_ID,
   activateCosmetologyDebt,
   getCosmetologyDebtProcedures,
   getCosmetologyForDate,
@@ -16,6 +17,7 @@ import {
   skipCosmetologyDebt,
   toggleCosmetologyCompletion,
 } from './cosmetology'
+import { HEALTH_TIMER_COMPLETION_EVENT } from './healthTimerCompletion'
 import { getNextLearningNumber } from './learningSchedule'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
@@ -189,6 +191,20 @@ export function HealthScreen({
   }, [loaded.needsSave, state])
 
   useEffect(() => {
+    const refreshCompletedTimerEntry = () => {
+      const refreshed = loadStoredHealthState()
+      initialStateRef.current = refreshed.state
+      setState(refreshed.state)
+      setSaveState('saved')
+    }
+    window.addEventListener(HEALTH_TIMER_COMPLETION_EVENT, refreshCompletedTimerEntry)
+    return () => window.removeEventListener(
+      HEALTH_TIMER_COMPLETION_EVENT,
+      refreshCompletedTimerEntry,
+    )
+  }, [])
+
+  useEffect(() => {
     const reconcile = () => {
       const todayId = getLocalDateId()
       setState((current) => reconcileCosmetologyDebts(current, settings, todayId))
@@ -273,7 +289,7 @@ export function HealthScreen({
 
   return (
     <section className="health-screen">
-      {timerScreen && timerController ? <HealthTimers timer={timerController} onBack={() => setTimerScreen(false)} onFaceDone={() => changeEntry((current) => ({ ...current, cosmetology: { ...current.cosmetology, 'face-cool-water': true } }))} onRelaxationDone={() => changeEntry((current) => markAllRelaxation(current, settings))} /> : <>
+      {timerScreen && timerController ? <HealthTimers timer={timerController} onBack={() => setTimerScreen(false)} /> : <>
       <HealthTabs activeTab={activeTab} onChange={changeHealthTab} onOpenTimers={() => setTimerScreen(true)} />
 
       {activeTab === 'today' ? (
@@ -947,7 +963,7 @@ function HealthToday({
                   onIntervalCompletion(procedure.id, !checked)
                 }} />
                 <span><strong>{procedure.durationLabel ? `${procedure.title} — ${procedure.durationLabel}` : procedure.title}</strong></span>
-                {procedure.id === 'face-cool-water' && <button type="button" onClick={(event) => { event.preventDefault(); onOpenTimers() }}>Запустить таймер</button>}
+                {procedure.id === FACE_COOL_WATER_PROCEDURE_ID && <button type="button" onClick={(event) => { event.preventDefault(); onOpenTimers() }}>Запустить таймер</button>}
               </label>
             })}
           </div>
@@ -1036,9 +1052,8 @@ function HealthChecklistDownload({ file }: { file: File }) {
   )
 }
 
-function HealthTimers({ timer, onBack, onFaceDone, onRelaxationDone }: { timer: HealthTimerController; onBack: () => void; onFaceDone: () => void; onRelaxationDone: () => void }) {
+function HealthTimers({ timer, onBack }: { timer: HealthTimerController; onBack: () => void }) {
   const [stopConfirmation, setStopConfirmation] = useState(false)
-  const completedRef = useRef<number | null>(null)
   const active = timer.timer
   const faceTimer = active?.kind === 'face' ? active : null
   const gymTimer = active?.kind === 'gym' ? active : null
@@ -1046,13 +1061,6 @@ function HealthTimers({ timer, onBack, onFaceDone, onRelaxationDone }: { timer: 
   const gymStage = gymTimer?.stageIndex ?? 0
   const currentGymStage = GYM_TIMER_STAGES[gymStage]
   const gymProgress = gymTimer ? 840 - getTimerTotalRemaining(gymTimer, timer.now) : 0
-
-  useEffect(() => {
-    if (!active || active.status !== 'completed' || active.completedAt === null || completedRef.current === active.completedAt) return
-    completedRef.current = active.completedAt
-    if (active.kind === 'face') onFaceDone()
-    if (active.kind === 'gym') onRelaxationDone()
-  }, [active, onFaceDone, onRelaxationDone])
 
   return <div className="health-timers">
     <div className="health-screen-heading"><strong>Таймеры</strong><button type="button" onClick={onBack}>Назад</button></div>
@@ -1063,18 +1071,19 @@ function HealthTimers({ timer, onBack, onFaceDone, onRelaxationDone }: { timer: 
     </div>
     {!timer.audioReady && <p className="health-timer-audio-hint">Нажмите «Проверить звук», чтобы iPhone разрешил звуковые сигналы таймера.</p>}
     {timer.notice && <div className="health-timer-notice" role="status"><span>{timer.notice}</span><button type="button" aria-label="Закрыть сообщение таймера" onClick={timer.dismissNotice}>Закрыть</button></div>}
+    {timer.audioWarning && <div className="health-timer-audio-warning" role="alert"><span>{timer.audioWarning}</span><button type="button" aria-label="Закрыть предупреждение о звуке" onClick={timer.dismissAudioWarning}>Закрыть</button></div>}
 
     <section className={`health-timer-card ${faceTimer ? 'is-active' : ''}`}>
       <h2>Лицо — 20 секунд × 3</h2>
       <p>Лицо в холодную воду</p>
       <strong>Подход {faceTimer?.status === 'completed' ? 3 : Math.min(faceStep + 1, 3)} из 3</strong>
       {faceTimer?.status === 'running' && <output className="health-timer-remaining">{formatTimer(getTimerDisplayRemaining(faceTimer, timer.now))}</output>}
-      {faceTimer?.status === 'completed' ? <><p>Готово — 3 из 3</p><button type="button" onClick={() => timer.restart('face')}>Начать заново</button></> : faceTimer?.status === 'paused' ? <div className="health-timer-actions"><button type="button" onClick={timer.nextFaceApproach}>Следующий подход</button><button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button></div> : <button type="button" onClick={() => timer.requestStart('face')}>Начать 20 секунд</button>}
+      {faceTimer?.status === 'completed' ? <><p>Все 3 подхода завершены</p><button type="button" onClick={() => timer.restart('face')}>Начать заново</button></> : faceTimer?.status === 'paused' ? <div className="health-timer-actions"><button type="button" onClick={timer.nextFaceApproach}>Следующий подход</button><button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button></div> : faceTimer?.status === 'running' ? <button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button> : <button type="button" onClick={() => timer.requestStart('face')}>Начать 20 секунд</button>}
     </section>
 
     <section className={`health-timer-card ${gymTimer ? 'is-active' : ''}`}>
       <h2>Вечерняя гимнастика — 14 минут</h2>
-      {gymTimer?.status === 'completed' ? <><strong>Комплекс завершён</strong><p>Завершено: {new Date(gymTimer.completedAt ?? timer.now).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p><button type="button" onClick={() => timer.restart('gym')}>Запустить снова</button></> : <>
+      {gymTimer?.status === 'completed' ? <><strong>Вечерняя гимнастика завершена</strong><p>Завершено: {new Date(gymTimer.completedAt ?? timer.now).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p><button type="button" onClick={() => timer.restart('gym')}>Запустить снова</button></> : <>
         <strong>{currentGymStage.title}</strong>
         <p>Этап {gymStage + 1} из 5 · общий прогресс {formatTimer(gymProgress)} из 14:00</p>
         {gymTimer && <><output className="health-timer-remaining">{formatTimer(getTimerDisplayRemaining(gymTimer, timer.now))}</output><p>Следующий этап: {GYM_TIMER_STAGES[gymStage + 1]?.title ?? 'завершение комплекса'}</p></>}

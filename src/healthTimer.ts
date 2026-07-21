@@ -8,6 +8,7 @@ export interface ActiveHealthTimer {
   kind: HealthTimerKind
   status: Exclude<HealthTimerStatus, 'idle'>
   startedAt: number
+  dateId: string
   stageEndTimestamp: number | null
   stageIndex: number
   completedStages: number
@@ -37,11 +38,16 @@ export const GYM_TIMER_STAGES = [
 
 const FACE_APPROACH_SECONDS = 20
 
-export function createActiveTimer(kind: HealthTimerKind, now = Date.now()): ActiveHealthTimer {
+export function createActiveTimer(
+  kind: HealthTimerKind,
+  now = Date.now(),
+  dateId = getLocalDateId(now),
+): ActiveHealthTimer {
   return {
     kind,
     status: 'running',
     startedAt: now,
+    dateId,
     stageEndTimestamp: now + getStageSeconds(kind, 0) * 1000,
     stageIndex: 0,
     completedStages: 0,
@@ -226,12 +232,22 @@ function normalizeTimer(value: unknown): ActiveHealthTimer | null {
     kind: value.kind,
     status: value.status,
     startedAt,
+    dateId: isDateId(value.dateId) ? value.dateId : getLocalDateId(startedAt),
     stageEndTimestamp,
     stageIndex,
     completedStages,
     pausedRemainingMs,
     completedAt: null,
   }
+}
+
+function getLocalDateId(timestamp: number): string {
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function isDateId(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
