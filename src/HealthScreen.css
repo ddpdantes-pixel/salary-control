@@ -1476,7 +1476,7 @@
 .health-settings-heading .is-saved { color: var(--success); background: var(--success-soft); }
 .health-settings-heading .is-dirty { color: #8a5700; background: #fff1cc; }
 .health-settings-history-note { padding: 12px 14px; }
-.health-settings-group { overflow: clip; }
+.health-settings-group { overflow: visible; }
 .health-settings-group summary { min-height: 48px; padding: 14px 16px; cursor: pointer; font-size: 15px; font-weight: 800; }
 .health-settings-group[open] summary { border-bottom: 1px solid var(--border); }
 .health-settings-group-body { display: grid; gap: 14px; padding: 16px; }

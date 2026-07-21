@@ -142,6 +142,26 @@ describe('экран здоровья сегодня', () => {
     expect(within(screen.getByRole('group', { name: 'Количество кружек воды' })).getByRole('button', { name: '7' })).not.toBeNull()
   })
 
+  it('сохраняет следующую дату косметологии локально и восстанавливает её после повторного открытия', async () => {
+    const user = userEvent.setup()
+    const first = render(<HealthScreen />)
+    await user.click(screen.getByRole('tab', { name: 'Настройки' }))
+    await user.click(screen.getByText('Косметология'))
+    const barber = screen.getByTestId('cosmetology-next-date-barber') as HTMLInputElement
+
+    await user.click(barber)
+    expect(screen.getByRole('tab', { name: 'Сегодня' })).not.toBeNull()
+    fireEvent.change(barber, { target: { value: '2026-08-22' } })
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }))
+    expect(JSON.parse(window.localStorage.getItem(HEALTH_SETTINGS_KEY) ?? '{}').cosmetology.intervals[0].nextDate).toBe('2026-08-22')
+
+    first.unmount()
+    render(<HealthScreen />)
+    await user.click(screen.getByRole('tab', { name: 'Настройки' }))
+    await user.click(screen.getByText('Косметология'))
+    expect((screen.getByTestId('cosmetology-next-date-barber') as HTMLInputElement).value).toBe('2026-08-22')
+  })
+
   it('предупреждает браузер о несохранённых настройках перед обновлением', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)

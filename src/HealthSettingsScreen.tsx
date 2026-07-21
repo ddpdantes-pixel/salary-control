@@ -5,6 +5,7 @@ import {
   formatDailyWaterGoal,
   getRelaxationMinutes,
   getLearningActivityTypes,
+  normalizeLocalDateId,
   parseDecimalSetting,
   validateHealthSettings,
   type LearningScheduleItem,
@@ -62,13 +63,15 @@ export function HealthSettingsScreen({
   }
 
   function save(): void {
-    const result = validateHealthSettings(draft)
+    const normalizedDraft = normalizeCosmetologyIntervalDates(draft)
+    const result = validateHealthSettings(normalizedDraft)
     setErrors(result.errors)
     if (!result.valid) {
       setMessage('Проверьте отмеченные поля')
       return
     }
-    if (onSave(structuredClone(draft))) {
+    if (onSave(structuredClone(normalizedDraft))) {
+      setDraft(normalizedDraft)
       setMessage('Настройки сохранены')
     } else {
       setMessage('Не удалось сохранить настройки')
@@ -109,6 +112,19 @@ export function HealthSettingsScreen({
           ? { ...item, ...patch, id: item.id, direction: item.direction, cadence: item.cadence }
           : item,
       ),
+    }))
+  }
+
+  function updateIntervalNextDate(intervalId: string, value: string): void {
+    const nextDate = normalizeLocalDateId(value)
+    updateDraft((current) => ({
+      ...current,
+      cosmetology: {
+        ...current.cosmetology,
+        intervals: current.cosmetology.intervals.map((candidate) =>
+          candidate.id === intervalId ? { ...candidate, nextDate } : candidate,
+        ),
+      },
     }))
   }
 
@@ -351,7 +367,31 @@ export function HealthSettingsScreen({
               {item.timerSeconds !== null && <NumberSetting label="Таймер, секунд" value={item.timerSeconds} min={1} max={7200} onChange={(timerSeconds) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, procedures: current.cosmetology.procedures.map((candidate) => candidate.id === item.id ? { ...candidate, timerSeconds } : candidate) } }))} />}
             </article>
           ))}
-          {draft.cosmetology.intervals.map((item) => <article key={item.id} className="health-settings-workout compact"><label className="health-settings-switch"><input type="checkbox" checked={item.active} onChange={(event) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, active: event.currentTarget.checked } : candidate) } }))} /><span>{item.title}</span><small>{item.nextDate ? `Следующая: ${item.nextDate}` : 'Укажите следующую дату'}</small></label><div className="health-settings-grid"><NumberSetting label="Интервал, недель" value={item.intervalWeeks} min={1} max={52} onChange={(intervalWeeks) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, intervalWeeks } : candidate) } }))} /><label className="health-settings-field"><span>Следующая дата</span><input type="date" value={item.nextDate ?? ''} onChange={(event) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, nextDate: event.currentTarget.value || null } : candidate) } }))} /></label></div></article>)}
+          {draft.cosmetology.intervals.map((item) => {
+            const nextDate = normalizeLocalDateId(item.nextDate) ?? ''
+            return (
+              <article key={item.id} className="health-settings-workout compact">
+                <label className="health-settings-switch">
+                  <input type="checkbox" checked={item.active} onChange={(event) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, active: event.currentTarget.checked } : candidate) } }))} />
+                  <span>{item.title}</span>
+                  <small>{nextDate ? `Следующая: ${nextDate}` : 'Укажите следующую дату'}</small>
+                </label>
+                <div className="health-settings-grid">
+                  <NumberSetting label="Интервал, недель" value={item.intervalWeeks} min={1} max={52} onChange={(intervalWeeks) => updateDraft((current) => ({ ...current, cosmetology: { ...current.cosmetology, intervals: current.cosmetology.intervals.map((candidate) => candidate.id === item.id ? { ...candidate, intervalWeeks } : candidate) } }))} />
+                  <label className="health-settings-field">
+                    <span>Следующая дата</span>
+                    <input
+                      type="date"
+                      aria-label={`Следующая дата: ${item.title}`}
+                      data-testid={`cosmetology-next-date-${item.id}`}
+                      value={nextDate}
+                      onChange={(event) => updateIntervalNextDate(item.id, event.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+              </article>
+            )
+          })}
         </div>
       </SettingsGroup>
 
@@ -396,6 +436,17 @@ function getLearningActivityLabel(activityType: LearningScheduleItem['activityTy
     : activityType === 'lesson'
       ? 'Урок'
       : 'Практика'
+}
+
+function normalizeCosmetologyIntervalDates(settings: HealthSettings): HealthSettings {
+  const intervals = settings.cosmetology.intervals.map((item) => ({
+    ...item,
+    nextDate: normalizeLocalDateId(item.nextDate),
+  }))
+  const changed = intervals.some((item, index) => item.nextDate !== settings.cosmetology.intervals[index].nextDate)
+  return changed
+    ? { ...settings, cosmetology: { ...settings.cosmetology, intervals } }
+    : settings
 }
 
 function SettingsGroup({ title, open = false, children }: { title: string; open?: boolean; children: React.ReactNode }) {

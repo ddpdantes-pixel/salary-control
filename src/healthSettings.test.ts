@@ -13,6 +13,8 @@ import {
   getActiveWorkouts,
   getRelaxationMinutes,
   loadStoredHealthSettings,
+  normalizeHealthSettings,
+  normalizeLocalDateId,
   parseDecimalSetting,
   saveStoredHealthSettings,
   validateHealthSettings,
@@ -78,6 +80,42 @@ describe('настройки здоровья', () => {
     expect(settings.water).toEqual({ goalCups: 6, cupVolumeMl: 250 })
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+
+  it('безопасно нормализует локальные даты интервальной косметологии', () => {
+    expect(normalizeLocalDateId('2026-02-28')).toBe('2026-02-28')
+    expect(normalizeLocalDateId('2024-02-29')).toBe('2024-02-29')
+    expect(normalizeLocalDateId('2026-02-30')).toBeNull()
+    expect(normalizeLocalDateId('2026-13-01')).toBeNull()
+    expect(normalizeLocalDateId('')).toBeNull()
+    expect(normalizeLocalDateId(undefined)).toBeNull()
+    expect(normalizeLocalDateId(null)).toBeNull()
+
+    const settings = createDefaultHealthSettings()
+    settings.cosmetology.intervals[0].nextDate = '2026-02-30'
+    settings.cosmetology.intervals[1].nextDate = '2026-08-22'
+
+    const normalized = normalizeHealthSettings(settings)
+    expect(normalized.cosmetology.intervals[0].nextDate).toBeNull()
+    expect(normalized.cosmetology.intervals[1].nextDate).toBe('2026-08-22')
+  })
+
+  it('безопасно импортирует старую копию с пустыми, отсутствующими и повреждёнными следующими датами', () => {
+    const settings = createDefaultHealthSettings()
+    const backup = createBackupData([], null, null, null, null, settings)
+    const legacy = JSON.parse(JSON.stringify(backup)) as typeof backup
+    const intervals = legacy.healthSettings?.cosmetology.intervals
+    if (!intervals) throw new Error('Health settings are required for this test')
+    intervals[0].nextDate = null
+    delete (intervals[1] as Partial<typeof intervals[number]>).nextDate
+    intervals[2].nextDate = '2026-02-30'
+
+    const restored = parseBackupData(JSON.stringify(legacy)).healthSettings
+    expect(restored?.cosmetology.intervals.slice(0, 3).map((item) => item.nextDate)).toEqual([
+      null,
+      null,
+      null,
+    ])
   })
 
   it('содержит прежние стабильные workoutId и полный комплекс 14 минут', () => {

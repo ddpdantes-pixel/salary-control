@@ -197,6 +197,28 @@ export function saveStoredHealthSettings(settings: HealthSettings): boolean {
   }
 }
 
+/**
+ * Validates a calendar date without converting it through UTC.  Date inputs
+ * must never receive an impossible value such as 2026-02-30 on iOS.
+ */
+export function normalizeLocalDateId(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null
+  }
+
+  const date = new Date(year, month - 1, day, 12)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+    ? value
+    : null
+}
+
 export function normalizeHealthSettings(value: unknown): HealthSettings {
   const defaults = createDefaultHealthSettings()
   if (!isRecord(value)) return defaults
@@ -539,7 +561,7 @@ function isLearningDirection(value: unknown): value is LearningScheduleDirection
 }
 
 function isIsoDate(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T12:00:00`).getTime())
+  return normalizeLocalDateId(value) !== null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
