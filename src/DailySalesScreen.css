@@ -545,26 +545,38 @@
   min-width: 0;
   border-left: 4px solid #b8c1bf;
   padding: 9px 11px;
+  background: var(--surface);
   text-align: left;
 }
 
-.daily-sales-day.work {
-  border-left-color: #d48a2b;
+.daily-sales-day.is-filled {
+  border-left-color: #9aa8a3;
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--border-soft);
 }
 
-.daily-sales-day.rest {
-  border-left-color: #9ca6a4;
+.daily-sales-day.is-missing {
+  border-left-color: #d48a2b;
+  background: #fff8ed;
+  box-shadow: inset 0 0 0 1px #e8c58d, var(--shadow-soft);
+}
+
+.daily-sales-day.is-upcoming,
+.daily-sales-day.is-rest,
+.daily-sales-day.is-neutral {
+  border-left-color: #b8c1bf;
   background: var(--surface-muted);
 }
 
-.daily-sales-day.has-entry {
-  box-shadow: 0 0 0 1px #e5ad62, var(--shadow-soft);
+.daily-sales-day.is-filled .daily-sales-day-amount {
+  color: var(--text-primary);
 }
 
 .daily-sales-day-date,
 .daily-sales-day-status {
   display: grid;
   min-width: 0;
+  gap: 2px;
 }
 
 .daily-sales-day-date strong {
@@ -582,6 +594,26 @@
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.daily-sales-day-completion {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.daily-sales-day-completion.is-filled {
+  color: #3e7463;
+}
+
+.daily-sales-day-completion.is-missing {
+  color: #966018;
 }
 
 .daily-sales-day-amount {

@@ -239,6 +239,115 @@ describe('экран независимых ежедневных продаж', 
     expect(Object.values(latestState.entries)[0].amountKopecks).toBe(70_000)
   })
 
+  it('визуально отличает заполненные дни с положительной и нулевой суммой', () => {
+    const state = createDefaultDailySalesState()
+    state.settings.cycleAnchorDate = '2026-07-01'
+    state.entries['2026-07-01'] = createEntry('2026-07-01', 125_000)
+    state.entries['2026-07-02'] = createEntry('2026-07-02', 0)
+
+    render(
+      <TestScreen
+        initialState={state}
+        monthId="2026-07"
+        todayIsoDate="2026-07-15"
+      />,
+    )
+
+    const positive = screen.getByRole('button', {
+      name: 'Изменить продажу 1 июля 2026. Тип дня: Рабочий. 1 250,00 ₽. Заполнено',
+    })
+    const zero = screen.getByRole('button', {
+      name: 'Изменить продажу 2 июля 2026. Тип дня: Рабочий. 0 ₽. Заполнено',
+    })
+
+    expect(positive.getAttribute('data-sale-entry-state')).toBe('is-filled')
+    expect(zero.getAttribute('data-sale-entry-state')).toBe('is-filled')
+    expect(zero.textContent).toContain('0 ₽')
+    expect(zero.textContent).not.toContain('Не заполнено')
+  })
+
+  it('отмечает прошедший и текущий рабочий день без записи, но не будущий день', () => {
+    const state = createDefaultDailySalesState()
+    state.settings.cycleAnchorDate = '2026-07-01'
+
+    render(
+      <TestScreen
+        initialState={state}
+        monthId="2026-07"
+        todayIsoDate="2026-07-15"
+      />,
+    )
+
+    const past = screen.getByRole('button', {
+      name: 'Добавить продажу 3 июля 2026. Тип дня: Рабочий. Добавить. Не заполнено',
+    })
+    const current = screen.getByRole('button', {
+      name: 'Добавить продажу 15 июля 2026. Тип дня: Рабочий. Добавить. Не заполнено',
+    })
+    const future = screen.getByRole('button', {
+      name: 'Добавить продажу 31 июля 2026. Тип дня: Рабочий. Добавить. Будущий день',
+    })
+
+    expect(past.getAttribute('data-sale-entry-state')).toBe('is-missing')
+    expect(current.getAttribute('data-sale-entry-state')).toBe('is-missing')
+    expect(future.getAttribute('data-sale-entry-state')).toBe('is-upcoming')
+    expect(future.textContent).not.toContain('Не заполнено')
+  })
+
+  it('оставляет выходной без записи нейтральным, а заполненный выходной считает заполненным', () => {
+    const state = createDefaultDailySalesState()
+    state.settings.cycleAnchorDate = '2026-07-01'
+    state.entries['2026-07-05'] = createEntry('2026-07-05', 0)
+
+    render(
+      <TestScreen
+        initialState={state}
+        monthId="2026-07"
+        todayIsoDate="2026-07-15"
+      />,
+    )
+
+    const filledRest = screen.getByRole('button', {
+      name: 'Изменить продажу 5 июля 2026. Тип дня: Выходной. 0 ₽. Заполнено',
+    })
+    const emptyRest = screen.getByRole('button', {
+      name: 'Добавить продажу 6 июля 2026. Тип дня: Выходной. Добавить. Выходной',
+    })
+
+    expect(filledRest.getAttribute('data-sale-entry-state')).toBe('is-filled')
+    expect(emptyRest.getAttribute('data-sale-entry-state')).toBe('is-rest')
+  })
+
+  it('после сохранения нулевой суммы меняет карточку на заполненную без дубликата', async () => {
+    const user = userEvent.setup()
+    let latestState = createDefaultDailySalesState()
+    latestState.settings.cycleAnchorDate = '2026-07-01'
+
+    render(
+      <TestScreen
+        initialState={latestState}
+        monthId="2026-07"
+        todayIsoDate="2026-07-15"
+        onStateChange={(state) => { latestState = state }}
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Добавить продажу 3 июля 2026. Тип дня: Рабочий. Добавить. Не заполнено',
+      }),
+    )
+    await user.type(screen.getByLabelText('Сумма продажи'), '0')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(Object.keys(latestState.entries)).toEqual(['2026-07-03'])
+    expect(latestState.entries['2026-07-03']?.amountKopecks).toBe(0)
+    const savedZero = screen.getByRole('button', {
+      name: 'Изменить продажу 3 июля 2026. Тип дня: Рабочий. 0 ₽. Заполнено',
+    })
+    expect(savedZero.getAttribute('data-sale-entry-state')).toBe('is-filled')
+  })
+
   it('показывает оперативную аналитику и графики с одним десятичным знаком', () => {
     const state = createDefaultDailySalesState()
     const monthId = getLocalMonthId()
@@ -298,18 +407,22 @@ describe('экран независимых ежедневных продаж', 
 function TestScreen({
   initialState = createDefaultDailySalesState(),
   onStateChange,
+  monthId = getLocalMonthId(),
+  todayIsoDate = getLocalIsoDate(),
 }: {
   initialState?: DailySalesState
   onStateChange?: (state: DailySalesState) => void
+  monthId?: string
+  todayIsoDate?: string
 }) {
   const [state, setState] = React.useState(initialState)
-  const [monthId, setMonthId] = React.useState(getLocalMonthId())
+  const [selectedMonthId, setMonthId] = React.useState(monthId)
 
   return (
     <DailySalesScreen
       state={state}
-      monthId={monthId}
-      todayIsoDate={getLocalIsoDate()}
+      monthId={selectedMonthId}
+      todayIsoDate={todayIsoDate}
       onMonthChange={setMonthId}
       onChange={(updater) => {
         setState((current) => {
@@ -320,4 +433,14 @@ function TestScreen({
       }}
     />
   )
+}
+
+function createEntry(date: string, amountKopecks: number) {
+  return {
+    date,
+    amountKopecks,
+    note: '',
+    createdAt: `${date}T10:00:00.000Z`,
+    updatedAt: `${date}T10:00:00.000Z`,
+  }
 }

@@ -279,14 +279,29 @@ export function DailySalesScreen({
         <div className="daily-sales-day-list">
           {days.map((day) => {
             const entry = state.entries[day.date]
-            const status = getDayStatus(day.type, day.cycleDay, day.isOverridden)
+            const hasEntry = entry !== undefined
+            const dayStatus = getDayStatus(
+              day.type,
+              day.cycleDay,
+              day.isOverridden,
+            )
+            const completion = getDayCompletion(
+              day.date,
+              day.type,
+              hasEntry,
+              todayIsoDate,
+            )
+            const amountLabel = hasEntry
+              ? formatSaleDayAmount(entry.amountKopecks)
+              : 'Добавить'
 
             return (
               <button
                 key={day.date}
                 type="button"
-                className={`daily-sales-day ${day.type ?? 'unset'} ${entry ? 'has-entry' : ''}`}
-                aria-label={`${entry ? 'Изменить' : 'Добавить'} продажу ${formatDateLabel(day.date)}`}
+                className={`daily-sales-day ${day.type ?? 'unset'} ${completion.state}`}
+                data-sale-entry-state={completion.state}
+                aria-label={`${hasEntry ? 'Изменить' : 'Добавить'} продажу ${formatDateLabel(day.date)}. Тип дня: ${dayStatus.label}. ${amountLabel}. ${completion.label}`}
                 onClick={() => setEditingDate(day.date)}
               >
                 <span className="daily-sales-day-date">
@@ -294,11 +309,15 @@ export function DailySalesScreen({
                   <small>{day.weekdayLabel}</small>
                 </span>
                 <span className="daily-sales-day-status">
-                  <strong>{status.label}</strong>
-                  <small>{status.detail}</small>
+                  <strong>{dayStatus.label}</strong>
+                  {dayStatus.detail && <small>{dayStatus.detail}</small>}
+                  <span className={`daily-sales-day-completion ${completion.state}`}>
+                    {completion.icon && <span aria-hidden="true">{completion.icon}</span>}
+                    {completion.label}
+                  </span>
                 </span>
                 <span className="daily-sales-day-amount">
-                  {entry ? formatMoney(entry.amountKopecks) : 'Добавить'}
+                  {amountLabel}
                 </span>
               </button>
             )
@@ -555,6 +574,35 @@ function getDayStatus(
   }
 }
 
+function getDayCompletion(
+  date: string,
+  type: DailySalesDayOverride | null,
+  hasEntry: boolean,
+  todayIsoDate: string,
+): {
+  state: 'is-filled' | 'is-missing' | 'is-upcoming' | 'is-rest' | 'is-neutral'
+  label: string
+  icon: string | null
+} {
+  if (hasEntry) {
+    return { state: 'is-filled', label: 'Заполнено', icon: '✓' }
+  }
+
+  if (date > todayIsoDate) {
+    return { state: 'is-upcoming', label: 'Будущий день', icon: null }
+  }
+
+  if (type === 'work') {
+    return { state: 'is-missing', label: 'Не заполнено', icon: '+' }
+  }
+
+  if (type === 'rest') {
+    return { state: 'is-rest', label: 'Выходной', icon: null }
+  }
+
+  return { state: 'is-neutral', label: 'График не настроен', icon: null }
+}
+
 function formatAmountInput(kopecks: number): string {
   const rubles = Math.trunc(kopecks / 100)
   const fraction = kopecks % 100
@@ -567,6 +615,10 @@ function formatAmountInput(kopecks: number): string {
   return fraction === 0
     ? formattedRubles
     : `${formattedRubles},${String(fraction).padStart(2, '0')}`
+}
+
+function formatSaleDayAmount(kopecks: number): string {
+  return kopecks === 0 ? '0 ₽' : formatMoney(kopecks)
 }
 
 function formatPercent(value: number): string {

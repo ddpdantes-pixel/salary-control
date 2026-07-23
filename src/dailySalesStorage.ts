@@ -155,6 +155,10 @@ function normalizeOverrides(
 }
 
 function normalizeNonNegativeKopecks(value: unknown): number | null {
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    value = Number(value)
+  }
+
   if (
     typeof value !== 'number' ||
     !Number.isSafeInteger(value) ||
