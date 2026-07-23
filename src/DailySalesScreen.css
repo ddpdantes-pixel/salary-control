@@ -619,15 +619,75 @@
   box-shadow: var(--shadow);
 }
 
+.daily-sales-dialog > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
 .daily-sales-dialog > div:first-child p {
+  margin: 0;
   color: var(--daily-sales-accent);
   font-size: 13px;
   font-weight: 700;
 }
 
-.daily-sales-dialog textarea {
-  min-height: 72px;
-  resize: vertical;
+.daily-sales-dialog > div:first-child h2 {
+  margin: 0;
+}
+
+.daily-sales-amount-field {
+  gap: 7px !important;
+  border: 1px solid #e8c58d;
+  border-radius: var(--radius);
+  padding: 12px;
+  background: #fff8ed;
+}
+
+.daily-sales-amount-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid #c97914;
+  border-radius: var(--radius-small);
+  padding: 3px 12px;
+  background: var(--surface);
+  box-shadow: 0 1px 0 rgba(116, 65, 0, 0.06);
+}
+
+.daily-sales-amount-input:focus-within {
+  border-color: #8a4500;
+  box-shadow: 0 0 0 3px rgba(201, 121, 20, 0.2);
+}
+
+.daily-sales-amount-input input {
+  min-height: 48px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.daily-sales-amount-input input:focus {
+  outline: 0;
+}
+
+.daily-sales-amount-input input::placeholder {
+  color: #887c6b;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.daily-sales-amount-input b {
+  color: var(--daily-sales-accent);
+  font-size: 20px;
+}
+
+.daily-sales-dialog label small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .daily-sales-dialog-actions {

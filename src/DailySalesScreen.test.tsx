@@ -49,20 +49,61 @@ describe('экран независимых ежедневных продаж', 
     expect(screen.getByText('График 4/2 настроен')).not.toBeNull()
   })
 
-  it('добавляет сумму через запятую и сохраняет её в копейках', async () => {
+  it('показывает одну дату, заметное поле суммы и сохраняет новую запись в копейках', async () => {
     const user = userEvent.setup()
     let latestState = createDefaultDailySalesState()
     render(<TestScreen onStateChange={(state) => { latestState = state }} />)
 
     await user.click(screen.getAllByRole('button', { name: /Добавить продажу/ })[0])
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.querySelectorAll('input[type="date"]')).toHaveLength(0)
+    expect(screen.queryByText('Дата')).toBeNull()
+
+    const amount = screen.getByLabelText('Сумма продажи')
+    expect(amount).toHaveProperty('inputMode', 'decimal')
+    expect(amount).toHaveProperty('placeholder', 'Введите сумму')
+    expect(dialog.querySelector('.daily-sales-amount-field')).not.toBeNull()
     await user.type(screen.getByLabelText('Сумма продажи'), '1234,56')
-    await user.type(screen.getByLabelText('Заметка'), 'Клиент из салона')
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     const entry = Object.values(latestState.entries)[0]
     expect(entry.amountKopecks).toBe(123_456)
-    expect(entry.note).toBe('Клиент из салона')
+    expect(entry.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(entry.note).toBe('')
+    expect(Object.keys(latestState.entries)).toHaveLength(1)
     expect(screen.getAllByText('1 234,56 ₽').length).toBeGreaterThan(0)
+  })
+
+  it('не показывает заметку и сохраняет старую заметку при редактировании суммы', async () => {
+    const user = userEvent.setup()
+    const state = createDefaultDailySalesState()
+    const date = `${getLocalMonthId()}-01`
+    state.entries[date] = {
+      date,
+      amountKopecks: 10_000,
+      note: 'Старый комментарий',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T00:00:00.000Z',
+    }
+    let latestState = state
+    render(<TestScreen initialState={state} onStateChange={(next) => { latestState = next }} />)
+
+    await user.click(screen.getByRole('button', { name: /Изменить продажу/ }))
+    expect(screen.queryByLabelText('Заметка')).toBeNull()
+    expect(screen.queryByText('Заметка')).toBeNull()
+    expect(screen.getByRole('dialog').querySelectorAll('input[type="date"]')).toHaveLength(0)
+
+    const amount = screen.getByLabelText('Сумма продажи')
+    await user.clear(amount)
+    await user.type(amount, '250')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(latestState.entries[date]).toMatchObject({
+      date,
+      amountKopecks: 25_000,
+      note: 'Старый комментарий',
+    })
+    expect(Object.keys(latestState.entries)).toEqual([date])
   })
 
   it('держит мобильную форму в видимой области и полностью снимает scroll lock', async () => {
@@ -140,6 +181,19 @@ describe('экран независимых ежедневных продаж', 
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(screen.getByText('Сумма должна быть положительной или равной нулю.')).not.toBeNull()
+    expect(latestState.entries).toEqual({})
+  })
+
+  it('закрывает форму по отмене без сохранения', async () => {
+    const user = userEvent.setup()
+    let latestState = createDefaultDailySalesState()
+    render(<TestScreen onStateChange={(state) => { latestState = state }} />)
+
+    await user.click(screen.getAllByRole('button', { name: /Добавить продажу/ })[0])
+    await user.type(screen.getByLabelText('Сумма продажи'), '900')
+    await user.click(screen.getByRole('button', { name: 'Отмена' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(latestState.entries).toEqual({})
   })
 

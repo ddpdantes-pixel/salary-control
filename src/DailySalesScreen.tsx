@@ -334,7 +334,6 @@ function DailySaleDialog({
   const [amountText, setAmountText] = useState(() =>
     entry ? formatAmountInput(entry.amountKopecks) : '',
   )
-  const [note, setNote] = useState(entry?.note ?? '')
   const [dayMode, setDayMode] = useState<DayMode>(
     state.dayOverrides[date] ?? 'automatic',
   )
@@ -382,11 +381,12 @@ function DailySaleDialog({
       const entries = { ...current.entries }
       const dayOverrides = { ...current.dayOverrides }
 
-      if (amountText.trim() !== '' || note.trim() !== '' || entry) {
+      if (amountText.trim() !== '' || entry) {
         entries[date] = {
           date,
           amountKopecks,
-          note: note.trim(),
+          // Keep notes from older records, but do not create or edit them here.
+          note: entry?.note ?? '',
           createdAt: entry?.createdAt ?? nowIso,
           updatedAt: nowIso,
         }
@@ -428,28 +428,19 @@ function DailySaleDialog({
           <p>Ежедневная продажа</p>
           <h2 id="daily-sale-dialog-title">{formatDateLabel(date)}</h2>
         </div>
-        <label>
-          <span>Дата</span>
-          <input type="date" value={date} readOnly />
-        </label>
-        <label>
+        <label className="daily-sales-amount-field">
           <span>Сумма продажи</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={amountText}
-            aria-label="Сумма продажи"
-            onChange={(event) => setAmountText(event.currentTarget.value)}
-          />
-        </label>
-        <label>
-          <span>Заметка</span>
-          <textarea
-            value={note}
-            aria-label="Заметка"
-            rows={3}
-            onChange={(event) => setNote(event.currentTarget.value)}
-          />
+          <span className="daily-sales-amount-input">
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="Введите сумму"
+              value={amountText}
+              aria-label="Сумма продажи"
+              onChange={(event) => setAmountText(event.currentTarget.value)}
+            />
+            <b aria-hidden="true">₽</b>
+          </span>
         </label>
         <label>
           <span>Тип дня</span>
@@ -462,6 +453,7 @@ function DailySaleDialog({
             <option value="work">Рабочий</option>
             <option value="rest">Выходной</option>
           </select>
+          <small>Обычно менять не нужно</small>
         </label>
         {error && <p className="daily-sales-error">{error}</p>}
         <div className="daily-sales-dialog-actions">
