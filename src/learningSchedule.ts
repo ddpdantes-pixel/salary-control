@@ -17,6 +17,14 @@ export interface LearningPlanItem {
   completionDate: string | null
 }
 
+interface LearningCompletion {
+  id: string
+  date: string
+  direction: LearningScheduleDirection
+  activityType: LearningScheduleActivityType
+  number: number | null
+}
+
 export interface CurrentLearningPlan {
   items: LearningPlanItem[]
   openItems: LearningPlanItem[]
@@ -39,7 +47,9 @@ export function buildCurrentLearningPlan(
         available.has(candidate.id) &&
         candidate.direction === item.direction &&
         candidate.activityType === item.activityType &&
-        candidate.date >= item.date,
+        (isSingleWeeklyPorcelainLesson(item)
+          ? candidate.date >= weekStart && candidate.date <= todayIsoDate
+          : candidate.date >= item.date),
     )
     if (completion) available.delete(completion.id)
     return {
@@ -123,20 +133,31 @@ function listCompletions(
   entries: Record<string, HealthEntry>,
   weekStart: string,
   todayIsoDate: string,
-): Array<{ id: string; date: string; direction: LearningScheduleDirection; activityType: LearningScheduleActivityType }> {
+): LearningCompletion[] {
+  const seen = new Set<string>()
   return Object.values(entries)
     .filter((entry) => entry.date >= weekStart && entry.date <= todayIsoDate)
     .flatMap((entry) => (Object.keys(entry.learning) as LearningScheduleDirection[]).flatMap((direction) => {
       const learning = entry.learning[direction]
       if (learning.status !== 'done' || learning.activityType === null || !getLearningActivityTypes(direction).includes(learning.activityType)) return []
+      const identity = `${direction}:${learning.activityType}:${learning.number ?? 'without-number'}:${entry.date}`
+      if (seen.has(identity)) return []
+      seen.add(identity)
       return [{
-        id: `${entry.date}:${direction}:${learning.activityType}`,
+        id: identity,
         date: entry.date,
         direction,
         activityType: learning.activityType,
+        number: learning.number,
       }]
     }))
     .sort((left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id))
+}
+
+function isSingleWeeklyPorcelainLesson(
+  item: Pick<LearningPlanItem, 'direction' | 'activityType'>,
+): boolean {
+  return item.direction === 'porcelain' && item.activityType === 'lesson'
 }
 
 function isScheduledOnDate(item: LearningScheduleItem, dateId: string): boolean {

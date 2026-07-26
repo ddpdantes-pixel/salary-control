@@ -379,6 +379,13 @@ describe('резервная копия', () => {
       completedDate: null,
       skippedDate: null,
     }
+    healthState.taskDebts['global-tile-vogclub:2026-07-12'] = {
+      id: 'global-tile-vogclub:2026-07-12',
+      taskId: 'global-tile-vogclub',
+      title: 'Внести продажи Global Tile в VogClub',
+      plannedDate: '2026-07-12',
+      completedDate: '2026-07-13',
+    }
 
     const backup = createBackupData(
       [month],
@@ -427,6 +434,10 @@ describe('резервная копия', () => {
     expect(restored.healthState?.cosmetologyDebts['blood-peel-timer:2026-07-13']).toMatchObject({
       plannedDate: '2026-07-13',
       completedDate: null,
+    })
+    expect(restored.healthState?.taskDebts['global-tile-vogclub:2026-07-12']).toMatchObject({
+      plannedDate: '2026-07-12',
+      completedDate: '2026-07-13',
     })
     expect(restoredAgain).toEqual(restored)
     expect(restored.months).toHaveLength(1)

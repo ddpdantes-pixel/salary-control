@@ -53,6 +53,21 @@ describe('расписание обучения', () => {
     expect(plan.items.find((item) => item.id === 'cavist-thursday:2026-07-16')).toMatchObject({ fulfilled: true })
   })
 
+  it('не создаёт повторный урок керамогранита после выполнения на текущей неделе', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const monday = createHealthEntry('2026-07-20')
+    monday.learning.porcelain = { status: 'done', activityType: 'lesson', number: 7, note: '' }
+
+    const plan = buildCurrentLearningPlan(settings, { [monday.date]: monday }, '2026-07-24')
+    const porcelainLessons = plan.items.filter(
+      (item) => item.direction === 'porcelain' && item.activityType === 'lesson',
+    )
+
+    expect(porcelainLessons).toHaveLength(1)
+    expect(porcelainLessons[0]).toMatchObject({ fulfilled: true, completionDate: '2026-07-20' })
+    expect(plan.openItems).not.toContainEqual(expect.objectContaining({ direction: 'porcelain', activityType: 'lesson' }))
+  })
+
   it('считает следующий номер из максимального сохранённого номера отдельного типа', () => {
     const first = createHealthEntry('2026-07-01')
     first.learning.porcelain = { status: 'done', activityType: 'lesson', number: 3, note: '' }

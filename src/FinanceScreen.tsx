@@ -171,6 +171,10 @@ export function FinanceScreen({
                 </span>
               </p>
             )}
+            <div className="finance-planning-summary" role="status">
+              <b>{overview.planning.headline}</b>
+              <span>{overview.planning.detail}</span>
+            </div>
           </section>
 
           {monthSummary && (

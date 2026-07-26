@@ -371,10 +371,34 @@ describe('финансовые расчёты', () => {
       forecastUntilIsoDate: '2026-07-31',
     })
 
-    expect(forecast.forecastBalanceKopecks).toBe(rublesToKopecks(10_000))
-    expect(forecast.timeline).toEqual([])
-    expect(forecast.hasUnknownRequiredAmounts).toBe(true)
-    expect(forecast.coverageStatus).toBe('unknown')
+    expect(forecast.forecastBalanceKopecks).toBe(rublesToKopecks(9_000))
+    expect(forecast.timeline.map((item) => item.operation.id)).toEqual(['known-expense'])
+    expect(forecast.hasUnknownRequiredAmounts).toBe(false)
+    expect(forecast.coverageStatus).toBe('covered')
+  })
+
+  it('агрегирует операции одного дня и определяет дефицит по остатку на конец дня', () => {
+    const anchor = { ...INITIAL_CREDIT_ACCOUNT_ANCHOR, date: '2026-08-01', balanceKopecks: rublesToKopecks(1_000) }
+    const income = makeOperation({ id: 'income', date: '2026-08-02', amountKopecks: rublesToKopecks(500), direction: 'income', status: 'planned' })
+    const expenseA = makeOperation({ id: 'expense-a', date: '2026-08-02', amountKopecks: rublesToKopecks(800), direction: 'expense', status: 'planned' })
+    const expenseB = makeOperation({ id: 'expense-b', date: '2026-08-02', amountKopecks: rublesToKopecks(900), direction: 'expense', status: 'planned' })
+    const first = calculateForecastBalance({ anchors: [anchor], operations: [expenseB, income, expenseA], todayIsoDate: '2026-08-01', forecastUntilIsoDate: '2026-08-10' })
+    const second = calculateForecastBalance({ anchors: [anchor], operations: [income, expenseA, expenseB], todayIsoDate: '2026-08-01', forecastUntilIsoDate: '2026-08-10' })
+
+    expect(first.dailyTimeline[0]).toMatchObject({ incomeKopecks: rublesToKopecks(500), expenseKopecks: rublesToKopecks(1_700), balanceAfterKopecks: rublesToKopecks(-200) })
+    expect(first.firstNegativeDate).toBe('2026-08-02')
+    expect(first.firstNegativeBalanceKopecks).toBe(rublesToKopecks(-200))
+    expect(second.firstNegativeBalanceKopecks).toBe(first.firstNegativeBalanceKopecks)
+  })
+
+  it('не считает нулевой остаток дефицитом и сохраняет его как минимум периода', () => {
+    const anchor = { ...INITIAL_CREDIT_ACCOUNT_ANCHOR, date: '2026-08-01', balanceKopecks: rublesToKopecks(1_000) }
+    const expense = makeOperation({ id: 'zero-balance', date: '2026-08-02', amountKopecks: rublesToKopecks(1_000), direction: 'expense', status: 'planned' })
+    const forecast = calculateForecastBalance({ anchors: [anchor], operations: [expense], todayIsoDate: '2026-08-01', forecastUntilIsoDate: '2026-08-10' })
+
+    expect(forecast.firstNegativeDate).toBeNull()
+    expect(forecast.minimumBalanceKopecks).toBe(0)
+    expect(forecast.minimumBalanceDate).toBe('2026-08-02')
   })
 
   it('просит уточнить сумму, скопированную из прошлого месяца', () => {

@@ -97,13 +97,8 @@ describe('данные финансового обзора', () => {
     expect(overview.nextIncome?.operation.amountKopecks).toBeNull()
     expect(overview.nextIncome?.plan).toBeNull()
     expect(overview.nextIncome?.plan?.shortageKopecks).toBeUndefined()
-    expect(overview.coverage).toMatchObject({
-      tone: 'neutral',
-      headline: 'Остаток пока не рассчитан',
-    })
-    expect(overview.coverage.detail).toBe(
-      'Сумма связанной выплаты пока неизвестна.',
-    )
+    expect(overview.coverage).toMatchObject({ tone: 'danger' })
+    expect(overview.operations.find((operation) => operation.id === 'salary-transfer-2026-07-15')?.amountKopecks).toBeNull()
   })
 
   it('использует прогноз виртуально и не добавляет его в FinanceState', () => {
@@ -221,7 +216,7 @@ describe('данные финансового обзора', () => {
 
     expect(overview.coverage.tone).toBe('success')
     expect(overview.coverage.headline).toBe('Ближайшие платежи обеспечены')
-    expect(overview.coverage.detail).toContain('25 июля')
+    expect(overview.coverage.detail).toContain('Хватит до')
   })
 
   it('формирует красное состояние с суммой и первым дефицитным платежом', () => {
@@ -247,6 +242,40 @@ describe('данные финансового обзора', () => {
     expect(overview.coverage.tone).toBe('danger')
     expect(overview.coverage.headline).toBe('Не хватает 7 947,37 ₽')
     expect(overview.coverage.detail).toContain('12 июля — Яндекс Сплит')
+  })
+
+  it('показывает компактный плановый итог и продлевает период до последнего обязательства', () => {
+    const state = createDefaultFinanceState()
+    const overview = buildFinanceOverview({ state, salaryMonths: createSalaryMonths(), todayIsoDate: '2026-07-10' })
+
+    expect(overview.forecast.forecastEndDate).toBe('2027-02-12')
+    expect(overview.planning.headline).toMatch(/^Планируемое:/)
+    expect(overview.planning.detail).toMatch(/Минимальный ожидаемый остаток|Первый ожидаемый дефицит/)
+  })
+
+  it('сразу пересчитывает прогноз после изменения обязательства', () => {
+    const state = createDefaultFinanceState()
+    const before = buildFinanceOverview({ state, salaryMonths: createSalaryMonths(), todayIsoDate: '2026-07-10' })
+    const operation = state.operations.find((item) => item.id === 'yandex-split-2026-07-12')!
+    const changed = {
+      ...state,
+      operations: state.operations.map((item) => item.id === operation.id
+        ? { ...item, amountKopecks: (item.amountKopecks ?? 0) + rublesToKopecks(1_000) }
+        : item),
+    }
+    const after = buildFinanceOverview({ state: changed, salaryMonths: createSalaryMonths(), todayIsoDate: '2026-07-10' })
+
+    expect(after.forecast.minimumBalanceKopecks).toBe(before.forecast.minimumBalanceKopecks - rublesToKopecks(1_000))
+  })
+
+  it('не переносит разовый доход прошлого месяца как новую операцию', () => {
+    const state = createDefaultFinanceState()
+    state.operations.push({
+      id: 'one-off-income', date: '2026-06-30', title: 'Разовый доход', amountKopecks: rublesToKopecks(50_000), direction: 'income', status: 'completed', source: 'manual', category: 'manualIncome', amountSource: 'explicit', sortOrder: 999, createdAt: '2026-06-30T10:00:00.000Z', updatedAt: '2026-06-30T10:00:00.000Z',
+    })
+    const operations = buildOverviewOperations({ state, salaryMonths: createSalaryMonths(), todayIsoDate: '2026-07-10' })
+
+    expect(operations.filter((operation) => operation.title === 'Разовый доход')).toHaveLength(1)
   })
 
   it('не показывает completed-платёж как ближайший', () => {

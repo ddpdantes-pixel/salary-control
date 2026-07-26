@@ -50,6 +50,7 @@ describe('навигация раздела Деньги', () => {
     )
 
     expect(screen.getByText('Счёт для кредитов')).not.toBeNull()
+    expect(screen.getByText(/^Планируемое:/)).not.toBeNull()
     expect(screen.getByRole('heading', { name: 'Июль 2026' })).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Обновить остаток' })).not.toBeNull()
     expect(screen.queryByText('Ближайший платёж')).toBeNull()

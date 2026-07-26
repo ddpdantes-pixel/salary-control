@@ -158,6 +158,8 @@ function App() {
   const [financeState, setFinanceState] = useState<FinanceState | null>(null)
   const [dailySalesState, setDailySalesState] =
     useState<DailySalesState | null>(null)
+  const [healthState, setHealthState] = useState<HealthState>(() => loadStoredHealthState().state)
+  const [healthSettings, setHealthSettings] = useState<HealthSettings>(loadStoredHealthSettings)
   const [cashAtHome, setCashAtHome] = useState(createEmptyCashAtHomeState)
   const [paymentNotificationSettings, setPaymentNotificationSettings] =
     useState(createDefaultPaymentNotificationSettings)
@@ -540,8 +542,8 @@ function App() {
       selectedMonthId,
       financeState,
       dailySalesState,
-      loadStoredHealthState().state,
-      loadStoredHealthSettings(),
+      healthState,
+      healthSettings,
       cashAtHome,
       paymentNotificationSettings,
       loadPasswordVaultEnvelopeSafely(),
@@ -638,10 +640,11 @@ function App() {
     }
     if (pendingRestore.healthState) {
       saveStoredHealthState(pendingRestore.healthState)
+      setHealthState(pendingRestore.healthState)
     }
-    saveStoredHealthSettings(
-      pendingRestore.healthSettings ?? createDefaultHealthSettings(),
-    )
+    const restoredHealthSettings = pendingRestore.healthSettings ?? createDefaultHealthSettings()
+    saveStoredHealthSettings(restoredHealthSettings)
+    setHealthSettings(restoredHealthSettings)
     setCashAtHome(
       pendingRestore.cashAtHome ?? createEmptyCashAtHomeState(),
     )
@@ -880,8 +883,8 @@ function App() {
           todayIsoDate={getDailySalesLocalIsoDate()}
           financeState={financeState}
           salaryMonths={months}
-          healthEntries={loadStoredHealthState().state.entries}
-          healthSettings={loadStoredHealthSettings()}
+          healthState={healthState}
+          healthSettings={healthSettings}
           onMonthChange={selectOrCreateMonth}
           onShiftMonth={(offset) =>
             selectOrCreateMonth(
@@ -907,6 +910,7 @@ function App() {
             window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
           }}
           onOpenLearning={() => { setLearningFocusRequest((value) => value + 1); setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
+          onOpenHealth={() => { setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
           onOpenPasswords={() => { setPasswordVaultOpen(true); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
         />
       )}
@@ -989,6 +993,8 @@ function App() {
           learningFocusRequest={learningFocusRequest}
           timerController={healthTimer}
           timerOpenRequest={timerOpenRequest}
+          onStateChange={setHealthState}
+          onSettingsChange={setHealthSettings}
         />
       )}
 
@@ -1096,7 +1102,7 @@ function HomeScreen({
   todayIsoDate,
   financeState,
   salaryMonths,
-  healthEntries,
+  healthState,
   healthSettings,
   onMonthChange,
   onShiftMonth,
@@ -1104,6 +1110,7 @@ function HomeScreen({
   onOpenFinanceOverview,
   onOpenFinanceOperation,
   onOpenLearning,
+  onOpenHealth,
   onOpenPasswords,
 }: {
   month: SalaryMonth
@@ -1112,7 +1119,7 @@ function HomeScreen({
   todayIsoDate: string
   financeState: FinanceState | null
   salaryMonths: SalaryMonth[]
-  healthEntries: HealthState['entries']
+  healthState: HealthState
   healthSettings: HealthSettings
   onMonthChange: (monthId: string) => void
   onShiftMonth: (offset: number) => void
@@ -1120,6 +1127,7 @@ function HomeScreen({
   onOpenFinanceOverview: () => void
   onOpenFinanceOperation: (operation: import('./financeTypes').FinanceOperation) => void
   onOpenLearning: () => void
+  onOpenHealth: () => void
   onOpenPasswords: () => void
 }) {
   const financeOverview = useMemo(
@@ -1185,13 +1193,14 @@ function HomeScreen({
       />
       <HomeTodayCard
         overview={financeOverview}
-        entries={healthEntries}
+        healthState={healthState}
         settings={healthSettings}
         todayIsoDate={todayIsoDate}
         title={formatTodayTitle(todayIsoDate)}
         onOpenFinanceOverview={onOpenFinanceOverview}
         onOpenOperation={onOpenFinanceOperation}
         onOpenLearning={onOpenLearning}
+        onOpenHealth={onOpenHealth}
       />
       <button type="button" className="home-password-vault-card" onClick={onOpenPasswords}>
         <span aria-hidden="true">🔒</span>

@@ -469,6 +469,8 @@ export function createDefaultCosmetologySettings(now = new Date()): CosmetologyS
     procedures: [
       procedure('legs-cool-water', 'Ноги в прохладную воду', ['monday', 'friday'], 'После процедуры хорошо высушить стопы, особенно между пальцами', '20 минут'),
       procedure('face-cool-water', 'Лицо в прохладную воду', ['tuesday', 'thursday', 'saturday'], '20 секунд × 3 подхода', '20 секунд × 3', 'weekly', null, 20),
+      procedure('posture-corrector', 'Следить за спиной — корректор осанки', ['monday', 'wednesday', 'friday'], '', '60 минут'),
+      procedure('cold-shower-hardening', 'Закаливание после душа', ['tuesday', 'thursday', 'saturday'], '', '40 секунд'),
       procedure('toplash', 'Toplash — ресницы и брови', ['tuesday', 'saturday']),
       procedure('sadoer-mask', 'Кислородная маска Sadoer', ['wednesday'], '', '10–15 минут', 'biweekly', next(3)),
       procedure('vichy-vitamin-c', 'Vichy Liftactiv Vitamin C', ['wednesday'], '', '', 'biweekly', next(3)),
@@ -479,6 +481,7 @@ export function createDefaultCosmetologySettings(now = new Date()): CosmetologyS
       procedure('body-scrub', 'Скраб для тела', ['saturday']),
       procedure('body-butter', 'Крем-масло для тела после скраба', ['saturday'], 'Бархатные ручки — Нежная вуаль'),
       procedure('scalp-scrub', 'Скраб кожи головы перед шампунем', ['saturday'], 'Перед шампунем', '', 'biweekly', next(6)),
+      procedure('clay-face-mask', 'Глиняная маска для лица', ['friday']),
       procedure('blood-peel-timer', 'Кровавый пилинг ART&FACT', ['sunday'], '', '18 минут', 'weekly', null, 1080),
       procedure('neutralizer-timer', 'Нейтрализатор', ['sunday'], '', '4 минуты', 'weekly', null, 240),
       procedure('vichy-filler', 'Vichy H.A. Epidermic Filler', ['sunday']),

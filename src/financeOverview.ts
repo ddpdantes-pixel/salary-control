@@ -62,6 +62,11 @@ export interface FinanceCoverageSummary {
   detail: string
 }
 
+export interface FinancePlanningSummary {
+  headline: string
+  detail: string
+}
+
 export interface FinanceOverviewData {
   operations: FinanceOperation[]
   current: CurrentBalanceCalculation
@@ -70,6 +75,7 @@ export interface FinanceOverviewData {
   nextIncome: FinanceOverviewIncome | null
   upcomingObligations: FinanceOverviewObligation[]
   coverage: FinanceCoverageSummary
+  planning: FinancePlanningSummary
 }
 
 export interface FinanceMonthSummary {
@@ -84,10 +90,7 @@ export function buildFinanceOverview(input: {
   todayIsoDate: string
 }): FinanceOverviewData {
   const operations = buildOverviewOperations(input)
-  const forecastUntilIsoDate = addDays(
-    input.todayIsoDate,
-    input.state.settings.forecastDays,
-  )
+  const forecastUntilIsoDate = getForecastEndDate(input.state, input.todayIsoDate)
   const current = calculateCurrentBalance({
     anchors: input.state.anchors,
     operations,
@@ -154,6 +157,7 @@ export function buildFinanceOverview(input: {
         ),
       })),
     coverage: buildCoverageSummary(forecast, operations, input.todayIsoDate),
+    planning: buildPlanningSummary(forecast),
   }
 }
 
@@ -167,9 +171,7 @@ export function buildOverviewOperations(input: {
   const latestAnchor = getLatestBalanceAnchor(input.state.anchors)
   const startDate =
     input.rangeStartDate ?? latestAnchor?.date ?? input.todayIsoDate
-  const endDate =
-    input.rangeEndDate ??
-    addDays(input.todayIsoDate, input.state.settings.forecastDays)
+  const endDate = input.rangeEndDate ?? getForecastEndDate(input.state, input.todayIsoDate)
   const operationsById = new Map(
     input.state.operations.map((operation) => [operation.id, operation]),
   )
@@ -334,11 +336,7 @@ function buildCoverageSummary(
     }
   }
 
-  const firstDeficitPayment = forecast.timeline.find(
-    (item) =>
-      item.operation.direction === 'expense' &&
-      item.balanceAfterKopecks < 0,
-  )
+  const firstDeficitPayment = forecast.firstNegativeItem
 
   if (firstDeficitPayment) {
     return {
@@ -353,6 +351,14 @@ function buildCoverageSummary(
       tone: 'danger',
       headline: `Не хватает ${formatMoney(Math.abs(forecast.firstNegativeItem.balanceAfterKopecks))}`,
       detail: `Баланс станет отрицательным ${formatShortDateLabel(forecast.firstNegativeItem.operation.date)}.`,
+    }
+  }
+
+  if (forecast.firstNegativeDate && forecast.firstNegativeBalanceKopecks !== null) {
+    return {
+      tone: 'danger',
+      headline: `Не хватает ${formatMoney(Math.abs(forecast.firstNegativeBalanceKopecks))}`,
+      detail: `Баланс отрицательный с ${formatShortDateLabel(forecast.firstNegativeDate)}.`,
     }
   }
 
@@ -371,6 +377,41 @@ function buildCoverageSummary(
       ? `Хватит до ${formatShortDateLabel(forecast.coveredUntil)}.`
       : `Обеспечено платежей: ${forecast.coveredExpenseCount}.`,
   }
+}
+
+function buildPlanningSummary(forecast: BalanceForecast): FinancePlanningSummary {
+  if (forecast.hasUnknownRequiredAmounts) {
+    return {
+      headline: 'Планируемое: расчёт уточняется',
+      detail: 'Есть будущие операции с неизвестной суммой.',
+    }
+  }
+  if (forecast.firstNegativeDate && forecast.firstNegativeBalanceKopecks !== null) {
+    const startsImmediately = forecast.firstNegativeDate === forecast.forecastStartDate
+    return {
+      headline: startsImmediately
+        ? 'Планируемое: дефицит начинается сразу'
+        : `Планируемое: денег хватит до ${formatShortDateLabel(addDays(forecast.firstNegativeDate, -1))}`,
+      detail: `Первый ожидаемый дефицит — ${formatShortDateLabel(forecast.firstNegativeDate)}, не хватает ${formatMoney(Math.abs(forecast.firstNegativeBalanceKopecks))}`,
+    }
+  }
+  return {
+    headline: 'Планируемое: до конца расчётного периода денег хватает',
+    detail: `Минимальный ожидаемый остаток — ${formatMoney(forecast.minimumBalanceKopecks)}, ${formatShortDateLabel(forecast.minimumBalanceDate)}`,
+  }
+}
+
+function getForecastEndDate(state: FinanceState, todayIsoDate: string): string {
+  const anchorDate = getLatestBalanceAnchor(state.anchors)?.date ?? todayIsoDate
+  const minimumEnd = addDays(anchorDate, Math.max(60, state.settings.forecastDays))
+  const obligationDates = state.obligations.flatMap((obligation) => [
+    obligation.endDate,
+    ...obligation.payments.map((payment) => payment.date),
+  ]).filter((date): date is string => date !== null)
+  const latestKnownObligation = obligationDates.sort(compareIsoDates).at(-1)
+  return latestKnownObligation && compareIsoDates(latestKnownObligation, minimumEnd) > 0
+    ? latestKnownObligation
+    : minimumEnd
 }
 
 function getNextIncomeDate(

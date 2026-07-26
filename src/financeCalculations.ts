@@ -248,48 +248,59 @@ export function calculateForecastBalance(input: {
   forecastUntilIsoDate?: string
 }): BalanceForecast {
   const current = calculateCurrentBalance(input)
+  const forecastStartDate = current.anchor?.date ?? input.todayIsoDate
   const forecastUntilIsoDate =
-    input.forecastUntilIsoDate ?? addDays(input.todayIsoDate, 90)
+    input.forecastUntilIsoDate ?? addDays(forecastStartDate, 90)
   let forecastBalanceKopecks = current.balanceKopecks
   const timeline: BalanceTimelineItem[] = []
+  const dailyTimeline: BalanceForecast['dailyTimeline'] = []
   let firstNegativeItem: BalanceTimelineItem | null = null
+  let firstNegativeDate: string | null = current.balanceKopecks < 0 ? forecastStartDate : null
+  let firstNegativeBalanceKopecks: number | null = current.balanceKopecks < 0 ? current.balanceKopecks : null
+  let minimumBalanceKopecks = current.balanceKopecks
+  let minimumBalanceDate = forecastStartDate
   let coveredExpenseCount = 0
   let coveredUntil: string | null = null
   let hasUnknownRequiredAmounts = false
+  const planned = sortFinanceOperations(input.operations).filter((operation) =>
+    shouldApplyForecastOperation(operation, forecastStartDate, forecastUntilIsoDate),
+  )
+  const dates = [...new Set(planned.map((operation) => operation.date))]
 
-  for (const operation of sortFinanceOperations(input.operations)) {
-    if (!shouldApplyForecastOperation(operation, input.todayIsoDate, forecastUntilIsoDate)) {
-      continue
-    }
-
-    if (
-      operation.direction === 'expense' &&
-      operation.amountSource === 'copiedPrevious'
-    ) {
+  for (const date of dates) {
+    const operations = planned.filter((operation) => operation.date === date)
+    if (operations.some((operation) => operation.direction === 'expense' && operation.amountKopecks === null)) {
       hasUnknownRequiredAmounts = true
     }
-
-    if (operation.amountKopecks === null) {
-      hasUnknownRequiredAmounts = true
-      break
-    }
-
+    const known = operations.filter((operation) => operation.amountKopecks !== null)
+    const incomeKopecks = known.filter((operation) => operation.direction === 'income').reduce((sum, operation) => sum + (operation.amountKopecks ?? 0), 0)
+    const expenseKopecks = known.filter((operation) => operation.direction === 'expense').reduce((sum, operation) => sum + (operation.amountKopecks ?? 0), 0)
     const balanceBeforeKopecks = forecastBalanceKopecks
-    forecastBalanceKopecks = applyOperation(forecastBalanceKopecks, operation)
-    const item = {
-      operation,
-      balanceBeforeKopecks,
-      balanceAfterKopecks: forecastBalanceKopecks,
-    }
-    timeline.push(item)
+    forecastBalanceKopecks += incomeKopecks - expenseKopecks
 
-    if (operation.direction === 'expense' && forecastBalanceKopecks >= 0) {
-      coveredExpenseCount += 1
-      coveredUntil = operation.date
+    let operationBalance = balanceBeforeKopecks
+    for (const operation of known) {
+      const before = operationBalance
+      operationBalance = applyOperation(operationBalance, operation)
+      timeline.push({ operation, balanceBeforeKopecks: before, balanceAfterKopecks: operationBalance })
     }
+    dailyTimeline.push({ date, operations, incomeKopecks, expenseKopecks, balanceBeforeKopecks, balanceAfterKopecks: forecastBalanceKopecks })
 
-    if (!firstNegativeItem && forecastBalanceKopecks < 0) {
-      firstNegativeItem = item
+    if (expenseKopecks > 0 && forecastBalanceKopecks >= 0) {
+      coveredExpenseCount += known.filter((operation) => operation.direction === 'expense').length
+      coveredUntil = date
+    }
+    if (!firstNegativeDate && forecastBalanceKopecks < 0) {
+      const representative = [...known].reverse().find((operation) => operation.direction === 'expense') ?? known.at(-1)
+      firstNegativeDate = date
+      firstNegativeBalanceKopecks = forecastBalanceKopecks
+      if (representative) {
+        firstNegativeItem = { operation: representative, balanceBeforeKopecks, balanceAfterKopecks: forecastBalanceKopecks }
+      }
+    }
+    if (forecastBalanceKopecks < minimumBalanceKopecks) {
+      minimumBalanceKopecks = forecastBalanceKopecks
+      minimumBalanceDate = date
     }
   }
 
@@ -297,11 +308,18 @@ export function calculateForecastBalance(input: {
     currentBalanceKopecks: current.balanceKopecks,
     forecastBalanceKopecks,
     timeline,
+    dailyTimeline,
     firstNegativeItem,
+    firstNegativeDate,
+    firstNegativeBalanceKopecks,
+    minimumBalanceKopecks,
+    minimumBalanceDate,
+    forecastStartDate,
+    forecastEndDate: forecastUntilIsoDate,
     coveredExpenseCount,
     coveredUntil,
     hasUnknownRequiredAmounts,
-    coverageStatus: getCoverageStatus(hasUnknownRequiredAmounts, firstNegativeItem),
+    coverageStatus: getCoverageStatus(hasUnknownRequiredAmounts, firstNegativeDate),
   }
 }
 
@@ -367,11 +385,11 @@ function shouldApplyCompletedOperation(
 
 function shouldApplyForecastOperation(
   operation: FinanceOperation,
-  todayIsoDate: string,
+  forecastStartDate: string,
   forecastUntilIsoDate: string,
 ): boolean {
   return (
-    isIsoDateAfter(operation.date, todayIsoDate) &&
+    isIsoDateAfter(operation.date, forecastStartDate) &&
     compareIsoDates(operation.date, forecastUntilIsoDate) <= 0 &&
     operation.status === 'planned'
   )
@@ -399,11 +417,11 @@ function getOperationSortRank(operation: FinanceOperation): number {
 
 function getCoverageStatus(
   hasUnknownRequiredAmounts: boolean,
-  firstNegativeItem: BalanceTimelineItem | null,
+  firstNegativeDate: string | null,
 ): BalanceForecast['coverageStatus'] {
   if (hasUnknownRequiredAmounts) {
     return 'unknown'
   }
 
-  return firstNegativeItem ? 'partial' : 'covered'
+  return firstNegativeDate ? 'partial' : 'covered'
 }

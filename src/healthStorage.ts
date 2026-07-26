@@ -4,6 +4,7 @@ import type {
   AlcoholReason,
   BeerAmountChoice,
   CosmetologyDebt,
+  HealthTaskDebt,
   HealthEntry,
   HealthState,
   LearningDirection,
@@ -37,7 +38,7 @@ export function loadStoredHealthState(): HealthStorageResult {
     return {
       state: migrateHealthState(parsed),
       issue: null,
-      needsSave: parsed.schemaVersion !== 6,
+      needsSave: parsed.schemaVersion !== 7,
     }
   } catch {
     return {
@@ -61,6 +62,18 @@ export function saveStoredHealthState(state: HealthState): boolean {
 
 export function migrateHealthState(value: unknown): HealthState {
   if (!isRecord(value)) throw new Error('Invalid health state')
+
+  if (value.schemaVersion === 7 && isRecord(value.entries)) {
+    return normalizeEntries(
+      Object.values(value.entries),
+      false,
+      true,
+      value.cosmetologyDebts,
+      value.cosmetologyDebtCheckedThrough,
+      value.taskDebts,
+      value.taskDebtCheckedThrough,
+    )
+  }
 
   if (value.schemaVersion === 6 && isRecord(value.entries)) {
     return normalizeEntries(
@@ -105,6 +118,8 @@ function normalizeEntries(
   preserveEmptySymptoms: boolean,
   cosmetologyDebts?: unknown,
   cosmetologyDebtCheckedThrough?: unknown,
+  taskDebts?: unknown,
+  taskDebtCheckedThrough?: unknown,
 ): HealthState {
   const state = createEmptyHealthState()
   for (const value of values) {
@@ -120,7 +135,26 @@ function normalizeEntries(
   if (typeof cosmetologyDebtCheckedThrough === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cosmetologyDebtCheckedThrough)) {
     state.cosmetologyDebtCheckedThrough = cosmetologyDebtCheckedThrough
   }
+  if (isRecord(taskDebts)) {
+    Object.values(taskDebts).forEach((debt) => {
+      const normalized = normalizeHealthTaskDebt(debt)
+      if (normalized) state.taskDebts[normalized.id] = normalized
+    })
+  }
+  if (typeof taskDebtCheckedThrough === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(taskDebtCheckedThrough)) {
+    state.taskDebtCheckedThrough = taskDebtCheckedThrough
+  }
   return state
+}
+
+function normalizeHealthTaskDebt(value: unknown): HealthTaskDebt | null {
+  if (!isRecord(value)) return null
+  const id = stringValue(value.id)
+  const taskId = stringValue(value.taskId)
+  const title = stringValue(value.title)
+  const plannedDate = stringValue(value.plannedDate)
+  if (!id || !taskId || !title || !/^\d{4}-\d{2}-\d{2}$/.test(plannedDate)) return null
+  return { id, taskId, title, plannedDate, completedDate: nullableDate(value.completedDate) }
 }
 
 function normalizeCosmetologyDebt(value: unknown): CosmetologyDebt | null {
@@ -232,6 +266,7 @@ function normalizeEntry(
       porcelain: normalizeLearningDirection(learning.porcelain, ['lesson', 'practice']),
     },
     cosmetology: normalizeCosmetology(value.cosmetology),
+    tasks: normalizeCosmetology(value.tasks),
     completed: Boolean(value.completed),
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : fallback.createdAt,
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : fallback.updatedAt,

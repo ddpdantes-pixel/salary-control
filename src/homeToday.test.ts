@@ -60,4 +60,15 @@ describe('карточка Сегодня', () => {
     expect(preview.lines.map((item) => item.label)).toContain('Пропущено: Речь и дикция — занятие №7 за четверг')
     expect(preview.lines.map((item) => item.label).some((label) => label.includes('Речь и дикция — занятие №8'))).toBe(true)
   })
+
+  it('не считает выполненный урок керамогранита в дополнительных пунктах недели', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const monday = createHealthEntry('2026-07-20')
+    monday.learning.porcelain = { status: 'done', activityType: 'lesson', number: 7, note: '' }
+
+    const preview = buildHomeLearningPreview(settings, { [monday.date]: monday }, '2026-07-24')
+
+    expect(preview.lines.some((line) => line.label.includes('Керамогранит — урок'))).toBe(false)
+    expect(preview.extraCount).toBe(0)
+  })
 })

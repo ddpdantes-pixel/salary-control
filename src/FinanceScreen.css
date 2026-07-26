@@ -174,6 +174,27 @@
   font-weight: 720;
 }
 
+.finance-planning-summary {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--hero-text) 18%, transparent);
+  padding-top: 11px;
+  color: color-mix(in srgb, var(--hero-text) 78%, transparent);
+  line-height: 1.35;
+}
+
+.finance-planning-summary b {
+  color: var(--hero-text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.finance-planning-summary span {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .finance-coverage {
   display: grid;
   gap: 3px;

@@ -102,9 +102,19 @@ export interface HealthEntry {
   learning: LearningState
   /** Completed cosmetic procedure ids for this day. Schedule stays in HealthSettings. */
   cosmetology: Record<string, boolean>
+  /** Completed recurring household/work task ids for this day. */
+  tasks: Record<string, boolean>
   completed: boolean
   createdAt: string
   updatedAt: string
+}
+
+export interface HealthTaskDebt {
+  id: string
+  taskId: string
+  title: string
+  plannedDate: string
+  completedDate: string | null
 }
 
 export interface CosmetologyDebt {
@@ -120,10 +130,14 @@ export interface CosmetologyDebt {
 }
 
 export interface HealthState {
-  schemaVersion: 6
+  schemaVersion: 7
   entries: Record<string, HealthEntry>
   /** Outstanding and resolved cosmetology plans. Kept with health data and backups. */
   cosmetologyDebts: Record<string, CosmetologyDebt>
   /** Prevents generating historical debts during the one-time migration. */
   cosmetologyDebtCheckedThrough: string | null
+  /** Outstanding and completed weekly household/work tasks. */
+  taskDebts: Record<string, HealthTaskDebt>
+  /** Prevents creating historical task debts during migration. */
+  taskDebtCheckedThrough: string | null
 }

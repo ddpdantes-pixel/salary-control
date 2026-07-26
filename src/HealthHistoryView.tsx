@@ -24,7 +24,8 @@ import {
 import type { HealthHistoryNavigationState } from './healthHistory'
 import { formatRelaxationExerciseLabel } from './healthWeek'
 import { getCosmetologyForDate, getCosmetologySummary } from './cosmetology'
-import type { AlcoholChoice, CosmetologyDebt, HealthEntry, LearningDirection, ScalpNote } from './healthTypes'
+import type { AlcoholChoice, CosmetologyDebt, HealthEntry, HealthTaskDebt, LearningDirection, ScalpNote } from './healthTypes'
+import { HEALTH_TASKS } from './healthTasks'
 import {
   DEFAULT_HEALTH_SETTINGS,
   getRelaxationMinutes,
@@ -51,6 +52,7 @@ const SCALP_LABELS: Record<ScalpNote, string> = {
 export function HealthHistoryView({
   entries,
   cosmetologyDebts = {},
+  taskDebts = {},
   settings = DEFAULT_HEALTH_SETTINGS,
   navigation,
   onNavigationChange,
@@ -59,6 +61,7 @@ export function HealthHistoryView({
 }: {
   entries: Record<string, HealthEntry>
   cosmetologyDebts?: Record<string, CosmetologyDebt>
+  taskDebts?: Record<string, HealthTaskDebt>
   settings?: HealthSettings
   navigation: HealthHistoryNavigationState
   onNavigationChange: (next: HealthHistoryNavigationState) => void
@@ -182,6 +185,7 @@ export function HealthHistoryView({
             entry={selectedEntry}
             settings={settings}
             cosmetologyDebts={cosmetologyDebts}
+            taskDebts={taskDebts}
             copyMessage={copyMessage}
             onCopy={() => void copyDay(selectedEntry)}
             onEdit={() => onEditDate(selectedEntry.date)}
@@ -324,6 +328,7 @@ function HealthHistoryDayDetails({
   entry,
   settings,
   cosmetologyDebts,
+  taskDebts,
   copyMessage,
   onCopy,
   onEdit,
@@ -331,6 +336,7 @@ function HealthHistoryDayDetails({
   entry: HealthEntry
   settings: HealthSettings
   cosmetologyDebts: Record<string, CosmetologyDebt>
+  taskDebts: Record<string, HealthTaskDebt>
   copyMessage: string
   onCopy: () => void
   onEdit: () => void
@@ -348,6 +354,8 @@ function HealthHistoryDayDetails({
   const cosmetologySummary = getCosmetologySummary(settings, entry)
   const cosmetologyDebtHistory = Object.values(cosmetologyDebts)
     .filter((debt) => debt.plannedDate === entry.date || debt.completedDate === entry.date || debt.skippedDate === entry.date)
+  const taskDebtHistory = Object.values(taskDebts)
+    .filter((debt) => debt.plannedDate === entry.date || debt.completedDate === entry.date)
 
   return (
     <section className="health-history-details" aria-label={`Подробности дня ${formatHistoryDate(entry.date)}`}>
@@ -466,6 +474,15 @@ function HealthHistoryDayDetails({
         <LearningDetail label="Кавист" direction={entry.learning.cavist} activityLabels={{ lesson: 'урок', practice: 'практика' }} />
         <LearningDetail label="Керамогранит" direction={entry.learning.porcelain} activityLabels={{ lesson: 'урок', practice: 'практика' }} />
       </DetailBlock>
+
+      {(Object.keys(entry.tasks).length > 0 || taskDebtHistory.length > 0) && <DetailBlock title="Задачи">
+        {HEALTH_TASKS.filter((task) => entry.tasks[task.id]).map((task) => <DetailRow key={task.id} label={task.title} value="Выполнено" />)}
+        {taskDebtHistory.map((debt) => <div className="health-history-workout" key={debt.id}>
+          <strong>{debt.title}</strong>
+          <span>По плану: {formatCosmetologyHistoryDate(debt.plannedDate)}</span>
+          {debt.completedDate && <span>Выполнено: {formatCosmetologyHistoryDate(debt.completedDate)}</span>}
+        </div>)}
+      </DetailBlock>}
 
       <DetailBlock title="Временные метки">
         <DetailRow label="Создано" value={formatTimestamp(entry.createdAt)} />

@@ -13,6 +13,23 @@ import { createEmptyHealthState, createHealthEntry, upsertHealthEntry } from './
 import { createDefaultHealthSettings } from './healthSettings'
 
 describe('косметология', () => {
+  it('добавляет корректор осанки и закаливание три раза в неделю', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const postureDays = ['2026-07-20', '2026-07-22', '2026-07-24']
+    const hardeningDays = ['2026-07-21', '2026-07-23', '2026-07-25']
+
+    expect(postureDays.every((date) => getCosmetologyForDate(settings, date).some((item) => item.id === 'posture-corrector'))).toBe(true)
+    expect(hardeningDays.every((date) => getCosmetologyForDate(settings, date).some((item) => item.id === 'cold-shower-hardening'))).toBe(true)
+  })
+
+  it('назначает глиняную маску в свободный от кровавого и кислотного ухода день', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const clay = settings.cosmetology.procedures.find((item) => item.id === 'clay-face-mask')!
+    clay.days = ['sunday']
+
+    expect(getCosmetologyForDate(settings, '2026-07-26').some((item) => item.id === 'clay-face-mask')).toBe(false)
+    expect(getCosmetologyForDate(settings, '2026-07-25').some((item) => item.id === 'clay-face-mask')).toBe(true)
+  })
   it('чередует маски по средам и не показывает обе в один день', () => {
     const settings = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
     const first = getCosmetologyForDate(settings, settings.cosmetology.procedures.find((item) => item.id === 'sadoer-mask')!.cycleStartDate!)

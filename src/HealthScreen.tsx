@@ -19,6 +19,13 @@ import {
 } from './cosmetology'
 import { HEALTH_TIMER_COMPLETION_EVENT } from './healthTimerCompletion'
 import { getNextLearningNumber } from './learningSchedule'
+import {
+  completeHealthTaskDebt,
+  getHealthTasksForDate,
+  getOpenHealthTaskDebts,
+  reconcileHealthTaskDebts,
+  setHealthTaskCompletion,
+} from './healthTasks'
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
 import type { HealthAttachment } from './healthAttachments'
@@ -64,6 +71,8 @@ import type {
   AlcoholReason,
   CosmetologyDebt,
   HealthEntry,
+  HealthState,
+  HealthTaskDebt,
   LearningDirection,
   ScalpNote,
 } from './healthTypes'
@@ -118,12 +127,16 @@ export function HealthScreen({
   learningFocusRequest = 0,
   timerController,
   timerOpenRequest = 0,
+  onStateChange,
+  onSettingsChange,
 }: {
   initialTab?: HealthView
   onSettingsDirtyChange?: (dirty: boolean) => void
   learningFocusRequest?: number
   timerController?: HealthTimerController
   timerOpenRequest?: number
+  onStateChange?: (state: HealthState) => void
+  onSettingsChange?: (settings: HealthSettings) => void
 } = {}) {
   const [loaded] = useState(loadStoredHealthState)
   const [state, setState] = useState(loaded.state)
@@ -147,6 +160,8 @@ export function HealthScreen({
   useEffect(() => {
     onSettingsDirtyChange?.(settingsDirty)
   }, [onSettingsDirtyChange, settingsDirty])
+  useEffect(() => onStateChange?.(state), [onStateChange, state])
+  useEffect(() => onSettingsChange?.(settings), [onSettingsChange, settings])
   useEffect(() => {
     if (learningFocusRequest === 0 || activeTab !== 'today') return
     document.getElementById('health-learning')?.scrollIntoView({ block: 'start', behavior: 'auto' })
@@ -207,7 +222,10 @@ export function HealthScreen({
   useEffect(() => {
     const reconcile = () => {
       const todayId = getLocalDateId()
-      setState((current) => reconcileCosmetologyDebts(current, settings, todayId))
+      setState((current) => reconcileHealthTaskDebts(
+        reconcileCosmetologyDebts(current, settings, todayId),
+        todayId,
+      ))
     }
     const reconcileWhenVisible = () => {
       if (document.visibilityState === 'visible') reconcile()
@@ -239,6 +257,10 @@ export function HealthScreen({
 
   function skipDebt(debtId: string): void {
     setState((current) => skipCosmetologyDebt(current, debtId, getLocalDateId()))
+  }
+
+  function completeTaskDebt(debtId: string): void {
+    setState((current) => completeHealthTaskDebt(current, debtId, getLocalDateId()))
   }
 
   function openDateFromHistory(dateId: string): void {
@@ -297,6 +319,7 @@ export function HealthScreen({
           entry={entry}
           entries={state.entries}
           cosmetologyDebts={state.cosmetologyDebts}
+          taskDebts={state.taskDebts}
           settings={settings}
           hasSavedEntry={Boolean(state.entries[selectedDate])}
           selectedDate={selectedDate}
@@ -307,6 +330,7 @@ export function HealthScreen({
           onIntervalCompletion={completeInterval}
           onActivateDebt={activateDebt}
           onSkipDebt={skipDebt}
+          onCompleteTaskDebt={completeTaskDebt}
           onOpenTimers={() => setTimerScreen(true)}
           onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
         />
@@ -314,6 +338,7 @@ export function HealthScreen({
         <HealthHistoryView
           entries={state.entries}
           cosmetologyDebts={state.cosmetologyDebts}
+          taskDebts={state.taskDebts}
           settings={settings}
           navigation={historyNavigation}
           onNavigationChange={(next: HealthHistoryNavigationState) => {
@@ -382,6 +407,7 @@ function HealthToday({
   entry,
   entries,
   cosmetologyDebts,
+  taskDebts,
   settings,
   hasSavedEntry,
   selectedDate,
@@ -392,12 +418,14 @@ function HealthToday({
   onIntervalCompletion,
   onActivateDebt,
   onSkipDebt,
+  onCompleteTaskDebt,
   onOpenTimers,
   onBackToHistory,
 }: {
   entry: HealthEntry
   entries: Record<string, HealthEntry>
   cosmetologyDebts: Record<string, CosmetologyDebt>
+  taskDebts: Record<string, HealthTaskDebt>
   settings: HealthSettings
   hasSavedEntry: boolean
   selectedDate: string
@@ -408,6 +436,7 @@ function HealthToday({
   onIntervalCompletion: (id: string, completed: boolean) => void
   onActivateDebt: (debtId: string) => void
   onSkipDebt: (debtId: string) => void
+  onCompleteTaskDebt: (debtId: string) => void
   onOpenTimers: () => void
   onBackToHistory?: () => void
 }) {
@@ -428,12 +457,11 @@ function HealthToday({
   const visibleRelaxation = getRelaxationSettings(settings).filter(
     (item) => item.enabled || entry.relaxation[item.field],
   )
-  const overdueDebts = getOverdueCosmetologyDebts({
-    schemaVersion: 6,
-    entries,
-    cosmetologyDebts,
-    cosmetologyDebtCheckedThrough: null,
-  })
+  const overdueDebts = getOverdueCosmetologyDebts({ cosmetologyDebts })
+  const overdueTasks = getOpenHealthTaskDebts({ taskDebts })
+  const scheduledTasks = getHealthTasksForDate(selectedDate).filter(
+    (task) => !overdueTasks.some((debt) => debt.taskId === task.id),
+  )
   const activeDebts = overdueDebts.filter((debt) => debt.activeDate === selectedDate)
   const activeProcedureIds = new Set(activeDebts.flatMap((debt) => debt.procedureIds))
   const cosmeticProcedures = [
@@ -935,6 +963,37 @@ function HealthToday({
         </div>
       </HealthBlock>
 
+      <HealthBlock title="Задачи" className="health-tasks-block">
+        {selectedDate === getLocalDateId() && overdueTasks.length > 0 && (
+          <div className="health-task-list" aria-label="Просроченные задачи">
+            {overdueTasks.map((debt) => (
+              <label className="health-task-row overdue" key={debt.id}>
+                <input type="checkbox" checked={false} onChange={() => onCompleteTaskDebt(debt.id)} />
+                <span>
+                  <strong>{debt.title}</strong>
+                  <small>По плану: {formatCosmetologyPlanDate(debt.plannedDate)} · просрочено {getOverdueDays(debt.plannedDate, selectedDate)} {formatDays(getOverdueDays(debt.plannedDate, selectedDate))}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+        {scheduledTasks.length > 0 && (
+          <div className="health-task-list">
+            {scheduledTasks.map((task) => (
+              <label className="health-task-row" key={task.id}>
+                <input
+                  type="checkbox"
+                  checked={entry.tasks[task.id] === true}
+                  onChange={(event) => onChange((current) => setHealthTaskCompletion(current, task.id, event.currentTarget.checked))}
+                />
+                <span><strong>{task.title}</strong><small>По графику сегодня</small></span>
+              </label>
+            ))}
+          </div>
+        )}
+        {overdueTasks.length === 0 && scheduledTasks.length === 0 && <p className="health-muted">На этот день регулярных задач нет</p>}
+      </HealthBlock>
+
       <HealthBlock title="Косметология">
         {selectedDate === getLocalDateId() && overdueDebts.length > 0 && (
           <section className="health-cosmetology-overdue" aria-label="Не выполнено">
@@ -1125,14 +1184,16 @@ function formatCosmetologyPlanDate(dateId: string): string {
 function HealthBlock({
   title,
   id,
+  className,
   children,
 }: {
   title: string
   id?: string
+  className?: string
   children: ReactNode
 }) {
   return (
-    <section id={id} className="health-block">
+    <section id={id} className={`health-block${className ? ` ${className}` : ''}`}>
       <h2>{title}</h2>
       {children}
     </section>

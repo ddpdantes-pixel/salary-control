@@ -384,9 +384,11 @@ describe('экран здоровья сегодня', () => {
     const { container } = render(<HealthScreen />)
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
     const cosmetologyIndex = headings.indexOf('Косметология')
+    const tasksIndex = headings.indexOf('Задачи')
 
     expect(cosmetologyIndex).toBe(headings.length - 1)
-    expect(cosmetologyIndex).toBe(headings.indexOf('Обучение') + 1)
+    expect(tasksIndex).toBe(headings.indexOf('Обучение') + 1)
+    expect(cosmetologyIndex).toBe(tasksIndex + 1)
     expect(container.textContent?.toLowerCase()).not.toMatch(/очистить|высушить|нанести|смыть/)
   })
 
@@ -452,6 +454,35 @@ describe('экран здоровья сегодня', () => {
     expect(within(dialog).getByText('Пропустить эту процедуру до следующего раза?')).not.toBeNull()
     await user.click(within(dialog).getByRole('button', { name: 'Пропустить' }))
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Не выполнено' })).toBeNull())
+  })
+
+  it('показывает просроченную регулярную задачу отдельно и закрывает её одной галочкой', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    const debtId = 'global-tile-vogclub:2026-07-19'
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify({
+      schemaVersion: 7,
+      entries: {},
+      cosmetologyDebts: {},
+      cosmetologyDebtCheckedThrough: today,
+      taskDebtCheckedThrough: today,
+      taskDebts: {
+        [debtId]: {
+          id: debtId,
+          taskId: 'global-tile-vogclub',
+          title: 'Внести продажи Global Tile в VogClub',
+          plannedDate: '2026-07-19',
+          completedDate: null,
+        },
+      },
+    }))
+
+    render(<HealthScreen />)
+    const tasks = screen.getByRole('heading', { name: 'Задачи' }).closest('section')!
+    await user.click(within(tasks).getByRole('checkbox', { name: /Внести продажи Global Tile/ }))
+
+    await waitFor(() => expect((within(tasks).getByRole('checkbox', { name: /Внести продажи Global Tile/ }) as HTMLInputElement).checked).toBe(true))
+    expect(within(tasks).getAllByRole('checkbox', { name: /Внести продажи Global Tile/ })).toHaveLength(1)
   })
 
   it('не показывает поля заметок у всех направлений обучения', async () => {

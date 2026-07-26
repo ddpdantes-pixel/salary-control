@@ -24,7 +24,9 @@ export function getCosmetologyForDate(
   entry?: HealthEntry,
 ): PlannedCosmeticProcedure[] {
   const scheduled = simplifyCosmetologyProcedures(settings.cosmetology.procedures
-    .filter((item) => isCosmeticScheduled(item, dateId))
+    .filter((item) => item.id === 'clay-face-mask'
+      ? isClayMaskScheduled(settings, item, dateId)
+      : isCosmeticScheduled(item, dateId))
     .map(toPlanned))
   const intervals = settings.cosmetology.intervals
     .filter((item) => item.active && item.nextDate !== null && item.nextDate <= dateId)
@@ -85,6 +87,44 @@ export function isCosmeticScheduled(item: CosmeticProcedureSetting, dateId: stri
   return difference % 14 === 0
 }
 
+function isClayMaskScheduled(
+  settings: HealthSettings,
+  clayMask: CosmeticProcedureSetting,
+  dateId: string,
+): boolean {
+  if (!clayMask.active) return false
+  const preferredDay = clayMask.days[0] ?? 'friday'
+  const weekStart = addDays(dateId, -weekdayIndex(getWeekdayForDate(dateId)))
+  const preferredDate = addDays(weekStart, weekdayIndex(preferredDay))
+  const conflicting = settings.cosmetology.procedures.filter(
+    (item) => item.id !== clayMask.id && isClayMaskConflict(item),
+  )
+
+  const offsets = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6]
+  for (const offset of offsets) {
+    const candidateDate = addDays(preferredDate, offset)
+    if (candidateDate < weekStart || candidateDate > addDays(weekStart, 6)) continue
+    if (!conflicting.some((item) => isCosmeticScheduled(item, candidateDate))) {
+      return dateId === candidateDate
+    }
+  }
+  return false
+}
+
+function isClayMaskConflict(item: CosmeticProcedureSetting): boolean {
+  return /blood-peel|acid|salicyl/i.test(item.id) || /кровав|кислот|салицил/i.test(item.title)
+}
+
+function weekdayIndex(day: ReturnType<typeof getWeekdayForDate>): number {
+  return ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
+}
+
+function addDays(dateId: string, days: number): string {
+  const [year, month, day] = dateId.split('-').map(Number)
+  const date = new Date(year, month - 1, day + days, 12)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 export function getCosmetologyCompletion(entry: HealthEntry, id: string): boolean {
   return entry.cosmetology[id] === true
 }
@@ -109,7 +149,7 @@ export function getCosmetologySummary(settings: HealthSettings, entry: HealthEnt
   return { assigned: procedures.length, completed: procedures.filter((item) => entry.cosmetology[item.id]).length }
 }
 
-export function getOverdueCosmetologyDebts(state: HealthState): CosmetologyDebt[] {
+export function getOverdueCosmetologyDebts(state: Pick<HealthState, 'cosmetologyDebts'>): CosmetologyDebt[] {
   return Object.values(state.cosmetologyDebts)
     .filter((debt) => debt.completedDate === null && debt.skippedDate === null)
     .sort((left, right) => left.plannedDate.localeCompare(right.plannedDate))

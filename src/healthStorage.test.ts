@@ -50,7 +50,7 @@ describe('хранилище здоровья', () => {
 
     saveStoredHealthState(createEmptyHealthState())
 
-    expect(storage.get(HEALTH_STATE_KEY)).toContain('"schemaVersion":6')
+    expect(storage.get(HEALTH_STATE_KEY)).toContain('"schemaVersion":7')
     expect(storage.get('kontrol-zarplaty.month.2026-07')).toBe('salary-data')
     expect(storage.get('kontrol-zarplaty.finance-state.v1')).toBe('finance-data')
   })
@@ -60,7 +60,7 @@ describe('хранилище здоровья', () => {
     const second = { ...createHealthEntry('2026-07-11'), waterCups: 5 }
     const migrated = migrateHealthState({ entries: [first, second] })
 
-    expect(migrated.schemaVersion).toBe(6)
+    expect(migrated.schemaVersion).toBe(7)
     expect(Object.keys(migrated.entries)).toEqual(['2026-07-11'])
     expect(migrated.entries['2026-07-11'].waterCups).toBe(5)
   })
@@ -93,7 +93,7 @@ describe('хранилище здоровья', () => {
       entries: { '2026-07-12': legacy },
     })
 
-    expect(migrated.schemaVersion).toBe(6)
+    expect(migrated.schemaVersion).toBe(7)
     expect(migrated.entries['2026-07-12']).toMatchObject({ bloating: 0, urges: 0.5 })
   })
 
@@ -178,6 +178,21 @@ describe('хранилище здоровья', () => {
       plannedDate: '2026-07-19',
       procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
     })
+    expect(migrateHealthState(migrated)).toEqual(migrated)
+  })
+
+  it('идемпотентно мигрирует задачи в том же ключе здоровья', () => {
+    const legacy = createEmptyHealthState()
+    legacy.taskDebts['robot-vacuum-service:2026-07-19'] = {
+      id: 'robot-vacuum-service:2026-07-19',
+      taskId: 'robot-vacuum-service',
+      title: 'Обслуживание робота-пылесоса',
+      plannedDate: '2026-07-19',
+      completedDate: null,
+    }
+    const migrated = migrateHealthState(legacy)
+
+    expect(migrated.taskDebts).toEqual(legacy.taskDebts)
     expect(migrateHealthState(migrated)).toEqual(migrated)
   })
 

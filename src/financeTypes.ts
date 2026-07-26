@@ -221,6 +221,15 @@ export interface BalanceTimelineItem {
   balanceAfterKopecks: Kopecks
 }
 
+export interface DailyBalanceForecastItem {
+  date: string
+  operations: FinanceOperation[]
+  incomeKopecks: Kopecks
+  expenseKopecks: Kopecks
+  balanceBeforeKopecks: Kopecks
+  balanceAfterKopecks: Kopecks
+}
+
 export interface CurrentBalanceCalculation {
   anchor: BalanceAnchor | null
   balanceKopecks: Kopecks
@@ -232,7 +241,14 @@ export interface BalanceForecast {
   currentBalanceKopecks: Kopecks
   forecastBalanceKopecks: Kopecks
   timeline: BalanceTimelineItem[]
+  dailyTimeline: DailyBalanceForecastItem[]
   firstNegativeItem: BalanceTimelineItem | null
+  firstNegativeDate: string | null
+  firstNegativeBalanceKopecks: Kopecks | null
+  minimumBalanceKopecks: Kopecks
+  minimumBalanceDate: string
+  forecastStartDate: string
+  forecastEndDate: string
   coveredExpenseCount: number
   coveredUntil: string | null
   hasUnknownRequiredAmounts: boolean

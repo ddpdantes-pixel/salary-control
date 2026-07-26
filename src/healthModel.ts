@@ -86,10 +86,12 @@ export function formatHealthDate(dateId: string, todayId = getLocalDateId()): {
 
 export function createEmptyHealthState(): HealthState {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     entries: {},
     cosmetologyDebts: {},
     cosmetologyDebtCheckedThrough: getLocalDateId(),
+    taskDebts: {},
+    taskDebtCheckedThrough: getLocalDateId(),
   }
 }
 
@@ -136,6 +138,7 @@ export function createHealthEntry(
       porcelain: { ...EMPTY_LEARNING.porcelain },
     },
     cosmetology: {},
+    tasks: {},
     completed: false,
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -172,6 +175,7 @@ export function isMeaningfulHealthEntry(entry: HealthEntry): boolean {
     entry.soberEveningRating !== null ||
     Object.values(entry.learning).some(isMeaningfulLearningDirection) ||
     Object.values(entry.cosmetology).some(Boolean) ||
+    Object.values(entry.tasks).some(Boolean) ||
     entry.completed
   )
 }
