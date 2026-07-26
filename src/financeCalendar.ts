@@ -9,6 +9,7 @@ import {
   sortFinanceOperations,
 } from './financeCalculations'
 import { getObligationCategoryLabel } from './financeObligations'
+import { resolveFinanceOperationAmounts } from './financeRecurringIncome'
 import { resolveSalaryLinkedIncome } from './financeSalaryLinks'
 import type {
   BalanceAnchor,
@@ -37,6 +38,8 @@ export interface FinanceCalendarItem {
   affectsBalance: boolean
   includedInAnchor: boolean
   sourceLabel: string
+  effectiveAmountKopecks: number | null
+  amountForecastSourceDate: string | null
   salaryForecastSourceDate: string | null
 }
 
@@ -70,8 +73,15 @@ export function buildFinanceCalendarTimeline(input: {
   const anchor = getLatestBalanceAnchor(input.anchors)
   let balanceKopecks = anchor?.balanceKopecks ?? 0
   let balanceIsKnown = true
+  const amountResolutions = resolveFinanceOperationAmounts(
+    input.operations,
+    anchor?.date ?? input.todayIsoDate,
+  )
 
   return sortFinanceOperations(input.operations).map((operation) => {
+    const amountResolution = amountResolutions.get(operation.id)
+    const effectiveAmountKopecks =
+      amountResolution?.effectiveAmountKopecks ?? operation.amountKopecks
     const balanceBeforeKopecks = balanceKopecks
     const includedInAnchor = isOperationIncludedInAnchor(operation, anchor)
     const affectsBalance = shouldApplyOperation(
@@ -82,16 +92,16 @@ export function buildFinanceCalendarTimeline(input: {
     let balanceAfterKopecks: number | null =
       includedInAnchor || !balanceIsKnown ? null : balanceKopecks
 
-    if (balanceIsKnown && affectsBalance && operation.amountKopecks !== null) {
+    if (balanceIsKnown && affectsBalance && effectiveAmountKopecks !== null) {
       balanceKopecks =
         operation.direction === 'income'
-          ? balanceKopecks + operation.amountKopecks
-          : balanceKopecks - operation.amountKopecks
+          ? balanceKopecks + effectiveAmountKopecks
+          : balanceKopecks - effectiveAmountKopecks
       balanceAfterKopecks = balanceKopecks
     } else if (
       !includedInAnchor &&
       operation.status !== 'cancelled' &&
-      operation.amountKopecks === null &&
+      effectiveAmountKopecks === null &&
       (!anchor || operation.date >= anchor.date)
     ) {
       balanceAfterKopecks = null
@@ -127,6 +137,11 @@ export function buildFinanceCalendarTimeline(input: {
             )
           : undefined,
       ),
+      effectiveAmountKopecks,
+      amountForecastSourceDate:
+        amountResolution?.source === 'previousMonth'
+          ? amountResolution.forecastSourceDate
+          : null,
       salaryForecastSourceDate:
         linkedIncome?.kind === 'forecast'
           ? linkedIncome.forecastSourceIncomeDate ?? null

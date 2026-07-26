@@ -49,7 +49,9 @@ export function buildFinanceReport(input: {
   }
 
   const unknownOperations = periodItems.filter(
-    (item) => item.operation.amountKopecks === null,
+    (item) =>
+      item.effectiveAmountKopecks === null ||
+      (item.operation.amountKopecks === null && !item.amountForecastSourceDate),
   )
   if (unknownOperations.length > 0) {
     lines.push(
@@ -78,7 +80,12 @@ export function formatFinanceFeedItem(item: FinanceCalendarItem): string[] {
     `📅 ${formatCompactDate(operation.date)} — ${operation.title}`,
     '',
   ]
-  if (item.salaryForecastSourceDate) {
+  if (item.amountForecastSourceDate) {
+    lines.push(
+      `Сумма по прошлому месяцу: ${formatMoney(item.effectiveAmountKopecks ?? 0)}`,
+      '',
+    )
+  } else if (item.salaryForecastSourceDate) {
     lines.push(
       `Прогноз по выплате ${formatShortDateLabel(item.salaryForecastSourceDate)}`,
       '',
@@ -99,7 +106,7 @@ export function formatFinanceFeedItem(item: FinanceCalendarItem): string[] {
 
   if (operation.direction === 'income') {
     lines.push(
-      `Поступление: +${formatNullableMoney(operation.grossIncomeKopecks ?? operation.amountKopecks)}`,
+      `Поступление: +${formatNullableMoney(operation.grossIncomeKopecks ?? item.effectiveAmountKopecks)}`,
     )
     if ((operation.personalExpenseDeductions?.length ?? 0) > 0) {
       for (const expense of operation.personalExpenseDeductions ?? []) {
@@ -113,9 +120,9 @@ export function formatFinanceFeedItem(item: FinanceCalendarItem): string[] {
         `→ на жизнь ${formatCompactDate(operation.date)}→${formatCompactDate(operation.livingUntilDate ?? operation.date)}: ${operation.livingDays ?? 0} × ${formatMoney(operation.livingRateKopecks ?? 0)} = ${formatMoney(operation.livingAmountKopecks ?? 0)}`,
       )
     }
-    if (operation.source === 'salary' && operation.amountKopecks !== null) {
+    if (operation.source === 'salary' && item.effectiveAmountKopecks !== null) {
       lines.push(
-        `→ в кредит: +${formatMoney(operation.transferToCreditKopecks ?? operation.amountKopecks)}`,
+        `→ в кредит: +${formatMoney(item.effectiveAmountKopecks)}`,
       )
     }
     if ((operation.shortageKopecks ?? 0) > 0) {
@@ -133,11 +140,11 @@ export function formatFinanceFeedItem(item: FinanceCalendarItem): string[] {
   if (item.affectsBalance && item.balanceAfterKopecks !== null) {
     const sign = operation.direction === 'income' ? '+' : '−'
     lines.push(
-      `${formatMoney(item.balanceBeforeKopecks)} ${sign} ${formatMoney(operation.amountKopecks ?? 0)} = ${formatMoney(item.balanceAfterKopecks)}`,
+      `${formatMoney(item.balanceBeforeKopecks)} ${sign} ${formatMoney(item.effectiveAmountKopecks ?? 0)} = ${formatMoney(item.balanceAfterKopecks)}`,
     )
   } else if (item.includedInAnchor) {
     lines.push('операция уже учтена в фактическом остатке')
-  } else if (operation.amountKopecks === null) {
+  } else if (item.effectiveAmountKopecks === null) {
     lines.push('сумма пока недоступна — остаток не изменён')
   } else {
     lines.push(`операция не проведена = ${formatMoney(item.balanceBeforeKopecks)}`)

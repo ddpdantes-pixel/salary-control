@@ -211,12 +211,19 @@ export function buildOverviewOperations(input: {
               settings: input.state.settings,
               personalExpenses: input.state.personalExpenses,
             })
+      const amountKopecks =
+        existing &&
+        typeof existing.amountKopecks === 'number' &&
+        Number.isFinite(existing.amountKopecks) &&
+        (existing.status === 'completed' || existing.amountKopecks > 0)
+          ? existing.amountKopecks
+          : plan?.transferToCreditKopecks ?? null
 
       operationsById.set(operationId, {
         id: operationId,
         date: incomeDate,
         title: `Перевод из выплаты ${income.day}-го числа`,
-        amountKopecks: plan?.transferToCreditKopecks ?? null,
+        amountKopecks,
         direction: 'income',
         status:
           linkedIncome.kind === 'resolved'

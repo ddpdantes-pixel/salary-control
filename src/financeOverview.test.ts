@@ -87,8 +87,12 @@ describe('данные финансового обзора', () => {
   })
 
   it('не подставляет сумму, если нужного зарплатного месяца нет', () => {
+    const state = createDefaultFinanceState()
+    state.operations = state.operations.filter(
+      (operation) => operation.id !== 'salary-transfer-2026-07-15',
+    )
     const overview = buildFinanceOverview({
-      state: createDefaultFinanceState(),
+      state,
       salaryMonths: [],
       todayIsoDate: '2026-07-10',
     })
@@ -222,6 +226,9 @@ describe('данные финансового обзора', () => {
   it('формирует красное состояние с суммой и первым дефицитным платежом', () => {
     const state = createDefaultFinanceState()
     state.settings.forecastDays = 20
+    state.operations = state.operations.filter(
+      (operation) => operation.source !== 'salary' || operation.status === 'completed',
+    )
     const months = createSalaryMonths().map((month) => ({
       ...month,
       salesTotal: 1,
@@ -240,8 +247,8 @@ describe('данные финансового обзора', () => {
     })
 
     expect(overview.coverage.tone).toBe('danger')
-    expect(overview.coverage.headline).toBe('Не хватает 7 947,37 ₽')
-    expect(overview.coverage.detail).toContain('12 июля — Яндекс Сплит')
+    expect(overview.coverage.headline).toBe('Не хватает 2 464,70 ₽')
+    expect(overview.coverage.detail).toContain('24 июля — Яндекс.Кредит')
   })
 
   it('показывает компактный плановый итог и продлевает период до последнего обязательства', () => {

@@ -620,16 +620,20 @@ function CalendarOperationCard({
         </span>
         <span className="finance-calendar-amount">
           <strong>
-            {operation.amountKopecks === null
+            {item.effectiveAmountKopecks === null
               ? '—'
-              : `${operation.direction === 'income' ? '+' : '−'}${formatMoney(operation.amountKopecks)}`}
+              : `${operation.direction === 'income' ? '+' : '−'}${formatMoney(item.effectiveAmountKopecks)}`}
           </strong>
-          {item.salaryForecastSourceDate && (
+          {item.amountForecastSourceDate ? (
+            <small className="finance-forecast-source">
+              По прошлому месяцу
+            </small>
+          ) : item.salaryForecastSourceDate ? (
             <small className="finance-forecast-source">
               Прогноз по выплате{' '}
               {formatShortDateLabel(item.salaryForecastSourceDate)}
             </small>
-          )}
+          ) : null}
         </span>
       </button>
       <div

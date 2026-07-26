@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FinanceCalendarScreen } from './FinanceCalendarScreen'
 import { createDefaultFinanceState } from './financeDefaults'
+import { rublesToKopecks } from './financeMoney'
 import type { FinanceOperation, FinanceState } from './financeTypes'
 
 describe('календарь денег', () => {
@@ -120,6 +121,41 @@ describe('календарь денег', () => {
     })
     expect(document.querySelector(`[data-operation-id="${cancelled.id}"]`)).not.toBeNull()
   })
+
+  it('показывает вместо нуля прогнозную сумму прошлого месяца', () => {
+    const state = recurringIncomeState(0)
+    render(
+      <CalendarHarness
+        initialState={state}
+        initialMonthId="2026-08"
+        todayIsoDate="2026-08-01"
+      />,
+    )
+
+    const summary = screen.getByRole('button', {
+      name: /Перевод из выплаты 15-го числа/,
+    })
+    expect(summary.textContent).toContain('+3 500,00 ₽')
+    expect(summary.textContent).toContain('По прошлому месяцу')
+    expect(summary.textContent).not.toContain('+0,00 ₽')
+  })
+
+  it('убирает прогнозную подпись после появления точной суммы', () => {
+    const state = recurringIncomeState(4_100)
+    render(
+      <CalendarHarness
+        initialState={state}
+        initialMonthId="2026-08"
+        todayIsoDate="2026-08-01"
+      />,
+    )
+
+    const summary = screen.getByRole('button', {
+      name: /Перевод из выплаты 15-го числа/,
+    })
+    expect(summary.textContent).toContain('+4 100,00 ₽')
+    expect(summary.textContent).not.toContain('По прошлому месяцу')
+  })
 })
 
 function renderCalendar(
@@ -140,23 +176,71 @@ function renderCalendar(
 function CalendarHarness({
   initialState,
   initialOperationId,
+  initialMonthId = '2026-07',
+  todayIsoDate = '2026-07-11',
 }: {
   initialState: FinanceState
   initialOperationId?: string
+  initialMonthId?: string
+  todayIsoDate?: string
 }) {
   const [state, setState] = useState(initialState)
-  const [monthId, setMonthId] = useState('2026-07')
+  const [monthId, setMonthId] = useState(initialMonthId)
   return (
     <FinanceCalendarScreen
       state={state}
       salaryMonths={[]}
-      todayIsoDate="2026-07-11"
+      todayIsoDate={todayIsoDate}
       onChangeState={(updater) => setState((current) => updater(current))}
       monthId={monthId}
       onMonthIdChange={setMonthId}
       initialOperationId={initialOperationId}
     />
   )
+}
+
+function recurringIncomeState(currentAmountRubles: number): FinanceState {
+  const state = createDefaultFinanceState('2026-08-01T10:00:00.000Z')
+  state.anchors = [
+    {
+      ...state.anchors[0],
+      date: '2026-07-31',
+      balanceKopecks: rublesToKopecks(1_000),
+      confirmedAt: '2026-07-31T12:00:00.000Z',
+    },
+  ]
+  state.obligations = []
+  state.operations = [
+    {
+      ...operation({
+        id: 'salary-transfer-2026-07-15',
+        title: 'Перевод из выплаты 15-го числа',
+        date: '2026-07-15',
+        direction: 'income',
+        status: 'completed',
+      }),
+      amountKopecks: rublesToKopecks(3_500),
+      source: 'salary',
+      category: 'salaryTransfer',
+      amountSource: 'salaryLinked',
+      salaryField: 'day15Expected',
+    },
+    {
+      ...operation({
+        id: 'salary-transfer-2026-08-15',
+        title: 'Перевод из выплаты 15-го числа',
+        date: '2026-08-15',
+        direction: 'income',
+        status: 'planned',
+      }),
+      amountKopecks: rublesToKopecks(currentAmountRubles),
+      source: 'salary',
+      category: 'salaryTransfer',
+      amountSource: 'salaryLinked',
+      salaryField: 'day15Expected',
+    },
+  ]
+  return state
 }
 
 function operation(input: Pick<FinanceOperation, 'id' | 'title' | 'date' | 'direction' | 'status'>): FinanceOperation {

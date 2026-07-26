@@ -180,7 +180,7 @@ describe('финансовый календарь', () => {
     expect(item.balanceAfterKopecks).toBeNull()
   })
 
-  it('оставляет последующие остатки нерассчитанными после неизвестной суммы', () => {
+  it('считает неизвестное повторяющееся поступление нулевым без источника прошлого месяца', () => {
     const unknown = {
       ...operation('unknown', '2026-07-12', 'income', 0),
       amountKopecks: null,
@@ -202,7 +202,70 @@ describe('финансовый календарь', () => {
       todayIsoDate: '2026-07-11',
     })
 
-    expect(items.map((item) => item.balanceAfterKopecks)).toEqual([null, null])
+    expect(items.map((item) => item.balanceAfterKopecks)).toEqual([
+      rublesToKopecks(10_000),
+      rublesToKopecks(8_000),
+    ])
+    expect(items[0]).toMatchObject({
+      effectiveAmountKopecks: 0,
+      amountForecastSourceDate: null,
+    })
+  })
+
+  it('показывает эффективную сумму прошлого месяца и не изменяет исходный ноль', () => {
+    const july = {
+      ...operation('salary-july', '2026-07-15', 'income', 3_500),
+      status: 'completed' as const,
+      source: 'salary' as const,
+      category: 'salaryTransfer' as const,
+      salaryField: 'day15Expected' as const,
+    }
+    const august = {
+      ...operation('salary-august', '2026-08-15', 'income', 0),
+      source: 'salary' as const,
+      category: 'salaryTransfer' as const,
+      salaryField: 'day15Expected' as const,
+    }
+    const item = buildFinanceCalendarTimeline({
+      anchors: [{ ...INITIAL_CREDIT_ACCOUNT_ANCHOR, date: '2026-07-31' }],
+      operations: [july, august],
+      todayIsoDate: '2026-08-01',
+    }).find((candidate) => candidate.operation.id === august.id)
+
+    expect(item).toMatchObject({
+      effectiveAmountKopecks: rublesToKopecks(3_500),
+      amountForecastSourceDate: '2026-07-15',
+    })
+    expect(item?.balanceAfterKopecks).toBe(
+      INITIAL_CREDIT_ACCOUNT_ANCHOR.balanceKopecks + rublesToKopecks(3_500),
+    )
+    expect(august.amountKopecks).toBe(0)
+  })
+
+  it('убирает прогнозную подпись после появления точной суммы', () => {
+    const july = {
+      ...operation('salary-july', '2026-07-15', 'income', 3_500),
+      status: 'completed' as const,
+      source: 'salary' as const,
+      category: 'salaryTransfer' as const,
+      salaryField: 'day15Expected' as const,
+    }
+    const august = {
+      ...operation('salary-august', '2026-08-15', 'income', 4_100),
+      source: 'salary' as const,
+      category: 'salaryTransfer' as const,
+      salaryField: 'day15Expected' as const,
+    }
+    const item = buildFinanceCalendarTimeline({
+      anchors: [{ ...INITIAL_CREDIT_ACCOUNT_ANCHOR, date: '2026-07-31' }],
+      operations: [july, august],
+      todayIsoDate: '2026-08-01',
+    }).find((candidate) => candidate.operation.id === august.id)
+
+    expect(item).toMatchObject({
+      effectiveAmountKopecks: rublesToKopecks(4_100),
+      amountForecastSourceDate: null,
+    })
   })
 
   it('не переносит неизвестность из операции раньше фактической точки', () => {

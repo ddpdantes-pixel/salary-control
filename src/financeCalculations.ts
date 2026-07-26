@@ -6,6 +6,7 @@ import {
   isIsoDateBefore,
 } from './financeDates'
 import { getPersonalExpenseDeductions } from './financePersonalExpenses'
+import { resolveFinanceOperationAmounts } from './financeRecurringIncome'
 import { deriveFinanceEventTimestamp } from './financeTimestamps'
 import type {
   BalanceAnchor,
@@ -265,33 +266,47 @@ export function calculateForecastBalance(input: {
   const planned = sortFinanceOperations(input.operations).filter((operation) =>
     shouldApplyForecastOperation(operation, forecastStartDate, forecastUntilIsoDate),
   )
+  const amountResolutions = resolveFinanceOperationAmounts(
+    input.operations,
+    forecastStartDate,
+  )
   const dates = [...new Set(planned.map((operation) => operation.date))]
 
   for (const date of dates) {
     const operations = planned.filter((operation) => operation.date === date)
-    if (operations.some((operation) => operation.direction === 'expense' && operation.amountKopecks === null)) {
+    const resolved = operations.map((operation) => ({
+      operation,
+      amountKopecks:
+        amountResolutions.get(operation.id)?.effectiveAmountKopecks ??
+        operation.amountKopecks,
+    }))
+    if (resolved.some(({ operation, amountKopecks }) => operation.direction === 'expense' && amountKopecks === null)) {
       hasUnknownRequiredAmounts = true
     }
-    const known = operations.filter((operation) => operation.amountKopecks !== null)
-    const incomeKopecks = known.filter((operation) => operation.direction === 'income').reduce((sum, operation) => sum + (operation.amountKopecks ?? 0), 0)
-    const expenseKopecks = known.filter((operation) => operation.direction === 'expense').reduce((sum, operation) => sum + (operation.amountKopecks ?? 0), 0)
+    const known = resolved.filter(({ amountKopecks }) => amountKopecks !== null)
+    const incomeKopecks = known.filter(({ operation }) => operation.direction === 'income').reduce((sum, item) => sum + (item.amountKopecks ?? 0), 0)
+    const expenseKopecks = known.filter(({ operation }) => operation.direction === 'expense').reduce((sum, item) => sum + (item.amountKopecks ?? 0), 0)
     const balanceBeforeKopecks = forecastBalanceKopecks
     forecastBalanceKopecks += incomeKopecks - expenseKopecks
 
     let operationBalance = balanceBeforeKopecks
-    for (const operation of known) {
+    for (const { operation, amountKopecks } of known) {
       const before = operationBalance
-      operationBalance = applyOperation(operationBalance, operation)
+      operationBalance = applyOperationAmount(
+        operationBalance,
+        operation.direction,
+        amountKopecks ?? 0,
+      )
       timeline.push({ operation, balanceBeforeKopecks: before, balanceAfterKopecks: operationBalance })
     }
     dailyTimeline.push({ date, operations, incomeKopecks, expenseKopecks, balanceBeforeKopecks, balanceAfterKopecks: forecastBalanceKopecks })
 
     if (expenseKopecks > 0 && forecastBalanceKopecks >= 0) {
-      coveredExpenseCount += known.filter((operation) => operation.direction === 'expense').length
+      coveredExpenseCount += known.filter(({ operation }) => operation.direction === 'expense').length
       coveredUntil = date
     }
     if (!firstNegativeDate && forecastBalanceKopecks < 0) {
-      const representative = [...known].reverse().find((operation) => operation.direction === 'expense') ?? known.at(-1)
+      const representative = [...known].reverse().find(({ operation }) => operation.direction === 'expense')?.operation ?? known.at(-1)?.operation
       firstNegativeDate = date
       firstNegativeBalanceKopecks = forecastBalanceKopecks
       if (representative) {
@@ -398,7 +413,19 @@ function shouldApplyForecastOperation(
 function applyOperation(balanceKopecks: number, operation: FinanceOperation): number {
   const amountKopecks = operation.amountKopecks ?? 0
 
-  return operation.direction === 'income'
+  return applyOperationAmount(
+    balanceKopecks,
+    operation.direction,
+    amountKopecks,
+  )
+}
+
+function applyOperationAmount(
+  balanceKopecks: number,
+  direction: FinanceOperation['direction'],
+  amountKopecks: number,
+): number {
+  return direction === 'income'
     ? balanceKopecks + amountKopecks
     : balanceKopecks - amountKopecks
 }

@@ -1196,6 +1196,7 @@
 }
 
 .finance-calendar-amount .finance-forecast-source {
+  width: 100%;
   max-width: 150px;
   text-align: right;
   overflow-wrap: anywhere;

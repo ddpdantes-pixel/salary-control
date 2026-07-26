@@ -68,6 +68,60 @@ describe('расписание обучения', () => {
     expect(plan.openItems).not.toContainEqual(expect.objectContaining({ direction: 'porcelain', activityType: 'lesson' }))
   })
 
+  it('в неделю практики сохраняет одновременно урок и дополнительную практику', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const plan = buildCurrentLearningPlan(settings, {}, '2026-07-24')
+
+    expect(plan.items.filter((item) => item.direction === 'porcelain')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ activityType: 'lesson', date: '2026-07-24' }),
+        expect.objectContaining({ activityType: 'practice', date: '2026-07-24' }),
+      ]),
+    )
+  })
+
+  it('выполненный урок не скрывает практику, а выполненная практика не скрывает урок', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const lessonEntry = createHealthEntry('2026-07-24')
+    lessonEntry.learning.porcelain = { status: 'done', activityType: 'lesson', number: 8, note: '' }
+    const lessonPlan = buildCurrentLearningPlan(settings, { [lessonEntry.date]: lessonEntry }, '2026-07-24')
+    expect(lessonPlan.items.find((item) => item.direction === 'porcelain' && item.activityType === 'lesson')?.fulfilled).toBe(true)
+    expect(lessonPlan.items.find((item) => item.direction === 'porcelain' && item.activityType === 'practice')?.fulfilled).toBe(false)
+
+    const practiceEntry = createHealthEntry('2026-07-24')
+    practiceEntry.learning.porcelain = { status: 'done', activityType: 'practice', number: 3, note: '' }
+    const practicePlan = buildCurrentLearningPlan(settings, { [practiceEntry.date]: practiceEntry }, '2026-07-24')
+    expect(practicePlan.items.find((item) => item.direction === 'porcelain' && item.activityType === 'practice')?.fulfilled).toBe(true)
+    expect(practicePlan.items.find((item) => item.direction === 'porcelain' && item.activityType === 'lesson')?.fulfilled).toBe(false)
+  })
+
+  it('создаёт практику раз в две недели и не показывает выполненную как пропущенную', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const completed = createHealthEntry('2026-07-24')
+    completed.learning.porcelain = { status: 'done', activityType: 'practice', number: 3, note: '' }
+    const firstWeek = buildCurrentLearningPlan(settings, { [completed.date]: completed }, '2026-07-25')
+    const nextWeek = buildCurrentLearningPlan(settings, {}, '2026-07-31')
+    const followingWeek = buildCurrentLearningPlan(settings, {}, '2026-08-07')
+
+    expect(firstWeek.openItems).not.toContainEqual(expect.objectContaining({ direction: 'porcelain', activityType: 'practice' }))
+    expect(nextWeek.items).not.toContainEqual(expect.objectContaining({ direction: 'porcelain', activityType: 'practice' }))
+    expect(followingWeek.items).toContainEqual(expect.objectContaining({ direction: 'porcelain', activityType: 'practice', date: '2026-08-07', fulfilled: false }))
+  })
+
+  it('оставляет невыполненную практику пропущенной без дубля в дополнительном счётчике', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
+    const plan = buildCurrentLearningPlan(settings, {}, '2026-07-25')
+    const practiceItems = plan.items.filter(
+      (item) => item.direction === 'porcelain' && item.activityType === 'practice',
+    )
+    const uniqueOpenIds = new Set(plan.openItems.map((item) => item.id))
+
+    expect(practiceItems).toHaveLength(1)
+    expect(practiceItems[0]).toMatchObject({ fulfilled: false, date: '2026-07-24' })
+    expect(uniqueOpenIds.size).toBe(plan.openItems.length)
+    expect(plan.extraOpenCount).toBe(Math.max(0, plan.items.filter((item) => !item.fulfilled).length - 4))
+  })
+
   it('считает следующий номер из максимального сохранённого номера отдельного типа', () => {
     const first = createHealthEntry('2026-07-01')
     first.learning.porcelain = { status: 'done', activityType: 'lesson', number: 3, note: '' }

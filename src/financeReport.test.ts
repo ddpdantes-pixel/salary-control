@@ -11,6 +11,9 @@ describe('финансовый отчёт', () => {
   it('формирует подробную ленту с арифметикой остатка', () => {
     const state = createDefaultFinanceState()
     state.settings.forecastDays = 20
+    state.operations = state.operations.filter(
+      (operation) => operation.source !== 'salary' || operation.status === 'completed',
+    )
     const overview = buildFinanceOverview({ state, salaryMonths: [], todayIsoDate: '2026-07-11' })
     const items = buildFinanceCalendarTimeline({ anchors: state.anchors, operations: overview.operations, obligations: state.obligations, todayIsoDate: '2026-07-11' })
     const report = buildFinanceReport({
