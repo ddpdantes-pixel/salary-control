@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSalaryMonth } from './calculations'
 import { createDefaultFinanceState } from './financeDefaults'
+import { buildFinanceCalendarTimeline } from './financeCalendar'
 import { rublesToKopecks } from './financeMoney'
 import { setFinanceOperationStatus } from './financeObligations'
 import {
@@ -8,6 +9,7 @@ import {
   buildFinanceOverview,
   buildOverviewOperations,
 } from './financeOverview'
+import type { FinanceOperation } from './financeTypes'
 import type { SalaryMonth } from './types'
 
 describe('данные финансового обзора', () => {
@@ -275,6 +277,49 @@ describe('данные финансового обзора', () => {
     expect(after.forecast.minimumBalanceKopecks).toBe(before.forecast.minimumBalanceKopecks - rublesToKopecks(1_000))
   })
 
+  it('использует одинаковое историческое среднее в обзоре и календаре', () => {
+    const state = createDefaultFinanceState('2026-09-01T10:00:00.000Z')
+    state.anchors = [{
+      ...state.anchors[0],
+      date: '2026-08-31',
+      confirmedAt: '2026-08-31T12:00:00.000Z',
+    }]
+    state.obligations = []
+    state.operations = [
+      completedSalaryTransfer('2026-05-15', 3_000),
+      completedSalaryTransfer('2026-06-15', 3_500),
+      completedSalaryTransfer('2026-07-15', 4_000),
+      {
+        ...completedSalaryTransfer('2026-08-15', 0),
+        status: 'completed',
+      },
+      {
+        ...completedSalaryTransfer('2026-09-15', 0),
+        status: 'planned',
+      },
+    ]
+
+    const overview = buildFinanceOverview({
+      state,
+      salaryMonths: [],
+      todayIsoDate: '2026-09-01',
+    })
+    const calendar = buildFinanceCalendarTimeline({
+      anchors: state.anchors,
+      operations: overview.operations,
+      todayIsoDate: '2026-09-01',
+    })
+    const calendarIncome = calendar.find(
+      (item) => item.operation.id === 'salary-transfer-2026-09-15',
+    )
+    const overviewIncome = overview.forecast.dailyTimeline.find(
+      (item) => item.date === '2026-09-15',
+    )
+
+    expect(calendarIncome?.effectiveAmountKopecks).toBe(rublesToKopecks(3_500))
+    expect(overviewIncome?.incomeKopecks).toBe(calendarIncome?.effectiveAmountKopecks)
+  })
+
   it('не переносит разовый доход прошлого месяца как новую операцию', () => {
     const state = createDefaultFinanceState()
     state.operations.push({
@@ -403,6 +448,28 @@ describe('данные финансового обзора', () => {
     })
   })
 })
+
+function completedSalaryTransfer(
+  date: string,
+  amountRubles: number,
+): FinanceOperation {
+  return {
+    id: `salary-transfer-${date}`,
+    date,
+    title: 'Перевод из выплаты 15-го числа',
+    amountKopecks: rublesToKopecks(amountRubles),
+    direction: 'income',
+    status: 'completed',
+    source: 'salary',
+    category: 'salaryTransfer',
+    amountSource: 'salaryLinked',
+    salaryField: 'day15Expected',
+    sortOrder: 115,
+    completedAt: `${date}T12:00:00.000Z`,
+    createdAt: `${date}T12:00:00.000Z`,
+    updatedAt: `${date}T12:00:00.000Z`,
+  }
+}
 
 function createSalaryMonths(): SalaryMonth[] {
   const june = createSalaryMonth('2026-06', '2026-06-01T00:00:00.000Z')

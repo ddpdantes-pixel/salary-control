@@ -150,8 +150,8 @@ describe('финансовый отчёт', () => {
     )!
 
     expect(item.salaryForecastSourceDate).toBe('2026-07-25')
-    expect(formatFinanceFeedItem(item).join('\n')).toContain(
-      'Прогноз по выплате 25 июля',
+    expect(formatFinanceFeedItem(item).join('\n')).not.toContain(
+      'Прогноз по выплате',
     )
   })
 })

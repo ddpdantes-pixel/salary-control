@@ -1,5 +1,5 @@
 import { formatMoney } from './financeMoney'
-import { formatDateLabel, formatShortDateLabel } from './format'
+import { formatDateLabel } from './format'
 import type { FinanceCalendarItem } from './financeCalendar'
 import type { FinanceOverviewData } from './financeOverview'
 import type { BalanceAnchor } from './financeTypes'
@@ -51,7 +51,7 @@ export function buildFinanceReport(input: {
   const unknownOperations = periodItems.filter(
     (item) =>
       item.effectiveAmountKopecks === null ||
-      (item.operation.amountKopecks === null && !item.amountForecastSourceDate),
+      (item.operation.amountKopecks === null && item.effectiveAmountKopecks === 0),
   )
   if (unknownOperations.length > 0) {
     lines.push(
@@ -80,17 +80,6 @@ export function formatFinanceFeedItem(item: FinanceCalendarItem): string[] {
     `📅 ${formatCompactDate(operation.date)} — ${operation.title}`,
     '',
   ]
-  if (item.amountForecastSourceDate) {
-    lines.push(
-      `Сумма по прошлому месяцу: ${formatMoney(item.effectiveAmountKopecks ?? 0)}`,
-      '',
-    )
-  } else if (item.salaryForecastSourceDate) {
-    lines.push(
-      `Прогноз по выплате ${formatShortDateLabel(item.salaryForecastSourceDate)}`,
-      '',
-    )
-  }
   if (
     operation.status === 'completed' &&
     operation.completedDate &&

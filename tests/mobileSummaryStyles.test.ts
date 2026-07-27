@@ -14,8 +14,7 @@ describe('мобильные сводки Главной, здоровья и д
     expect(healthCss).toMatch(/\.health-task-row\s*\{[^}]*minmax\(0,\s*1fr\)/)
     expect(healthCss).toMatch(/\.health-task-row strong,[\s\S]*?overflow-wrap:\s*anywhere/)
     expect(financeCss).toMatch(/\.finance-calendar-amount\s*\{[^}]*min-width:\s*0/)
-    expect(financeCss).toMatch(/\.finance-calendar-amount \.finance-forecast-source\s*\{[^}]*width:\s*100%/)
-    expect(financeCss).toMatch(/\.finance-calendar-amount \.finance-forecast-source\s*\{[^}]*overflow-wrap:\s*anywhere/)
+    expect(financeCss).toMatch(/\.finance-calendar-amount > strong\s*\{[^}]*white-space:\s*nowrap/)
   })
 
   it('оставляет прогноз частью существующей карточки и переносит длинные суммы', () => {

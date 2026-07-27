@@ -481,8 +481,11 @@ describe('экран здоровья сегодня', () => {
     const tasks = screen.getByRole('heading', { name: 'Задачи' }).closest('section')!
     await user.click(within(tasks).getByRole('checkbox', { name: /Внести продажи Global Tile/ }))
 
-    await waitFor(() => expect((within(tasks).getByRole('checkbox', { name: /Внести продажи Global Tile/ }) as HTMLInputElement).checked).toBe(true))
-    expect(within(tasks).getAllByRole('checkbox', { name: /Внести продажи Global Tile/ })).toHaveLength(1)
+    await waitFor(() => expect(within(tasks).queryByRole('checkbox', { name: /Внести продажи Global Tile/ })).toBeNull())
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}')
+      expect(stored.taskDebts[debtId].completedDate).toBe(today)
+    })
   })
 
   it('не показывает поля заметок у всех направлений обучения', async () => {

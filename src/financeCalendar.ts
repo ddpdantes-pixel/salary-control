@@ -39,7 +39,6 @@ export interface FinanceCalendarItem {
   includedInAnchor: boolean
   sourceLabel: string
   effectiveAmountKopecks: number | null
-  amountForecastSourceDate: string | null
   salaryForecastSourceDate: string | null
 }
 
@@ -138,10 +137,6 @@ export function buildFinanceCalendarTimeline(input: {
           : undefined,
       ),
       effectiveAmountKopecks,
-      amountForecastSourceDate:
-        amountResolution?.source === 'previousMonth'
-          ? amountResolution.forecastSourceDate
-          : null,
       salaryForecastSourceDate:
         linkedIncome?.kind === 'forecast'
           ? linkedIncome.forecastSourceIncomeDate ?? null

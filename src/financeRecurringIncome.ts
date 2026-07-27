@@ -3,16 +3,19 @@ import type { FinanceOperation, Kopecks } from './financeTypes'
 
 export type FinanceAmountResolutionSource =
   | 'stored'
-  | 'previousMonth'
+  | 'historicalAverage'
   | 'unavailable'
 
 export interface FinanceOperationAmountResolution {
   storedAmountKopecks: Kopecks | null
   effectiveAmountKopecks: Kopecks | null
   source: FinanceAmountResolutionSource
-  forecastSourceOperationId: string | null
-  forecastSourceDate: string | null
+  forecastSourceOperationIds: string[]
+  forecastSourceDates: string[]
 }
+
+const MAX_FORECAST_SAMPLES = 3
+const MAX_HISTORY_MONTHS = 12
 
 export function resolveFinanceOperationAmounts(
   operations: FinanceOperation[],
@@ -44,40 +47,65 @@ export function resolveFinanceOperationAmount(
       storedAmountKopecks,
       effectiveAmountKopecks: storedAmountKopecks,
       source: 'stored',
-      forecastSourceOperationId: null,
-      forecastSourceDate: null,
+      forecastSourceOperationIds: [],
+      forecastSourceDates: [],
     }
   }
 
-  const previousMonth = getPreviousYearMonth(getDateYearMonth(operation.date))
-  const sourceOperation = operations
-    .filter(
-      (candidate) =>
-        candidate.id !== operation.id &&
-        getDateYearMonth(candidate.date) === previousMonth &&
-        candidate.status !== 'cancelled' &&
-        hasSameRecurringIncomeIdentity(operation, candidate) &&
-        isPositiveAmount(candidate.amountKopecks),
-    )
-    .sort(compareForecastSources)[0]
+  const sourceOperations = findHistoricalSources(operation, operations)
 
-  if (!sourceOperation) {
+  if (sourceOperations.length === 0) {
     return {
       storedAmountKopecks,
       effectiveAmountKopecks: 0,
       source: 'unavailable',
-      forecastSourceOperationId: null,
-      forecastSourceDate: null,
+      forecastSourceOperationIds: [],
+      forecastSourceDates: [],
     }
   }
 
+  const totalKopecks = sourceOperations.reduce(
+    (total, candidate) => total + (normalizeAmount(candidate.amountKopecks) ?? 0),
+    0,
+  )
+
   return {
     storedAmountKopecks,
-    effectiveAmountKopecks: normalizeAmount(sourceOperation.amountKopecks) ?? 0,
-    source: 'previousMonth',
-    forecastSourceOperationId: sourceOperation.id,
-    forecastSourceDate: sourceOperation.date,
+    effectiveAmountKopecks: Math.round(totalKopecks / sourceOperations.length),
+    source: 'historicalAverage',
+    forecastSourceOperationIds: sourceOperations.map((candidate) => candidate.id),
+    forecastSourceDates: sourceOperations.map((candidate) => candidate.date),
   }
+}
+
+function findHistoricalSources(
+  operation: FinanceOperation,
+  operations: FinanceOperation[],
+): FinanceOperation[] {
+  const sources: FinanceOperation[] = []
+  let month = getDateYearMonth(operation.date)
+
+  for (
+    let checkedMonthCount = 0;
+    checkedMonthCount < MAX_HISTORY_MONTHS &&
+    sources.length < MAX_FORECAST_SAMPLES;
+    checkedMonthCount += 1
+  ) {
+    month = getPreviousYearMonth(month)
+    const source = operations
+      .filter(
+        (candidate) =>
+          candidate.id !== operation.id &&
+          getDateYearMonth(candidate.date) === month &&
+          isActualForecastSource(candidate) &&
+          hasSameRecurringIncomeIdentity(operation, candidate),
+      )
+      .sort(compareForecastSources)[0]
+
+    if (source) sources.push(source)
+  }
+
+  return sources
 }
 
 function isUnknownFutureRecurringIncome(
@@ -136,17 +164,25 @@ function compareForecastSources(
   first: FinanceOperation,
   second: FinanceOperation,
 ): number {
-  const statusOrder = getStatusRank(second) - getStatusRank(first)
-  if (statusOrder !== 0) return statusOrder
-
-  const updateOrder = second.updatedAt.localeCompare(first.updatedAt)
+  const updateOrder = getCompletionTimestamp(second).localeCompare(
+    getCompletionTimestamp(first),
+  )
   if (updateOrder !== 0) return updateOrder
 
   return first.id.localeCompare(second.id)
 }
 
-function getStatusRank(operation: FinanceOperation): number {
-  return operation.status === 'completed' ? 2 : 1
+function isActualForecastSource(operation: FinanceOperation): boolean {
+  return (
+    operation.status === 'completed' &&
+    operation.amountSource !== 'copiedPrevious' &&
+    operation.amountSource !== 'unknown' &&
+    isPositiveAmount(operation.amountKopecks)
+  )
+}
+
+function getCompletionTimestamp(operation: FinanceOperation): string {
+  return operation.completedAt ?? operation.updatedAt
 }
 
 function isPositiveAmount(value: unknown): boolean {

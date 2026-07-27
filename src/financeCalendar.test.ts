@@ -208,38 +208,50 @@ describe('финансовый календарь', () => {
     ])
     expect(items[0]).toMatchObject({
       effectiveAmountKopecks: 0,
-      amountForecastSourceDate: null,
     })
   })
 
-  it('показывает эффективную сумму прошлого месяца и не изменяет исходный ноль', () => {
-    const july = {
-      ...operation('salary-july', '2026-07-15', 'income', 3_500),
+  it('показывает среднее фактических выплат и не изменяет исходный ноль', () => {
+    const may = {
+      ...operation('salary-may', '2026-05-15', 'income', 3_000),
       status: 'completed' as const,
       source: 'salary' as const,
       category: 'salaryTransfer' as const,
       salaryField: 'day15Expected' as const,
     }
-    const august = {
-      ...operation('salary-august', '2026-08-15', 'income', 0),
+    const june = {
+      ...operation('salary-june', '2026-06-15', 'income', 3_500),
+      status: 'completed' as const,
+      source: 'salary' as const,
+      category: 'salaryTransfer' as const,
+      salaryField: 'day15Expected' as const,
+    }
+    const july = {
+      ...operation('salary-july', '2026-07-15', 'income', 4_000),
+      status: 'completed' as const,
+      source: 'salary' as const,
+      category: 'salaryTransfer' as const,
+      salaryField: 'day15Expected' as const,
+    }
+    const september = {
+      ...operation('salary-september', '2026-09-15', 'income', 0),
       source: 'salary' as const,
       category: 'salaryTransfer' as const,
       salaryField: 'day15Expected' as const,
     }
     const item = buildFinanceCalendarTimeline({
-      anchors: [{ ...INITIAL_CREDIT_ACCOUNT_ANCHOR, date: '2026-07-31' }],
-      operations: [july, august],
-      todayIsoDate: '2026-08-01',
-    }).find((candidate) => candidate.operation.id === august.id)
+      anchors: [{ ...INITIAL_CREDIT_ACCOUNT_ANCHOR, date: '2026-08-31' }],
+      operations: [may, june, july, september],
+      todayIsoDate: '2026-09-01',
+    }).find((candidate) => candidate.operation.id === september.id)
 
     expect(item).toMatchObject({
       effectiveAmountKopecks: rublesToKopecks(3_500),
-      amountForecastSourceDate: '2026-07-15',
     })
     expect(item?.balanceAfterKopecks).toBe(
       INITIAL_CREDIT_ACCOUNT_ANCHOR.balanceKopecks + rublesToKopecks(3_500),
     )
-    expect(august.amountKopecks).toBe(0)
+    expect(september.amountKopecks).toBe(0)
   })
 
   it('убирает прогнозную подпись после появления точной суммы', () => {
@@ -264,7 +276,6 @@ describe('финансовый календарь', () => {
 
     expect(item).toMatchObject({
       effectiveAmountKopecks: rublesToKopecks(4_100),
-      amountForecastSourceDate: null,
     })
   })
 

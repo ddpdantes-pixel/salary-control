@@ -21,7 +21,6 @@ import {
 import {
   formatDateLabel,
   formatMoneyInputText,
-  formatShortDateLabel,
 } from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { sendOperationTestPaymentNotification } from './paymentNotifications'
@@ -624,16 +623,6 @@ function CalendarOperationCard({
               ? '—'
               : `${operation.direction === 'income' ? '+' : '−'}${formatMoney(item.effectiveAmountKopecks)}`}
           </strong>
-          {item.amountForecastSourceDate ? (
-            <small className="finance-forecast-source">
-              По прошлому месяцу
-            </small>
-          ) : item.salaryForecastSourceDate ? (
-            <small className="finance-forecast-source">
-              Прогноз по выплате{' '}
-              {formatShortDateLabel(item.salaryForecastSourceDate)}
-            </small>
-          ) : null}
         </span>
       </button>
       <div

@@ -122,13 +122,13 @@ describe('календарь денег', () => {
     expect(document.querySelector(`[data-operation-id="${cancelled.id}"]`)).not.toBeNull()
   })
 
-  it('показывает вместо нуля прогнозную сумму прошлого месяца', () => {
+  it('показывает вместо нуля среднюю фактическую сумму без поясняющей подписи', () => {
     const state = recurringIncomeState(0)
     render(
       <CalendarHarness
         initialState={state}
-        initialMonthId="2026-08"
-        todayIsoDate="2026-08-01"
+        initialMonthId="2026-09"
+        todayIsoDate="2026-09-01"
       />,
     )
 
@@ -136,8 +136,9 @@ describe('календарь денег', () => {
       name: /Перевод из выплаты 15-го числа/,
     })
     expect(summary.textContent).toContain('+3 500,00 ₽')
-    expect(summary.textContent).toContain('По прошлому месяцу')
     expect(summary.textContent).not.toContain('+0,00 ₽')
+    expect(summary.textContent).not.toContain('По прошлому месяцу')
+    expect(summary.textContent).not.toContain('Прогноз по выплате')
   })
 
   it('убирает прогнозную подпись после появления точной суммы', () => {
@@ -145,8 +146,8 @@ describe('календарь денег', () => {
     render(
       <CalendarHarness
         initialState={state}
-        initialMonthId="2026-08"
-        todayIsoDate="2026-08-01"
+        initialMonthId="2026-09"
+        todayIsoDate="2026-09-01"
       />,
     )
 
@@ -200,22 +201,36 @@ function CalendarHarness({
 }
 
 function recurringIncomeState(currentAmountRubles: number): FinanceState {
-  const state = createDefaultFinanceState('2026-08-01T10:00:00.000Z')
+  const state = createDefaultFinanceState('2026-09-01T10:00:00.000Z')
   state.anchors = [
     {
       ...state.anchors[0],
-      date: '2026-07-31',
+      date: '2026-08-31',
       balanceKopecks: rublesToKopecks(1_000),
-      confirmedAt: '2026-07-31T12:00:00.000Z',
+      confirmedAt: '2026-08-31T12:00:00.000Z',
     },
   ]
   state.obligations = []
   state.operations = [
     {
       ...operation({
-        id: 'salary-transfer-2026-07-15',
+        id: 'salary-transfer-2026-05-15',
         title: 'Перевод из выплаты 15-го числа',
-        date: '2026-07-15',
+        date: '2026-05-15',
+        direction: 'income',
+        status: 'completed',
+      }),
+      amountKopecks: rublesToKopecks(3_000),
+      source: 'salary',
+      category: 'salaryTransfer',
+      amountSource: 'salaryLinked',
+      salaryField: 'day15Expected',
+    },
+    {
+      ...operation({
+        id: 'salary-transfer-2026-06-15',
+        title: 'Перевод из выплаты 15-го числа',
+        date: '2026-06-15',
         direction: 'income',
         status: 'completed',
       }),
@@ -227,9 +242,37 @@ function recurringIncomeState(currentAmountRubles: number): FinanceState {
     },
     {
       ...operation({
+        id: 'salary-transfer-2026-07-15',
+        title: 'Перевод из выплаты 15-го числа',
+        date: '2026-07-15',
+        direction: 'income',
+        status: 'completed',
+      }),
+      amountKopecks: rublesToKopecks(4_000),
+      source: 'salary',
+      category: 'salaryTransfer',
+      amountSource: 'salaryLinked',
+      salaryField: 'day15Expected',
+    },
+    {
+      ...operation({
         id: 'salary-transfer-2026-08-15',
         title: 'Перевод из выплаты 15-го числа',
         date: '2026-08-15',
+        direction: 'income',
+        status: 'completed',
+      }),
+      amountKopecks: 0,
+      source: 'salary',
+      category: 'salaryTransfer',
+      amountSource: 'salaryLinked',
+      salaryField: 'day15Expected',
+    },
+    {
+      ...operation({
+        id: 'salary-transfer-2026-09-15',
+        title: 'Перевод из выплаты 15-го числа',
+        date: '2026-09-15',
         direction: 'income',
         status: 'planned',
       }),
