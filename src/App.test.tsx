@@ -29,6 +29,10 @@ import {
 } from './cloudBackup'
 import { PAYMENT_PUSH_DEVICE_KEY } from './paymentNotifications'
 import { ACTIVE_TIMER_STORAGE_KEY } from './healthTimer'
+import {
+  createDefaultHealthSettings,
+  saveStoredHealthSettings,
+} from './healthSettings'
 
 vi.mock('virtual:pwa-register', () => ({
   registerSW: vi.fn(() => vi.fn()),
@@ -171,9 +175,45 @@ describe('оболочка приложения', () => {
 
     await renderApp()
 
-    expect(await screen.findByText(/Вода обновлена: 1.?800 мл/)).not.toBeNull()
+    expect(await screen.findByText(/Вода обновлена только в Safari: 1.?800 мл/)).not.toBeNull()
     expect(screen.getByRole('heading', { name: /Вода — 1.?800 из 1.?800 мл/ })).not.toBeNull()
     expect(window.location.hash).toBe('')
+  })
+
+  it('получает воду при запуске, focus и возврате visibility без перезагрузки', async () => {
+    const today = getLocalDateId()
+    const settings = createDefaultHealthSettings()
+    settings.appleHealth.syncToken = 'C'.repeat(43)
+    saveStoredHealthSettings(settings)
+    let clock = 10_000
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      version: 2,
+      date: today,
+      waterMl: 1800,
+      source: 'apple-health',
+      updatedAt: '2026-07-29T18:00:00.000Z',
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await renderApp()
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}')
+      expect(stored.entries[today]).toMatchObject({ waterMl: 1800 })
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    clock += 4_000
+    window.dispatchEvent(new Event('focus'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    clock += 4_000
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
   })
 
   it('открывает защищённый раздел Пароли с Главного без пятой нижней вкладки', async () => {

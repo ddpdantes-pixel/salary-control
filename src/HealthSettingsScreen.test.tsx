@@ -15,19 +15,26 @@ describe('экран настроек здоровья', () => {
       configurable: true,
       value: { writeText },
     })
-    render(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{}} onSave={() => true} onDirtyChange={() => {}} />)
+    const onSave = vi.fn<(settings: HealthSettings) => boolean>(() => true)
+    render(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{}} onSave={onSave} onDirtyChange={() => {}} />)
 
     expect(screen.getByRole('heading', { name: 'Apple Health — вода' })).not.toBeNull()
     expect(screen.getByText('Не настроено')).not.toBeNull()
     await user.click(screen.getByRole('button', { name: 'Как настроить' }))
-    expect(screen.getByText('Готово к синхронизации')).not.toBeNull()
-    expect(screen.getByText(/Найти образцы здоровья/)).not.toBeNull()
-    expect(screen.getByText(/напрямую в открытую PWA/)).not.toBeNull()
+    expect(screen.getByText(/замените только старую обычную ссылку/)).not.toBeNull()
+    expect(screen.getByText('Команду заново создавать не нужно.')).not.toBeNull()
     await user.click(screen.getByRole('button', { name: 'Скопировать основу ссылки' }))
 
+    expect(screen.getByText('Готово к синхронизации')).not.toBeNull()
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      appleHealth: { syncToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) },
+    }))
     expect(writeText).toHaveBeenCalledOnce()
-    expect(writeText.mock.calls[0][0]).toMatch(/#health-water\/v1\/apple-health\/$/)
-    expect(writeText.mock.calls[0][0]).not.toMatch(/\/\d+$/)
+    expect(writeText.mock.calls[0][0]).toMatch(/#health-water-sync\/v2\/[A-Za-z0-9_-]{43}\/$/)
+    const copied = new URL(writeText.mock.calls[0][0])
+    expect(copied.pathname).not.toContain(onSave.mock.calls[0][0].appleHealth.syncToken)
+    expect(copied.search).toBe('')
+    expect(copied.hash).toMatch(/^#health-water-sync\/v2\//)
     expect(screen.getByText('Основа ссылки скопирована')).not.toBeNull()
   })
 
@@ -43,7 +50,48 @@ describe('экран настроек здоровья', () => {
     expect(screen.getByText('Синхронизировано сегодня')).not.toBeNull()
     expect(screen.getByText(/1.?800 мл/)).not.toBeNull()
     view.rerender(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{ [entry.date]: entry }} appleHealthImportError onSave={() => true} onDirtyChange={() => {}} />)
-    expect(screen.getByText('Ошибка данных')).not.toBeNull()
+    expect(screen.getByText('Ошибка передачи')).not.toBeNull()
+  })
+
+  it('повторно использует существующий token и сбрасывает его без удаления воды', async () => {
+    const user = userEvent.setup()
+    const settings = createDefaultHealthSettings()
+    const oldToken = 'D'.repeat(43)
+    settings.appleHealth.syncToken = oldToken
+    const entry = {
+      ...createHealthEntry('2026-07-29'),
+      waterMl: 1500,
+      waterSource: 'apple-health' as const,
+      waterSyncedAt: '2026-07-29T18:00:00.000Z',
+    }
+    const onSave = vi.fn<(settings: HealthSettings) => boolean>(() => true)
+    const writeText = vi.fn<(value: string) => Promise<void>>(() => Promise.resolve())
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    render(<HealthSettingsScreen
+      settings={settings}
+      entries={{ [entry.date]: entry }}
+      onSave={onSave}
+      onDirtyChange={() => {}}
+    />)
+
+    await user.click(screen.getByRole('button', { name: 'Скопировать основу ссылки' }))
+    expect(writeText.mock.calls[0][0]).toContain(oldToken)
+    expect(onSave).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Сбросить ключ синхронизации' }))
+    expect(screen.getByRole('dialog')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Сбросить ключ' }))
+    const saved = onSave.mock.calls[0][0]
+    expect(saved.appleHealth.syncToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(saved.appleHealth.syncToken).not.toBe(oldToken)
+    expect(entry.waterMl).toBe(1500)
+    expect(screen.getByText(/Ключ сброшен/)).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Скопировать основу ссылки' }))
+    expect(writeText.mock.calls.at(-1)?.[0]).toContain(saved.appleHealth.syncToken!)
+    expect(writeText.mock.calls.at(-1)?.[0]).not.toContain(oldToken)
   })
 
   it('редактирует черновик и сохраняет все настройки одним действием', async () => {

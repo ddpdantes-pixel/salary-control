@@ -65,9 +65,14 @@ export interface CosmetologySettings {
   intervals: CosmeticIntervalSetting[]
 }
 
+export interface AppleHealthSettings {
+  syncToken: string | null
+}
+
 export interface HealthSettings {
   schemaVersion: 1
   water: { goalCups: number; cupVolumeMl: number }
+  appleHealth: AppleHealthSettings
   coffee: { maxPerDay: number }
   quickItems: Record<QuickItemKey, boolean> & { squatsRepetitions: number }
   workouts: WorkoutDefinition[]
@@ -227,11 +232,17 @@ export function normalizeHealthSettings(value: unknown): HealthSettings {
   const quick = isRecord(value.quickItems) ? value.quickItems : {}
   const relaxation = isRecord(value.relaxation) ? value.relaxation : {}
   const minoxidil = isRecord(value.minoxidil) ? value.minoxidil : {}
+  const appleHealth = isRecord(value.appleHealth) ? value.appleHealth : {}
   const normalized: HealthSettings = {
     schemaVersion: 1,
     water: {
       goalCups: integerInRange(water.goalCups, 1, 20) ?? defaults.water.goalCups,
       cupVolumeMl: integerInRange(water.cupVolumeMl, 50, 2000) ?? defaults.water.cupVolumeMl,
+    },
+    appleHealth: {
+      syncToken: isAppleHealthSyncToken(appleHealth.syncToken)
+        ? appleHealth.syncToken
+        : null,
     },
     coffee: { maxPerDay: integerInRange(coffee.maxPerDay, 0, 10) ?? defaults.coffee.maxPerDay },
     quickItems: {
@@ -274,6 +285,12 @@ export function validateHealthSettings(settings: HealthSettings): HealthSettings
   const errors: Record<string, string> = {}
   requireInteger(errors, 'water.goalCups', settings.water.goalCups, 1, 20)
   requireInteger(errors, 'water.cupVolumeMl', settings.water.cupVolumeMl, 50, 2000)
+  if (
+    settings.appleHealth.syncToken !== null &&
+    !isAppleHealthSyncToken(settings.appleHealth.syncToken)
+  ) {
+    errors['appleHealth.syncToken'] = 'Ключ синхронизации повреждён.'
+  }
   requireInteger(errors, 'coffee.maxPerDay', settings.coffee.maxPerDay, 0, 10)
   requireInteger(errors, 'quickItems.squatsRepetitions', settings.quickItems.squatsRepetitions, 1, 500)
   if (!Number.isFinite(settings.urgeReference) || settings.urgeReference < 0 || settings.urgeReference > 5) {
@@ -437,6 +454,7 @@ function createHealthSettingsDefaults(now: Date): HealthSettings {
   return {
     schemaVersion: HEALTH_SETTINGS_SCHEMA_VERSION,
     water: { goalCups: 6, cupVolumeMl: 300 },
+    appleHealth: { syncToken: null },
     coffee: { maxPerDay: 2 },
     quickItems: {
       psyllium: true,
@@ -460,6 +478,10 @@ function createHealthSettingsDefaults(now: Date): HealthSettings {
     learningSchedule: createDefaultLearningSchedule(now),
     cosmetology: createDefaultCosmetologySettings(now),
   }
+}
+
+export function isAppleHealthSyncToken(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)
 }
 
 export function createDefaultCosmetologySettings(now = new Date()): CosmetologySettings {

@@ -92,7 +92,9 @@ export function createBackupData(
     ...(healthState
       ? { healthState: excludeAppleHealthWaterFromBackup(healthState) }
       : {}),
-    ...(healthSettings ? { healthSettings } : {}),
+    ...(healthSettings
+      ? { healthSettings: excludeAppleHealthSecretFromBackup(healthSettings) }
+      : {}),
     ...(cashAtHome ? { cashAtHome } : {}),
     ...(paymentNotificationSettings
       ? { paymentNotificationSettings }
@@ -110,9 +112,21 @@ function excludeAppleHealthWaterFromBackup(state: HealthState): HealthState {
         delete entry.waterMl
         delete entry.waterSource
         delete entry.waterSyncedAt
+        delete entry.waterManualMode
+        delete entry.appleHealthAvailableMl
+        delete entry.appleHealthAvailableAt
         return [date, entry]
       }),
     ),
+  }
+}
+
+function excludeAppleHealthSecretFromBackup(
+  settings: HealthSettings,
+): HealthSettings {
+  return {
+    ...structuredClone(settings),
+    appleHealth: { syncToken: null },
   }
 }
 

@@ -13,12 +13,17 @@ import {
 } from './healthSettings'
 import type { HealthEntry, PlannedWorkoutDay, WorkoutDefinition } from './healthTypes'
 import { getLocalDateId } from './healthModel'
-import { getAppleHealthWaterLinkBase } from './appleHealthWater'
+import {
+  createAppleHealthSyncToken,
+  getAppleHealthWaterSyncLinkBase,
+} from './appleHealthWater'
 
 interface HealthSettingsScreenProps {
   settings: HealthSettings
   entries: Record<string, HealthEntry>
   appleHealthImportError?: boolean
+  appleHealthSyncStatus?: 'idle' | 'checking' | 'transferred' | 'synced' | 'available-manual' | 'empty' | 'error'
+  onCheckAppleHealthSync?: () => void
   onSave: (settings: HealthSettings) => boolean
   onDirtyChange: (dirty: boolean) => void
 }
@@ -26,6 +31,7 @@ interface HealthSettingsScreenProps {
 type Confirmation =
   | { kind: 'restore' }
   | { kind: 'delete-workout'; workoutId: string }
+  | { kind: 'reset-apple-health-key' }
   | null
 
 const QUICK_ITEMS = [
@@ -39,6 +45,8 @@ export function HealthSettingsScreen({
   settings,
   entries,
   appleHealthImportError = false,
+  appleHealthSyncStatus = 'idle',
+  onCheckAppleHealthSync = () => undefined,
   onSave,
   onDirtyChange,
 }: HealthSettingsScreenProps) {
@@ -69,11 +77,15 @@ export function HealthSettingsScreen({
       )[0],
     [entries],
   )
-  const appleHealthStatus = appleHealthImportError
-    ? 'Ошибка данных'
+  const appleHealthStatus = appleHealthImportError || appleHealthSyncStatus === 'error'
+    ? 'Ошибка передачи'
+    : appleHealthSyncStatus === 'checking'
+      ? 'Проверяем синхронизацию'
+      : appleHealthSyncStatus === 'transferred'
+        ? 'Передано Командой, ожидается получение'
     : latestAppleHealthEntry?.date === getLocalDateId()
       ? 'Синхронизировано сегодня'
-      : latestAppleHealthEntry || appleSetupOpen || appleLinkState === 'copied'
+      : draft.appleHealth.syncToken
         ? 'Готово к синхронизации'
         : 'Не настроено'
 
@@ -105,7 +117,15 @@ export function HealthSettingsScreen({
 
   async function copyAppleHealthLinkBase(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(getAppleHealthWaterLinkBase())
+      const token = draft.appleHealth.syncToken ?? createAppleHealthSyncToken()
+      const next = draft.appleHealth.syncToken
+        ? draft
+        : { ...draft, appleHealth: { syncToken: token } }
+      if (!draft.appleHealth.syncToken) {
+        if (!onSave(structuredClone(next))) throw new Error('save failed')
+        setDraft(next)
+      }
+      await navigator.clipboard.writeText(getAppleHealthWaterSyncLinkBase(token))
       setAppleLinkState('copied')
     } catch {
       setAppleLinkState('error')
@@ -164,7 +184,10 @@ export function HealthSettingsScreen({
 
   function confirmAction(): void {
     if (confirmation?.kind === 'restore') {
-      const defaults = createDefaultHealthSettings()
+      const defaults = {
+        ...createDefaultHealthSettings(),
+        appleHealth: { syncToken: draft.appleHealth.syncToken },
+      }
       setDraft(defaults)
       setErrors({})
       setMessage(onSave(defaults) ? 'Стандартные настройки восстановлены' : 'Не удалось восстановить настройки')
@@ -174,6 +197,19 @@ export function HealthSettingsScreen({
         ...current,
         workouts: current.workouts.filter((workout) => workout.id !== confirmation.workoutId),
       }))
+    }
+    if (confirmation?.kind === 'reset-apple-health-key') {
+      const next = {
+        ...draft,
+        appleHealth: { syncToken: createAppleHealthSyncToken() },
+      }
+      if (onSave(structuredClone(next))) {
+        setDraft(next)
+        setAppleLinkState('idle')
+        setMessage('Ключ сброшен. Скопируйте новую основу ссылки.')
+      } else {
+        setMessage('Не удалось сбросить ключ синхронизации')
+      }
     }
     setConfirmation(null)
   }
@@ -236,7 +272,7 @@ export function HealthSettingsScreen({
           <div className="health-apple-water-heading">
             <div>
               <h3 id="apple-health-water-title">Apple Health — вода</h3>
-              <span className={appleHealthImportError ? 'error' : ''}>{appleHealthStatus}</span>
+              <span className={appleHealthImportError || appleHealthSyncStatus === 'error' ? 'error' : ''}>{appleHealthStatus}</span>
             </div>
             {latestAppleHealthEntry && (
               <p>
@@ -250,23 +286,37 @@ export function HealthSettingsScreen({
               {appleSetupOpen ? 'Скрыть инструкцию' : 'Как настроить'}
             </button>
             <button type="button" onClick={copyAppleHealthLinkBase}>Скопировать основу ссылки</button>
+            <button
+              type="button"
+              disabled={!draft.appleHealth.syncToken || appleHealthSyncStatus === 'checking'}
+              onClick={onCheckAppleHealthSync}
+            >
+              Проверить синхронизацию
+            </button>
           </div>
           {appleLinkState === 'copied' && <p className="health-apple-water-message success">Основа ссылки скопирована</p>}
           {appleLinkState === 'error' && <p className="health-apple-water-message error">Не удалось скопировать ссылку</p>}
           {appleSetupOpen && (
             <ol className="health-apple-water-steps">
-              <li>Добавьте действие «Текущая дата».</li>
-              <li>Добавьте «Найти образцы здоровья»: тип «Вода», от начала текущего дня до текущего времени.</li>
-              <li>Добавьте «Получить сведения об образцах здоровья» и выберите значение в миллилитрах.</li>
-              <li>Добавьте «Вычислить статистику» и выберите сумму.</li>
-              <li>Добавьте «Округлить число» до целого.</li>
-              <li>Добавьте «Форматировать дату» с форматом yyyy-MM-dd.</li>
-              <li>В действии «Текст» соедините скопированную основу, дату, символ «/» и округлённую сумму.</li>
-              <li>Добавьте «Открыть URL-адреса». Разрешение на чтение воды выдаётся самой Команде.</li>
+              <li>Нажмите «Скопировать основу ссылки».</li>
+              <li>Откройте Команду «Вода в Мой ритм».</li>
+              <li>В действии «Текст» замените только старую обычную ссылку перед переменной даты.</li>
+              <li>Переменные «Форматированная дата» и «Округлённое число» не удаляйте.</li>
+              <li>Запустите Команду.</li>
+              <li>После сообщения об успешной передаче вернитесь в «Мой ритм» с домашнего экрана.</li>
             </ol>
           )}
-          <p className="health-apple-water-note">Удобно запускать Команду вечером перед чек-листом или вручную с ярлыка.</p>
-          <p className="health-apple-water-privacy">Количество воды передаётся из Команды iPhone напрямую в открытую PWA и не отправляется на сервер.</p>
+          <p className="health-apple-water-note">Команду заново создавать не нужно.</p>
+          <p className="health-apple-water-privacy">Через сервер временно передаются только дата и итоговый объём воды. Исходные записи Apple Health и другие показатели здоровья не передаются.</p>
+          {draft.appleHealth.syncToken && (
+            <button
+              type="button"
+              className="health-apple-water-reset"
+              onClick={() => setConfirmation({ kind: 'reset-apple-health-key' })}
+            >
+              Сбросить ключ синхронизации
+            </button>
+          )}
         </section>
       </SettingsGroup>
 
@@ -478,11 +528,11 @@ export function HealthSettingsScreen({
       {confirmation && (
         <div className="dialog-backdrop" role="presentation">
           <section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="health-settings-confirm-title">
-            <h2 id="health-settings-confirm-title">{confirmation.kind === 'restore' ? 'Вернуть стандартные цели и графики?' : 'Удалить шаблон тренировки?'}</h2>
-            <p>{confirmation.kind === 'restore' ? 'Записи здоровья не будут удалены.' : 'Этот шаблон ещё не используется в записях и будет удалён из настроек.'}</p>
+            <h2 id="health-settings-confirm-title">{confirmation.kind === 'restore' ? 'Вернуть стандартные цели и графики?' : confirmation.kind === 'reset-apple-health-key' ? 'Сбросить ключ синхронизации?' : 'Удалить шаблон тренировки?'}</h2>
+            <p>{confirmation.kind === 'restore' ? 'Записи здоровья не будут удалены.' : confirmation.kind === 'reset-apple-health-key' ? 'Старая ссылка Команды перестанет передавать воду в установленное приложение. Локальные записи воды сохранятся.' : 'Этот шаблон ещё не используется в записях и будет удалён из настроек.'}</p>
             <div className="dialog-actions">
               <button type="button" onClick={() => setConfirmation(null)}>Отмена</button>
-              <button type="button" className="primary" onClick={confirmAction}>{confirmation.kind === 'restore' ? 'Восстановить' : 'Удалить'}</button>
+              <button type="button" className="primary" onClick={confirmAction}>{confirmation.kind === 'restore' ? 'Восстановить' : confirmation.kind === 'reset-apple-health-key' ? 'Сбросить ключ' : 'Удалить'}</button>
             </div>
           </section>
         </div>

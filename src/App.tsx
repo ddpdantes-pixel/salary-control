@@ -115,7 +115,13 @@ import type { PasswordVaultEnvelope } from './passwordVaultCrypto'
 import { clearRetiredPlansStorage } from './retiredPlansCleanup'
 import { getTimerTitle, getTimerTotalRemaining } from './healthTimer'
 import { useHealthTimer } from './useHealthTimer'
-import { hasAppleHealthWaterFragment } from './appleHealthWater'
+import {
+  APPLE_HEALTH_WATER_SYNC_EVENT,
+  APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
+  applyRemoteAppleHealthWater,
+  fetchAppleHealthWaterFromWorker,
+  hasAppleHealthWaterFragment,
+} from './appleHealthWater'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
@@ -194,6 +200,10 @@ function App() {
   const [passwordVaultOpen, setPasswordVaultOpen] = useState(false)
   const [timerOpenRequest, setTimerOpenRequest] = useState(0)
   const healthTimer = useHealthTimer()
+  const healthStateRef = useRef(healthState)
+  const appleHealthSyncAbortRef = useRef<AbortController | null>(null)
+  const appleHealthSyncInFlightRef = useRef<Promise<void> | null>(null)
+  const appleHealthLastSyncRef = useRef(0)
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
   const financeDidMountRef = useRef(false)
@@ -215,6 +225,102 @@ function App() {
     window.addEventListener('hashchange', openAppleHealthWaterImport)
     return () => window.removeEventListener('hashchange', openAppleHealthWaterImport)
   }, [])
+
+  useEffect(() => {
+    healthStateRef.current = healthState
+  }, [healthState])
+
+  useEffect(() => {
+    const token = healthSettings.appleHealth.syncToken
+    if (isBooting || !token) return
+    let disposed = false
+
+    const syncWater = (force = false): Promise<void> => {
+      if (appleHealthSyncInFlightRef.current) {
+        return appleHealthSyncInFlightRef.current
+      }
+      const nowMs = Date.now()
+      if (!force && nowMs - appleHealthLastSyncRef.current < 3_000) {
+        return Promise.resolve()
+      }
+      appleHealthLastSyncRef.current = nowMs
+      const controller = new AbortController()
+      appleHealthSyncAbortRef.current = controller
+      window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+        detail: { status: 'checking' },
+      }))
+
+      const request = (async () => {
+        try {
+          const remote = await fetchAppleHealthWaterFromWorker(
+            token,
+            getLocalIsoDate(),
+            { signal: controller.signal },
+          )
+          if (disposed) return
+          if (!remote) {
+            window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+              detail: { status: 'empty' },
+            }))
+            return
+          }
+          const applied = applyRemoteAppleHealthWater(
+            healthStateRef.current,
+            remote,
+          )
+          if (applied.state !== healthStateRef.current) {
+            healthStateRef.current = applied.state
+            saveStoredHealthState(applied.state)
+            setHealthState(applied.state)
+          }
+          window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+            detail: {
+              status: applied.status === 'available-manual'
+                ? 'available-manual'
+                : 'synced',
+              waterMl: remote.waterMl,
+              updatedAt: remote.updatedAt,
+            },
+          }))
+        } catch (error) {
+          if (disposed || (error instanceof DOMException && error.name === 'AbortError')) {
+            return
+          }
+          window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+            detail: { status: 'error' },
+          }))
+        }
+      })().finally(() => {
+        if (appleHealthSyncInFlightRef.current === request) {
+          appleHealthSyncInFlightRef.current = null
+          appleHealthSyncAbortRef.current = null
+        }
+      })
+      appleHealthSyncInFlightRef.current = request
+      return request
+    }
+
+    const requestSync = (event: Event) => {
+      const force = event instanceof CustomEvent && event.detail?.force === true
+      void syncWater(force)
+    }
+    const syncOnFocus = () => void syncWater()
+    const syncWhenVisible = () => {
+      if (document.visibilityState === 'visible') void syncWater()
+    }
+
+    window.addEventListener(APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT, requestSync)
+    window.addEventListener('focus', syncOnFocus)
+    document.addEventListener('visibilitychange', syncWhenVisible)
+    void syncWater(true)
+    return () => {
+      disposed = true
+      appleHealthSyncAbortRef.current?.abort()
+      window.removeEventListener(APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT, requestSync)
+      window.removeEventListener('focus', syncOnFocus)
+      document.removeEventListener('visibilitychange', syncWhenVisible)
+    }
+  }, [healthSettings.appleHealth.syncToken, isBooting])
 
   if (firstRenderRef.current) {
     firstRenderRef.current = false
@@ -663,7 +769,19 @@ function App() {
       saveStoredHealthState(pendingRestore.healthState)
       setHealthState(pendingRestore.healthState)
     }
-    const restoredHealthSettings = pendingRestore.healthSettings ?? createDefaultHealthSettings()
+    const restoredHealthSettings = pendingRestore.healthSettings
+      ? {
+          ...pendingRestore.healthSettings,
+          appleHealth: {
+            syncToken: healthSettings.appleHealth.syncToken,
+          },
+        }
+      : {
+          ...createDefaultHealthSettings(),
+          appleHealth: {
+            syncToken: healthSettings.appleHealth.syncToken,
+          },
+        }
     saveStoredHealthSettings(restoredHealthSettings)
     setHealthSettings(restoredHealthSettings)
     setCashAtHome(

@@ -77,6 +77,9 @@ export interface HealthEntry {
   waterMl?: number
   waterSource?: 'apple-health'
   waterSyncedAt?: string
+  waterManualMode?: boolean
+  appleHealthAvailableMl?: number
+  appleHealthAvailableAt?: string
   coffeeCups: number
   psyllium: boolean
   fruit: boolean

@@ -35,12 +35,18 @@ import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
 import { shareHealthReport } from './healthShare'
 import type { HealthShareResult } from './healthShare'
 import {
+  APPLE_HEALTH_WATER_SYNC_EVENT,
+  APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
   applyAppleHealthWaterImport,
   clearAppleHealthWaterFragment,
   getHealthEntryWaterMl,
   getWaterGoalMl,
   isWaterGoalMet,
   parseAppleHealthWaterFragment,
+  sendAppleHealthWaterToWorker,
+  switchHealthEntryToManualWater,
+  useAvailableAppleHealthWater,
+  type AppleHealthWaterSyncPayload,
 } from './appleHealthWater'
 import {
   BRISTOL_DESCRIPTIONS,
@@ -88,9 +94,16 @@ import './HealthScreen.css'
 
 type HealthSaveState = 'saved' | 'saving' | 'error'
 type AppleHealthImportNotice =
-  | { kind: 'success'; message: string }
-  | { kind: 'error'; message: string }
+  | { kind: 'success' | 'error' | 'warning'; message: string; detail?: string }
   | null
+type AppleHealthSyncStatus =
+  | 'idle'
+  | 'checking'
+  | 'transferred'
+  | 'synced'
+  | 'available-manual'
+  | 'empty'
+  | 'error'
 
 const SAVE_DELAY_MS = 350
 const SCALE_0_TO_5 = [0, 1, 2, 3, 4, 5]
@@ -181,6 +194,10 @@ export function HealthScreen({
   const [timerScreen, setTimerScreen] = useState(false)
   const [appleHealthImportNotice, setAppleHealthImportNotice] =
     useState<AppleHealthImportNotice>(null)
+  const [pendingAppleHealthTransfer, setPendingAppleHealthTransfer] =
+    useState<AppleHealthWaterSyncPayload | null>(null)
+  const [appleHealthSyncStatus, setAppleHealthSyncStatus] =
+    useState<AppleHealthSyncStatus>('idle')
   const initialStateRef = useRef(state)
   const initialStatePersistedRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
@@ -198,6 +215,33 @@ export function HealthScreen({
     if (timerOpenRequest > 0) setTimerScreen(true)
   }, [timerOpenRequest])
 
+  const transferAppleHealthWater = useCallback(
+    async (payload: AppleHealthWaterSyncPayload) => {
+      setPendingAppleHealthTransfer(payload)
+      setAppleHealthImportNotice({
+        kind: 'warning',
+        message: 'Передаём воду в установленное приложение…',
+      })
+      try {
+        const saved = await sendAppleHealthWaterToWorker(payload)
+        setPendingAppleHealthTransfer(null)
+        setAppleHealthSyncStatus('transferred')
+        setAppleHealthImportNotice({
+          kind: 'success',
+          message: `Вода передана в “Мой ритм”: ${formatWaterMl(saved.waterMl)} мл`,
+          detail: 'Вернитесь в приложение с домашнего экрана.',
+        })
+      } catch {
+        setAppleHealthSyncStatus('error')
+        setAppleHealthImportNotice({
+          kind: 'error',
+          message: 'Не удалось передать воду. Проверьте интернет и повторите Команду.',
+        })
+      }
+    },
+    [],
+  )
+
   useEffect(() => {
     const importWaterFromFragment = () => {
       const result = parseAppleHealthWaterFragment(window.location.hash)
@@ -212,22 +256,57 @@ export function HealthScreen({
         return
       }
 
+      const payload = result.payload
+      setSelectedDate(payload.date)
+      setActiveTab('today')
+      if (payload.version === 2) {
+        void transferAppleHealthWater(payload)
+        return
+      }
+
       const syncedAt = new Date().toISOString()
       setState((current) =>
-        applyAppleHealthWaterImport(current, result.payload, syncedAt),
+        applyAppleHealthWaterImport(current, payload, syncedAt),
       )
-      setSelectedDate(result.payload.date)
-      setActiveTab('today')
       setAppleHealthImportNotice({
-        kind: 'success',
-        message: `Вода обновлена: ${formatWaterMl(result.payload.waterMl)} мл`,
+        kind: 'warning',
+        message: `Вода обновлена только в Safari: ${formatWaterMl(payload.waterMl)} мл`,
+        detail: 'Старая ссылка v1 не передаёт воду в установленную PWA. Скопируйте новую основу v2 в настройках.',
       })
     }
 
     importWaterFromFragment()
     window.addEventListener('hashchange', importWaterFromFragment)
     return () => window.removeEventListener('hashchange', importWaterFromFragment)
+  }, [transferAppleHealthWater])
+
+  useEffect(() => {
+    const receiveSyncStatus = (event: Event) => {
+      if (!(event instanceof CustomEvent) || typeof event.detail?.status !== 'string') {
+        return
+      }
+      setAppleHealthSyncStatus(event.detail.status as AppleHealthSyncStatus)
+      if (event.detail.status === 'synced' || event.detail.status === 'available-manual') {
+        const refreshed = loadStoredHealthState()
+        initialStateRef.current = refreshed.state
+        setState(refreshed.state)
+        setSaveState('saved')
+      }
+    }
+    window.addEventListener(APPLE_HEALTH_WATER_SYNC_EVENT, receiveSyncStatus)
+    return () => window.removeEventListener(
+      APPLE_HEALTH_WATER_SYNC_EVENT,
+      receiveSyncStatus,
+    )
   }, [])
+
+  useEffect(() => {
+    if (activeTab !== 'today') return
+    window.dispatchEvent(new CustomEvent(
+      APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
+      { detail: { force: false } },
+    ))
+  }, [activeTab])
 
   useEffect(() => {
     if (!settingsDirty) return
@@ -374,9 +453,18 @@ export function HealthScreen({
       <HealthTabs activeTab={activeTab} onChange={changeHealthTab} onOpenTimers={() => setTimerScreen(true)} />
 
       {appleHealthImportNotice && (
-        <p className={`health-import-notice ${appleHealthImportNotice.kind}`} role="status">
-          {appleHealthImportNotice.message}
-        </p>
+        <div className={`health-import-notice ${appleHealthImportNotice.kind}`} role="status">
+          <p>{appleHealthImportNotice.message}</p>
+          {appleHealthImportNotice.detail && <span>{appleHealthImportNotice.detail}</span>}
+          {pendingAppleHealthTransfer && appleHealthImportNotice.kind === 'error' && (
+            <button
+              type="button"
+              onClick={() => void transferAppleHealthWater(pendingAppleHealthTransfer)}
+            >
+              Повторить передачу
+            </button>
+          )}
+        </div>
       )}
 
       {activeTab === 'today' ? (
@@ -397,6 +485,10 @@ export function HealthScreen({
           onSkipDebt={skipDebt}
           onCompleteTaskDebt={completeTaskDebt}
           onOpenTimers={() => setTimerScreen(true)}
+          onRequestAppleHealthSync={() => window.dispatchEvent(new CustomEvent(
+            APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
+            { detail: { force: true } },
+          ))}
           onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
         />
       ) : activeTab === 'history' ? (
@@ -416,6 +508,11 @@ export function HealthScreen({
           settings={settings}
           entries={state.entries}
           appleHealthImportError={appleHealthImportNotice?.kind === 'error'}
+          appleHealthSyncStatus={appleHealthSyncStatus}
+          onCheckAppleHealthSync={() => window.dispatchEvent(new CustomEvent(
+            APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
+            { detail: { force: true } },
+          ))}
           onSave={saveSettings}
           onDirtyChange={setSettingsDirty}
         />
@@ -486,6 +583,7 @@ function HealthToday({
   onSkipDebt,
   onCompleteTaskDebt,
   onOpenTimers,
+  onRequestAppleHealthSync,
   onBackToHistory,
 }: {
   entry: HealthEntry
@@ -504,6 +602,7 @@ function HealthToday({
   onSkipDebt: (debtId: string) => void
   onCompleteTaskDebt: (debtId: string) => void
   onOpenTimers: () => void
+  onRequestAppleHealthSync: () => void
   onBackToHistory?: () => void
 }) {
   const dateHeading = formatHealthDate(selectedDate)
@@ -519,6 +618,7 @@ function HealthToday({
   const urgeValues = [...new Set([...URGE_VALUES, settings.urgeReference])].sort((a, b) => a - b)
   const appleHealthWaterActive =
     entry.waterSource === 'apple-health' && entry.waterMl !== undefined
+  const appleHealthManualMode = entry.waterManualMode === true
   const waterMl = getHealthEntryWaterMl(entry, settings)
   const waterGoalMl = getWaterGoalMl(settings)
   const waterGoalMet = isWaterGoalMet(entry, settings)
@@ -631,15 +731,16 @@ function HealthToday({
               <button
                 type="button"
                 className="health-water-manual"
-                onClick={() => onChange((current) => {
-                  const next = { ...current }
-                  delete next.waterMl
-                  delete next.waterSource
-                  delete next.waterSyncedAt
-                  return next
-                })}
+                onClick={() => onChange(switchHealthEntryToManualWater)}
               >
                 Использовать ручной учёт
+              </button>
+              <button
+                type="button"
+                className="health-water-manual"
+                onClick={onRequestAppleHealthSync}
+              >
+                Проверить Apple Health
               </button>
             </div>
           ) : (
@@ -647,6 +748,27 @@ function HealthToday({
               <NumberChoices values={waterValues} selected={entry.waterCups} label="Количество кружек воды" onSelect={(waterCups) => onChange((current) => ({ ...current, waterCups }))} />
               <p className="health-result">{entry.waterCups} из {settings.water.goalCups} — {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</p>
               {waterGoalMet && <p className="health-water-goal met">Цель выполнена</p>}
+              {appleHealthManualMode && typeof entry.appleHealthAvailableMl === 'number' && (
+                <div className="health-water-available">
+                  <p>В Apple Health доступно {formatWaterMl(entry.appleHealthAvailableMl)} мл</p>
+                  <button
+                    type="button"
+                    className="health-water-manual"
+                    onClick={() => onChange(useAvailableAppleHealthWater)}
+                  >
+                    Использовать Apple Health
+                  </button>
+                </div>
+              )}
+              {settings.appleHealth.syncToken && (
+                <button
+                  type="button"
+                  className="health-water-manual"
+                  onClick={onRequestAppleHealthSync}
+                >
+                  Проверить Apple Health
+                </button>
+              )}
             </>
           )}
         </HealthBlock>

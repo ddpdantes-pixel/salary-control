@@ -54,7 +54,8 @@ describe('экран здоровья сегодня', () => {
 
     render(<HealthScreen />)
 
-    expect(await screen.findByText(/Вода обновлена: 1.?850 мл/)).not.toBeNull()
+    expect(await screen.findByText(/Вода обновлена только в Safari: 1.?850 мл/)).not.toBeNull()
+    expect(screen.getByText(/Старая ссылка v1 не передаёт воду/)).not.toBeNull()
     expect(screen.getByRole('heading', {
       name: /Вода — 1.?850 из 1.?800 мл/,
     })).not.toBeNull()
@@ -123,6 +124,67 @@ describe('экран здоровья сегодня', () => {
     expect(await screen.findByText(/Не удалось импортировать воду/)).not.toBeNull()
     expect(screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' })).not.toBeNull()
     expect(window.location.hash).toBe('')
+  })
+
+  it('передаёт v2 воду в Worker и не показывает локальный успех до ответа', async () => {
+    const token = 'A'.repeat(43)
+    const today = getLocalDateId()
+    let resolveRequest!: (response: Response) => void
+    const fetchMock = vi.fn<typeof fetch>(() => new Promise((resolve) => {
+      resolveRequest = resolve
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    window.history.replaceState(
+      null,
+      '',
+      `/#health-water-sync/v2/${token}/${today}/1020`,
+    )
+
+    render(<HealthScreen />)
+
+    expect(await screen.findByText('Передаём воду в установленное приложение…')).not.toBeNull()
+    expect(window.location.hash).toBe('')
+    expect(screen.queryByText(/Вода передана в/)).toBeNull()
+    resolveRequest(new Response(JSON.stringify({
+      version: 2,
+      date: today,
+      waterMl: 1020,
+      source: 'apple-health',
+      updatedAt: new Date().toISOString(),
+    }), { status: 200 }))
+
+    expect(await screen.findByText(/Вода передана в “Мой ритм”: 1.?020 мл/)).not.toBeNull()
+    expect(screen.getByText('Вернитесь в приложение с домашнего экрана.')).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' })).not.toBeNull()
+  })
+
+  it('при ошибке v2 не сообщает успех и позволяет повторить передачу', async () => {
+    const user = userEvent.setup()
+    const token = 'B'.repeat(43)
+    const today = getLocalDateId()
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        version: 2,
+        date: today,
+        waterMl: 1200,
+        source: 'apple-health',
+        updatedAt: new Date().toISOString(),
+      }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    window.history.replaceState(
+      null,
+      '',
+      `/#health-water-sync/v2/${token}/${today}/1200`,
+    )
+
+    render(<HealthScreen />)
+    expect(await screen.findByText(/Не удалось передать воду/)).not.toBeNull()
+    expect(screen.queryByText(/Вода передана в/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Повторить передачу' }))
+
+    expect(await screen.findByText(/Вода передана в “Мой ритм”: 1.?200 мл/)).not.toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('показывает спокойную подсказку после второй кружки кофе', async () => {

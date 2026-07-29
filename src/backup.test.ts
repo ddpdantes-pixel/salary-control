@@ -12,8 +12,12 @@ import { rublesToKopecks } from './financeMoney'
 import { setFinanceOperationStatus } from './financeObligations'
 import { createDefaultDailySalesState } from './dailySalesStorage'
 import { createEmptyHealthState, createHealthEntry } from './healthModel'
+import { createDefaultHealthSettings } from './healthSettings'
 import { createDefaultPaymentNotificationSettings } from './paymentNotifications'
-import { CLOUD_BACKUP_KEY_STORAGE } from './cloudBackup'
+import {
+  CLOUD_BACKUP_KEY_STORAGE,
+  createCloudBackupEnvelope,
+} from './cloudBackup'
 
 describe('резервная копия', () => {
   it('исключает Apple Health воду и сохраняет остальные данные здоровья', () => {
@@ -27,13 +31,24 @@ describe('резервная копия', () => {
       waterSyncedAt: '2026-07-29T18:00:00.000Z',
     }
 
-    const backup = createBackupData([], null, null, null, healthState)
+    const healthSettings = createDefaultHealthSettings()
+    healthSettings.appleHealth.syncToken = 'S'.repeat(43)
+    const backup = createBackupData(
+      [],
+      null,
+      null,
+      null,
+      healthState,
+      healthSettings,
+    )
     const serialized = JSON.stringify(backup)
     const restored = parseBackupData(serialized).healthState
 
     expect(serialized).not.toContain('waterMl')
     expect(serialized).not.toContain('waterSyncedAt')
     expect(serialized).not.toContain('apple-health')
+    expect(serialized).not.toContain('S'.repeat(43))
+    expect(backup.healthSettings?.appleHealth.syncToken).toBeNull()
     expect(restored?.entries['2026-07-29']).toMatchObject({
       waterCups: 2,
       coffeeCups: 1,
@@ -69,6 +84,19 @@ describe('резервная копия', () => {
     expect(backupJson).not.toContain(CLOUD_BACKUP_KEY_STORAGE)
     expect(backupJson).not.toContain(ACTIVE_TIMER_STORAGE_KEY)
     expect(backupJson).not.toContain('A'.repeat(43))
+  })
+
+  it('не включает token Apple Health в облачный backup payload', async () => {
+    const settings = createDefaultHealthSettings()
+    settings.appleHealth.syncToken = 'T'.repeat(43)
+    const backup = createBackupData([], null, null, null, null, settings)
+    const envelope = await createCloudBackupEnvelope(JSON.stringify(backup), {
+      now: new Date('2026-07-29T18:00:00.000Z'),
+      platform: 'ios',
+    })
+
+    expect(envelope.payload).not.toContain('T'.repeat(43))
+    expect(envelope.payload).toContain('"syncToken":null')
   })
   it('не экспортирует планы и безопасно игнорирует поле plansState в старой копии', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')

@@ -6,6 +6,12 @@ import {
 } from './backupRepository'
 import { hasMatchingVapidKeyPair, webPushSender } from './push'
 import {
+  D1HealthWaterStore,
+  getRetentionCutoffDate,
+  handleHealthWaterSync,
+  type HealthWaterStore,
+} from './healthWaterSync'
+import {
   PushDeliveryError,
   type PushPayload,
   type PushSender,
@@ -28,6 +34,7 @@ const CRON_BATCH_SIZE = 100
 interface WorkerDependencies {
   createRepository: (env: WorkerEnv) => ReminderRepository
   createBackupStore?: (env: WorkerEnv) => CloudBackupStore
+  createHealthWaterStore?: (env: WorkerEnv) => HealthWaterStore
   pushSender: PushSender
   now: () => Date
 }
@@ -35,6 +42,7 @@ interface WorkerDependencies {
 const defaultDependencies: WorkerDependencies = {
   createRepository: (env) => new D1ReminderRepository(env.DB),
   createBackupStore: (env) => new D1CloudBackupStore(env.DB),
+  createHealthWaterStore: (env) => new D1HealthWaterStore(env.DB),
   pushSender: webPushSender,
   now: () => new Date(),
 }
@@ -53,6 +61,12 @@ export function createPaymentReminderWorker(
       _ctx: ExecutionContext,
     ): Promise<void> {
       await processDueReminders(env, dependencies)
+      const createStore =
+        dependencies.createHealthWaterStore ??
+        defaultDependencies.createHealthWaterStore
+      await createStore!(env).deleteBefore(
+        getRetentionCutoffDate(dependencies.now()),
+      )
     },
   }
 }
@@ -89,6 +103,24 @@ export async function handleRequest(
         vapidPublicKey: env.VAPID_PUBLIC_KEY,
         vapidKeyPairValid,
       }, vapidKeyPairValid ? 200 : 503, origin)
+    }
+
+    if (url.pathname === '/api/health-water-sync') {
+      const createStore =
+        dependencies.createHealthWaterStore ??
+        defaultDependencies.createHealthWaterStore
+      const result = await handleHealthWaterSync(
+        request,
+        createStore!(env),
+        dependencies.now(),
+        (channelHash) => enforceRateLimit(
+          repository,
+          `health-water:${channelHash}`,
+          nowIso,
+          30,
+        ),
+      )
+      return jsonResponse(result.body, result.status, origin)
     }
 
     if (url.pathname.startsWith('/api/backups')) {

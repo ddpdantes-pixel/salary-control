@@ -276,21 +276,51 @@ function normalizeEntry(
 
 function normalizeAppleHealthWater(
   value: Record<string, unknown>,
-): Pick<HealthEntry, 'waterMl' | 'waterSource' | 'waterSyncedAt'> {
+): Partial<Pick<
+  HealthEntry,
+  | 'waterMl'
+  | 'waterSource'
+  | 'waterSyncedAt'
+  | 'waterManualMode'
+  | 'appleHealthAvailableMl'
+  | 'appleHealthAvailableAt'
+>> {
+  const result: Partial<Pick<
+    HealthEntry,
+    | 'waterMl'
+    | 'waterSource'
+    | 'waterSyncedAt'
+    | 'waterManualMode'
+    | 'appleHealthAvailableMl'
+    | 'appleHealthAvailableAt'
+  >> = {}
   const waterMl = boundedOptionalInteger(value.waterMl, 0, 20_000)
   if (
-    waterMl === undefined ||
-    value.waterSource !== 'apple-health' ||
-    typeof value.waterSyncedAt !== 'string' ||
-    !Number.isFinite(Date.parse(value.waterSyncedAt))
+    waterMl !== undefined &&
+    value.waterSource === 'apple-health' &&
+    typeof value.waterSyncedAt === 'string' &&
+    Number.isFinite(Date.parse(value.waterSyncedAt))
   ) {
-    return {}
+    result.waterMl = waterMl
+    result.waterSource = 'apple-health'
+    result.waterSyncedAt = value.waterSyncedAt
   }
-  return {
-    waterMl,
-    waterSource: 'apple-health',
-    waterSyncedAt: value.waterSyncedAt,
+
+  if (value.waterManualMode === true) result.waterManualMode = true
+  const availableMl = boundedOptionalInteger(
+    value.appleHealthAvailableMl,
+    0,
+    20_000,
+  )
+  if (
+    availableMl !== undefined &&
+    typeof value.appleHealthAvailableAt === 'string' &&
+    Number.isFinite(Date.parse(value.appleHealthAvailableAt))
+  ) {
+    result.appleHealthAvailableMl = availableMl
+    result.appleHealthAvailableAt = value.appleHealthAvailableAt
   }
+  return result
 }
 
 function boundedOptionalInteger(
