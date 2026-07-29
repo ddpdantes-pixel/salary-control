@@ -74,6 +74,9 @@ export type AlcoholReason =
 export interface HealthEntry {
   date: string
   waterCups: number
+  waterMl?: number
+  waterSource?: 'apple-health'
+  waterSyncedAt?: string
   coffeeCups: number
   psyllium: boolean
   fruit: boolean

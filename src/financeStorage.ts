@@ -32,6 +32,7 @@ import {
   deriveFinanceEventTimestamp,
   isFinanceTimestamp,
 } from './financeTimestamps'
+import { isManagedFutureDepositInterest } from './financeDeposit'
 
 const FINANCE_STATE_KEY = 'kontrol-zarplaty.finance-state.v1'
 
@@ -147,6 +148,9 @@ export function normalizeFinanceState(
   const operationsWithDepositSchedule = migrateDepositInterestScheduleIds(
     operations,
   )
+  const activeOperations = operationsWithDepositSchedule.filter(
+    (operation) => !isManagedFutureDepositInterest(operation, todayIsoDate),
+  )
   const shouldMigrateCategories =
     typeof raw.schemaVersion !== 'number' || raw.schemaVersion < 5
   const categorizedObligations = shouldMigrateCategories
@@ -154,14 +158,14 @@ export function normalizeFinanceState(
     : normalizedObligations
   const obligations = syncObligationPaymentStatuses(
     categorizedObligations,
-    operationsWithDepositSchedule,
+    activeOperations,
   )
 
   return {
     schemaVersion: FINANCE_SCHEMA_VERSION,
     settings,
     anchors,
-    operations: operationsWithDepositSchedule,
+    operations: activeOperations,
     obligations,
     obligationPayments,
     personalExpenses,

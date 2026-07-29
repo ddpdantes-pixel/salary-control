@@ -8,6 +8,44 @@ import { createDefaultHealthSettings, type HealthSettings } from './healthSettin
 
 describe('экран настроек здоровья', () => {
   afterEach(cleanup)
+  it('показывает настройку Apple Health и копирует основу без количества воды', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn<(value: string) => Promise<void>>(() => Promise.resolve())
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    render(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{}} onSave={() => true} onDirtyChange={() => {}} />)
+
+    expect(screen.getByRole('heading', { name: 'Apple Health — вода' })).not.toBeNull()
+    expect(screen.getByText('Не настроено')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Как настроить' }))
+    expect(screen.getByText('Готово к синхронизации')).not.toBeNull()
+    expect(screen.getByText(/Найти образцы здоровья/)).not.toBeNull()
+    expect(screen.getByText(/напрямую в открытую PWA/)).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Скопировать основу ссылки' }))
+
+    expect(writeText).toHaveBeenCalledOnce()
+    expect(writeText.mock.calls[0][0]).toMatch(/#health-water\/v1\/apple-health\/$/)
+    expect(writeText.mock.calls[0][0]).not.toMatch(/\/\d+$/)
+    expect(screen.getByText('Основа ссылки скопирована')).not.toBeNull()
+  })
+
+  it('показывает последнюю синхронизацию и безопасную ошибку данных', () => {
+    const entry = {
+      ...createHealthEntry(new Date().toISOString().slice(0, 10)),
+      waterMl: 1800,
+      waterSource: 'apple-health' as const,
+      waterSyncedAt: new Date().toISOString(),
+    }
+    const view = render(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{ [entry.date]: entry }} onSave={() => true} onDirtyChange={() => {}} />)
+
+    expect(screen.getByText('Синхронизировано сегодня')).not.toBeNull()
+    expect(screen.getByText(/1.?800 мл/)).not.toBeNull()
+    view.rerender(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{ [entry.date]: entry }} appleHealthImportError onSave={() => true} onDirtyChange={() => {}} />)
+    expect(screen.getByText('Ошибка данных')).not.toBeNull()
+  })
+
   it('редактирует черновик и сохраняет все настройки одним действием', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn<(settings: HealthSettings) => boolean>(() => true)

@@ -35,6 +35,14 @@ import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
 import { shareHealthReport } from './healthShare'
 import type { HealthShareResult } from './healthShare'
 import {
+  applyAppleHealthWaterImport,
+  clearAppleHealthWaterFragment,
+  getHealthEntryWaterMl,
+  getWaterGoalMl,
+  isWaterGoalMet,
+  parseAppleHealthWaterFragment,
+} from './appleHealthWater'
+import {
   BRISTOL_DESCRIPTIONS,
   createHealthEntry,
   formatHealthDate,
@@ -79,6 +87,10 @@ import type {
 import './HealthScreen.css'
 
 type HealthSaveState = 'saved' | 'saving' | 'error'
+type AppleHealthImportNotice =
+  | { kind: 'success'; message: string }
+  | { kind: 'error'; message: string }
+  | null
 
 const SAVE_DELAY_MS = 350
 const SCALE_0_TO_5 = [0, 1, 2, 3, 4, 5]
@@ -121,6 +133,20 @@ function formatMinutes(minutes: number): string {
   return `${minutes} ${word}`
 }
 
+function formatWaterMl(value: number): string {
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)
+}
+
+function formatSyncTime(value: string | undefined): string {
+  if (!value) return 'недавно'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'недавно'
+  return new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 export function HealthScreen({
   initialTab = 'today',
   onSettingsDirtyChange,
@@ -153,6 +179,8 @@ export function HealthScreen({
   )
   const [canReturnToHistory, setCanReturnToHistory] = useState(false)
   const [timerScreen, setTimerScreen] = useState(false)
+  const [appleHealthImportNotice, setAppleHealthImportNotice] =
+    useState<AppleHealthImportNotice>(null)
   const initialStateRef = useRef(state)
   const initialStatePersistedRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
@@ -169,6 +197,37 @@ export function HealthScreen({
   useEffect(() => {
     if (timerOpenRequest > 0) setTimerScreen(true)
   }, [timerOpenRequest])
+
+  useEffect(() => {
+    const importWaterFromFragment = () => {
+      const result = parseAppleHealthWaterFragment(window.location.hash)
+      if (result.status === 'none') return
+      clearAppleHealthWaterFragment()
+
+      if (result.status === 'invalid') {
+        setAppleHealthImportNotice({
+          kind: 'error',
+          message: 'Не удалось импортировать воду: проверьте данные Команды.',
+        })
+        return
+      }
+
+      const syncedAt = new Date().toISOString()
+      setState((current) =>
+        applyAppleHealthWaterImport(current, result.payload, syncedAt),
+      )
+      setSelectedDate(result.payload.date)
+      setActiveTab('today')
+      setAppleHealthImportNotice({
+        kind: 'success',
+        message: `Вода обновлена: ${formatWaterMl(result.payload.waterMl)} мл`,
+      })
+    }
+
+    importWaterFromFragment()
+    window.addEventListener('hashchange', importWaterFromFragment)
+    return () => window.removeEventListener('hashchange', importWaterFromFragment)
+  }, [])
 
   useEffect(() => {
     if (!settingsDirty) return
@@ -314,6 +373,12 @@ export function HealthScreen({
       {timerScreen && timerController ? <HealthTimers timer={timerController} onBack={() => setTimerScreen(false)} /> : <>
       <HealthTabs activeTab={activeTab} onChange={changeHealthTab} onOpenTimers={() => setTimerScreen(true)} />
 
+      {appleHealthImportNotice && (
+        <p className={`health-import-notice ${appleHealthImportNotice.kind}`} role="status">
+          {appleHealthImportNotice.message}
+        </p>
+      )}
+
       {activeTab === 'today' ? (
         <HealthToday
           entry={entry}
@@ -350,6 +415,7 @@ export function HealthScreen({
         <HealthSettingsScreen
           settings={settings}
           entries={state.entries}
+          appleHealthImportError={appleHealthImportNotice?.kind === 'error'}
           onSave={saveSettings}
           onDirtyChange={setSettingsDirty}
         />
@@ -451,6 +517,11 @@ function HealthToday({
     (_, index) => index,
   )
   const urgeValues = [...new Set([...URGE_VALUES, settings.urgeReference])].sort((a, b) => a - b)
+  const appleHealthWaterActive =
+    entry.waterSource === 'apple-health' && entry.waterMl !== undefined
+  const waterMl = getHealthEntryWaterMl(entry, settings)
+  const waterGoalMl = getWaterGoalMl(settings)
+  const waterGoalMet = isWaterGoalMet(entry, settings)
   const visibleWorkouts = settings.workouts
     .filter((workout) => workout.active || entry.selectedWorkouts.some((item) => item.workoutId === workout.id))
     .sort((left, right) => left.order - right.order)
@@ -543,9 +614,41 @@ function HealthToday({
       {storageIssue && <p className="health-storage-issue">{storageIssue}</p>}
 
       <div className="health-water-coffee" aria-label="Вода и кофе">
-        <HealthBlock title={`Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
-          <NumberChoices values={waterValues} selected={entry.waterCups} label="Количество кружек воды" onSelect={(waterCups) => onChange((current) => ({ ...current, waterCups }))} />
-          <p className="health-result">{entry.waterCups} из {settings.water.goalCups} — {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</p>
+        <HealthBlock title={appleHealthWaterActive
+          ? `Вода — ${formatWaterMl(waterMl)} из ${formatWaterMl(waterGoalMl)} мл`
+          : `Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
+          {appleHealthWaterActive ? (
+            <div className="health-water-sync">
+              <p className="health-water-source">
+                <strong>Apple Health</strong>
+                <span>Синхронизировано {formatSyncTime(entry.waterSyncedAt)}</span>
+              </p>
+              <p className={waterGoalMet ? 'health-water-goal met' : 'health-water-goal'}>
+                {waterGoalMet
+                  ? 'Цель выполнена'
+                  : `До цели ${formatWaterMl(Math.max(0, waterGoalMl - waterMl))} мл`}
+              </p>
+              <button
+                type="button"
+                className="health-water-manual"
+                onClick={() => onChange((current) => {
+                  const next = { ...current }
+                  delete next.waterMl
+                  delete next.waterSource
+                  delete next.waterSyncedAt
+                  return next
+                })}
+              >
+                Использовать ручной учёт
+              </button>
+            </div>
+          ) : (
+            <>
+              <NumberChoices values={waterValues} selected={entry.waterCups} label="Количество кружек воды" onSelect={(waterCups) => onChange((current) => ({ ...current, waterCups }))} />
+              <p className="health-result">{entry.waterCups} из {settings.water.goalCups} — {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</p>
+              {waterGoalMet && <p className="health-water-goal met">Цель выполнена</p>}
+            </>
+          )}
         </HealthBlock>
         <HealthBlock title="Кофе">
           <NumberChoices values={coffeeValues} selected={entry.coffeeCups} label="Количество кружек кофе" onSelect={(coffeeCups) => onChange((current) => ({ ...current, coffeeCups }))} />

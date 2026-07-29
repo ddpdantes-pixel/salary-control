@@ -222,7 +222,11 @@ describe('данные финансового обзора', () => {
 
     expect(overview.coverage.tone).toBe('success')
     expect(overview.coverage.headline).toBe('Ближайшие платежи обеспечены')
-    expect(overview.coverage.detail).toContain('Хватит до')
+    expect(overview.coverage.detail).toBe('Расчёт выполнен по 12 февраля.')
+    expect(overview.coverage.detail).not.toContain('Хватит до')
+    expect(overview.planning.headline).toBe(
+      'Планируемое: до конца расчётного периода денег хватает',
+    )
   })
 
   it('формирует красное состояние с суммой и первым дефицитным платежом', () => {
@@ -249,8 +253,14 @@ describe('данные финансового обзора', () => {
     })
 
     expect(overview.coverage.tone).toBe('danger')
-    expect(overview.coverage.headline).toBe('Не хватает 2 464,70 ₽')
-    expect(overview.coverage.detail).toContain('24 июля — Яндекс.Кредит')
+    expect(overview.coverage.headline).toBe('Денег хватит до 23 июля')
+    expect(overview.coverage.detail).toBe(
+      'Первый ожидаемый дефицит — 24 июля, не хватает 2 464,70 ₽',
+    )
+    expect(overview.planning.headline).toBe(
+      'Планируемое: денег хватит до 23 июля',
+    )
+    expect(overview.planning.detail).toBe(overview.coverage.detail)
   })
 
   it('показывает компактный плановый итог и продлевает период до последнего обязательства', () => {

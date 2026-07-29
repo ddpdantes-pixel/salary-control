@@ -16,6 +16,31 @@ import { createDefaultPaymentNotificationSettings } from './paymentNotifications
 import { CLOUD_BACKUP_KEY_STORAGE } from './cloudBackup'
 
 describe('резервная копия', () => {
+  it('исключает Apple Health воду и сохраняет остальные данные здоровья', () => {
+    const healthState = createEmptyHealthState()
+    healthState.entries['2026-07-29'] = {
+      ...createHealthEntry('2026-07-29'),
+      waterCups: 2,
+      coffeeCups: 1,
+      waterMl: 1850,
+      waterSource: 'apple-health',
+      waterSyncedAt: '2026-07-29T18:00:00.000Z',
+    }
+
+    const backup = createBackupData([], null, null, null, healthState)
+    const serialized = JSON.stringify(backup)
+    const restored = parseBackupData(serialized).healthState
+
+    expect(serialized).not.toContain('waterMl')
+    expect(serialized).not.toContain('waterSyncedAt')
+    expect(serialized).not.toContain('apple-health')
+    expect(restored?.entries['2026-07-29']).toMatchObject({
+      waterCups: 2,
+      coffeeCups: 1,
+    })
+    expect(healthState.entries['2026-07-29'].waterMl).toBe(1850)
+  })
+
   it('включает только зашифрованный envelope паролей и читает старую копию без него', () => {
     const month = createSalaryMonth('2026-07')
     const passwordVault: PasswordVaultEnvelope = {

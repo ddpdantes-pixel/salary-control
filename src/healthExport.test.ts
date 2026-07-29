@@ -3,6 +3,19 @@ import { buildHealthChecklistText } from './healthExport'
 import { WORKOUTS, createHealthEntry } from './healthModel'
 
 describe('копирование ежедневного чек-листа', () => {
+  it('использует итоговую сумму Apple Health в вечернем чек-листе', () => {
+    const text = buildHealthChecklistText({
+      ...createHealthEntry('2026-07-29'),
+      waterCups: 2,
+      waterMl: 1850,
+      waterSource: 'apple-health',
+      waterSyncedAt: '2026-07-29T18:00:00.000Z',
+    })
+
+    expect(text).toContain('Вода: 1850 / 1800 мл (Apple Health)')
+    expect(text).not.toContain('Вода: 2 / 6')
+  })
+
   it.each([0, 1, 2, 3, 4, 5])(
     'выводит распирание %s без обозначения максимума',
     (bloating) => {

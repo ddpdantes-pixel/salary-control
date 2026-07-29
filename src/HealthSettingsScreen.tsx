@@ -12,10 +12,13 @@ import {
   type HealthSettings,
 } from './healthSettings'
 import type { HealthEntry, PlannedWorkoutDay, WorkoutDefinition } from './healthTypes'
+import { getLocalDateId } from './healthModel'
+import { getAppleHealthWaterLinkBase } from './appleHealthWater'
 
 interface HealthSettingsScreenProps {
   settings: HealthSettings
   entries: Record<string, HealthEntry>
+  appleHealthImportError?: boolean
   onSave: (settings: HealthSettings) => boolean
   onDirtyChange: (dirty: boolean) => void
 }
@@ -35,6 +38,7 @@ const QUICK_ITEMS = [
 export function HealthSettingsScreen({
   settings,
   entries,
+  appleHealthImportError = false,
   onSave,
   onDirtyChange,
 }: HealthSettingsScreenProps) {
@@ -43,6 +47,8 @@ export function HealthSettingsScreen({
   const [message, setMessage] = useState('')
   const [workoutFilter, setWorkoutFilter] = useState<'active' | 'archived'>('active')
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
+  const [appleSetupOpen, setAppleSetupOpen] = useState(false)
+  const [appleLinkState, setAppleLinkState] = useState<'idle' | 'copied' | 'error'>('idle')
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(settings),
     [draft, settings],
@@ -51,6 +57,25 @@ export function HealthSettingsScreen({
     () => new Set(Object.values(entries).flatMap((entry) => entry.selectedWorkouts.map((item) => item.workoutId))),
     [entries],
   )
+  const latestAppleHealthEntry = useMemo(
+    () => Object.values(entries)
+      .filter((entry) =>
+        entry.waterSource === 'apple-health' &&
+        typeof entry.waterMl === 'number' &&
+        typeof entry.waterSyncedAt === 'string',
+      )
+      .sort((left, right) =>
+        (right.waterSyncedAt ?? '').localeCompare(left.waterSyncedAt ?? ''),
+      )[0],
+    [entries],
+  )
+  const appleHealthStatus = appleHealthImportError
+    ? 'Ошибка данных'
+    : latestAppleHealthEntry?.date === getLocalDateId()
+      ? 'Синхронизировано сегодня'
+      : latestAppleHealthEntry || appleSetupOpen || appleLinkState === 'copied'
+        ? 'Готово к синхронизации'
+        : 'Не настроено'
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   useEffect(() => {
@@ -75,6 +100,15 @@ export function HealthSettingsScreen({
       setMessage('Настройки сохранены')
     } else {
       setMessage('Не удалось сохранить настройки')
+    }
+  }
+
+  async function copyAppleHealthLinkBase(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(getAppleHealthWaterLinkBase())
+      setAppleLinkState('copied')
+    } catch {
+      setAppleLinkState('error')
     }
   }
 
@@ -198,6 +232,42 @@ export function HealthSettingsScreen({
             onChange={(maxPerDay) => updateDraft((current) => ({ ...current, coffee: { maxPerDay } }))}
           />
         </div>
+        <section className="health-apple-water" aria-labelledby="apple-health-water-title">
+          <div className="health-apple-water-heading">
+            <div>
+              <h3 id="apple-health-water-title">Apple Health — вода</h3>
+              <span className={appleHealthImportError ? 'error' : ''}>{appleHealthStatus}</span>
+            </div>
+            {latestAppleHealthEntry && (
+              <p>
+                <strong>{formatWaterMl(latestAppleHealthEntry.waterMl ?? 0)} мл</strong>
+                <span>{formatAppleHealthSyncDate(latestAppleHealthEntry.waterSyncedAt)} · Apple Health</span>
+              </p>
+            )}
+          </div>
+          <div className="health-apple-water-actions">
+            <button type="button" onClick={() => setAppleSetupOpen((current) => !current)}>
+              {appleSetupOpen ? 'Скрыть инструкцию' : 'Как настроить'}
+            </button>
+            <button type="button" onClick={copyAppleHealthLinkBase}>Скопировать основу ссылки</button>
+          </div>
+          {appleLinkState === 'copied' && <p className="health-apple-water-message success">Основа ссылки скопирована</p>}
+          {appleLinkState === 'error' && <p className="health-apple-water-message error">Не удалось скопировать ссылку</p>}
+          {appleSetupOpen && (
+            <ol className="health-apple-water-steps">
+              <li>Добавьте действие «Текущая дата».</li>
+              <li>Добавьте «Найти образцы здоровья»: тип «Вода», от начала текущего дня до текущего времени.</li>
+              <li>Добавьте «Получить сведения об образцах здоровья» и выберите значение в миллилитрах.</li>
+              <li>Добавьте «Вычислить статистику» и выберите сумму.</li>
+              <li>Добавьте «Округлить число» до целого.</li>
+              <li>Добавьте «Форматировать дату» с форматом yyyy-MM-dd.</li>
+              <li>В действии «Текст» соедините скопированную основу, дату, символ «/» и округлённую сумму.</li>
+              <li>Добавьте «Открыть URL-адреса». Разрешение на чтение воды выдаётся самой Команде.</li>
+            </ol>
+          )}
+          <p className="health-apple-water-note">Удобно запускать Команду вечером перед чек-листом или вручную с ярлыка.</p>
+          <p className="health-apple-water-privacy">Количество воды передаётся из Команды iPhone напрямую в открытую PWA и не отправляется на сервер.</p>
+        </section>
       </SettingsGroup>
 
       <SettingsGroup title="Ежедневные пункты">
@@ -428,6 +498,22 @@ function getLearningScheduleTitle(item: LearningScheduleItem): string {
       ? 'Кавист'
       : 'Керамогранит'
   return `${direction} — ${getLearningActivityLabel(item.activityType)}`
+}
+
+function formatWaterMl(value: number): string {
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)
+}
+
+function formatAppleHealthSyncDate(value: string | undefined): string {
+  if (!value) return 'Дата синхронизации неизвестна'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'Дата синхронизации неизвестна'
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
 function getLearningActivityLabel(activityType: LearningScheduleItem['activityType']): string {

@@ -11,7 +11,7 @@ import type {
 const INITIAL_CREATED_AT = '2026-06-25T12:00:00.000Z'
 const INITIAL_CONFIRMED_THROUGH = '2026-07-10'
 
-export const FINANCE_SCHEMA_VERSION = 8
+export const FINANCE_SCHEMA_VERSION = 9
 export const DEPOSIT_INTEREST_SCHEDULE_ID = 'deposit-interest-monthly-v1'
 
 export const INITIAL_FUTURE_OPERATION_IDS: ReadonlySet<string> = new Set([
@@ -150,9 +150,6 @@ export function createInitialJulyControlOperations(): FinanceOperation[] {
     createOperation('yandex-credit-2026-07-24', '2026-07-24', 'Яндекс.Кредит', '7 315,00', 'expense', 'obligation', 100, 'yandex-credit'),
     createOperation('salary-transfer-2026-07-25', '2026-07-25', 'Зарплатный перевод на счёт для кредитов', '4 500,00', 'income', 'salary', 110),
     createOperation('halva-2026-07-25', '2026-07-25', 'Халва', '3 936,71', 'expense', 'obligation', 120, 'halva'),
-    createOperation('deposit-interest-2026-08-15', '2026-08-15', 'Проценты по вкладу', '917,26', 'income', 'depositInterest', 130),
-    createOperation('deposit-interest-2026-09-15', '2026-09-15', 'Проценты по вкладу', '917,26', 'income', 'depositInterest', 140),
-    createOperation('deposit-interest-2026-10-15', '2026-10-15', 'Проценты по вкладу', '917,26', 'income', 'depositInterest', 150, undefined, 'copiedPrevious'),
   ]
 }
 

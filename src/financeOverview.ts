@@ -343,29 +343,18 @@ function buildCoverageSummary(
     }
   }
 
-  const firstDeficitPayment = forecast.firstNegativeItem
-
-  if (firstDeficitPayment) {
+  if (
+    forecast.firstNegativeDate &&
+    forecast.firstNegativeBalanceKopecks !== null
+  ) {
+    const startsImmediately =
+      forecast.firstNegativeDate === forecast.forecastStartDate
     return {
       tone: 'danger',
-      headline: `Не хватает ${formatMoney(Math.abs(firstDeficitPayment.balanceAfterKopecks))}`,
-      detail: `Первый дефицит: ${formatShortDateLabel(firstDeficitPayment.operation.date)} — ${firstDeficitPayment.operation.title}`,
-    }
-  }
-
-  if (forecast.firstNegativeItem) {
-    return {
-      tone: 'danger',
-      headline: `Не хватает ${formatMoney(Math.abs(forecast.firstNegativeItem.balanceAfterKopecks))}`,
-      detail: `Баланс станет отрицательным ${formatShortDateLabel(forecast.firstNegativeItem.operation.date)}.`,
-    }
-  }
-
-  if (forecast.firstNegativeDate && forecast.firstNegativeBalanceKopecks !== null) {
-    return {
-      tone: 'danger',
-      headline: `Не хватает ${formatMoney(Math.abs(forecast.firstNegativeBalanceKopecks))}`,
-      detail: `Баланс отрицательный с ${formatShortDateLabel(forecast.firstNegativeDate)}.`,
+      headline: startsImmediately
+        ? 'Дефицит начинается сразу'
+        : `Денег хватит до ${formatShortDateLabel(addDays(forecast.firstNegativeDate, -1))}`,
+      detail: `Первый ожидаемый дефицит — ${formatShortDateLabel(forecast.firstNegativeDate)}, не хватает ${formatMoney(Math.abs(forecast.firstNegativeBalanceKopecks))}`,
     }
   }
 
@@ -380,9 +369,7 @@ function buildCoverageSummary(
   return {
     tone: 'success',
     headline: 'Ближайшие платежи обеспечены',
-    detail: forecast.coveredUntil
-      ? `Хватит до ${formatShortDateLabel(forecast.coveredUntil)}.`
-      : `Обеспечено платежей: ${forecast.coveredExpenseCount}.`,
+    detail: `Расчёт выполнен по ${formatShortDateLabel(forecast.forecastEndDate)}.`,
   }
 }
 

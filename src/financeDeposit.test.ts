@@ -8,8 +8,20 @@ import { stopFutureDepositInterest } from './financeDeposit'
 describe('закрытие вклада', () => {
   it('удаляет только будущие плановые проценты встроенного расписания', () => {
     const state = createDefaultFinanceState()
+    const historical = state.operations.find(
+      (operation) => operation.id === 'deposit-interest-2026-07-15',
+    )!
+    historical.status = 'completed'
+    historical.actualDate = '2026-07-15'
+    historical.completedDate = '2026-07-15'
+    const managedFuture = [
+      managedDepositInterest(historical, '2026-08-15'),
+      managedDepositInterest(historical, '2026-09-15'),
+      managedDepositInterest(historical, '2026-10-15'),
+    ]
+    state.operations.push(...managedFuture)
     state.operations.push({
-      ...state.operations.find((operation) => operation.id === 'deposit-interest-2026-08-15')!,
+      ...managedFuture[0],
       id: 'manual-deposit-interest',
       recurringScheduleId: undefined,
       date: '2026-08-20',
@@ -17,13 +29,6 @@ describe('закрытие вклада', () => {
       source: 'depositInterest',
       category: 'depositInterest',
     })
-    const historical = state.operations.find(
-      (operation) => operation.id === 'deposit-interest-2026-07-15',
-    )!
-    historical.status = 'completed'
-    historical.actualDate = '2026-07-15'
-    historical.completedDate = '2026-07-15'
-
     const result = stopFutureDepositInterest({
       state,
       todayIsoDate: '2026-07-16',
@@ -38,17 +43,35 @@ describe('закрытие вклада', () => {
   })
 
   it('повторное закрытие вклада идемпотентно', () => {
+    const state = createDefaultFinanceState()
+    const historical = state.operations.find(
+      (operation) => operation.id === 'deposit-interest-2026-07-15',
+    )!
+    state.operations.push(managedDepositInterest(historical, '2026-08-15'))
     const first = stopFutureDepositInterest({
-      state: createDefaultFinanceState(),
-      todayIsoDate: '2026-07-14',
+      state,
+      todayIsoDate: '2026-07-16',
     })
     const second = stopFutureDepositInterest({
       state: first.state,
-      todayIsoDate: '2026-07-14',
+      todayIsoDate: '2026-07-16',
     })
 
-    expect(first.removedCount).toBe(4)
+    expect(first.removedCount).toBe(1)
     expect(second.removedCount).toBe(0)
     expect(second.state).toBe(first.state)
   })
 })
+
+function managedDepositInterest(
+  source: ReturnType<typeof createDefaultFinanceState>['operations'][number],
+  date: string,
+) {
+  return {
+    ...source,
+    id: `deposit-interest-${date}`,
+    date,
+    status: 'planned' as const,
+    recurringScheduleId: DEPOSIT_INTEREST_SCHEDULE_ID,
+  }
+}

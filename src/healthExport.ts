@@ -12,6 +12,10 @@ import type {
   ScalpNote,
 } from './healthTypes'
 import { getCosmetologyForDate } from './cosmetology'
+import {
+  getHealthEntryWaterMl,
+  getWaterGoalMl,
+} from './appleHealthWater'
 
 const SCALP_LABELS: Record<ScalpNote, string> = {
   none: 'нет',
@@ -56,7 +60,7 @@ export function buildHealthChecklistText(
   const lines = [
     `Ежедневный чек-лист — ${weekday}, ${numericDate}`,
     '',
-    `Вода: ${entry.waterCups} / ${settings.water.goalCups} — ${formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л (кружка ${settings.water.cupVolumeMl} мл)`,
+    formatWaterLine(entry, settings),
     `Кофе: ${entry.coffeeCups} (цель — не больше ${settings.coffee.maxPerDay})`,
     ...(settings.quickItems.psyllium || entry.psyllium ? [`Псиллиум: ${yesNo(entry.psyllium)}`] : []),
     ...(settings.quickItems.fruit || entry.fruit ? [`2 киви/чернослив: ${yesNo(entry.fruit)}`] : []),
@@ -150,6 +154,13 @@ export function buildHealthChecklistText(
   }
 
   return lines.join('\n')
+}
+
+function formatWaterLine(entry: HealthEntry, settings: HealthSettings): string {
+  if (entry.waterSource === 'apple-health' && entry.waterMl !== undefined) {
+    return `Вода: ${getHealthEntryWaterMl(entry, settings)} / ${getWaterGoalMl(settings)} мл (Apple Health)`
+  }
+  return `Вода: ${entry.waterCups} / ${settings.water.goalCups} — ${formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л (кружка ${settings.water.cupVolumeMl} мл)`
 }
 
 function formatLearningLines(entry: HealthEntry): string[] {

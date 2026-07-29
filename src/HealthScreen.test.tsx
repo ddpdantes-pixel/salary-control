@@ -20,6 +20,7 @@ vi.mock('./healthChecklistImage', () => ({
 describe('экран здоровья сегодня', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    window.history.replaceState(null, '', '/')
     vi.stubGlobal('indexedDB', new IDBFactory())
     Object.defineProperty(document, 'execCommand', {
       configurable: true,
@@ -41,6 +42,87 @@ describe('экран здоровья сегодня', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+  })
+
+  it('импортирует воду из fragment, очищает адрес и автоматически отмечает цель', async () => {
+    const today = getLocalDateId()
+    window.history.replaceState(
+      null,
+      '',
+      `/#health-water/v1/apple-health/${today}/1850`,
+    )
+
+    render(<HealthScreen />)
+
+    expect(await screen.findByText(/Вода обновлена: 1.?850 мл/)).not.toBeNull()
+    expect(screen.getByRole('heading', {
+      name: /Вода — 1.?850 из 1.?800 мл/,
+    })).not.toBeNull()
+    expect(screen.getByText('Цель выполнена')).not.toBeNull()
+    expect(window.location.hash).toBe('')
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}')
+      expect(stored.entries[today]).toMatchObject({
+        waterMl: 1850,
+        waterSource: 'apple-health',
+      })
+    })
+  })
+
+  it('оставляет цель невыполненной ниже нормы и позволяет вернуться к ручному учёту', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    window.history.replaceState(
+      null,
+      '',
+      `/#health-water/v1/apple-health/${today}/1000`,
+    )
+    render(<HealthScreen />)
+
+    expect(await screen.findByText('До цели 800 мл')).not.toBeNull()
+    expect(screen.queryByText('Цель выполнена')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Использовать ручной учёт' }))
+
+    expect(screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' })).not.toBeNull()
+    expect(screen.getByRole('group', { name: 'Количество кружек воды' })).not.toBeNull()
+  })
+
+  it('повторно синхронизирует уже открытый экран и заменяет сумму', async () => {
+    const today = getLocalDateId()
+    window.history.replaceState(
+      null,
+      '',
+      `/#health-water/v1/apple-health/${today}/900`,
+    )
+    render(<HealthScreen />)
+    expect(await screen.findByText('До цели 900 мл')).not.toBeNull()
+
+    window.history.replaceState(
+      null,
+      '',
+      `/#health-water/v1/apple-health/${today}/1900`,
+    )
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+
+    expect(await screen.findByRole('heading', {
+      name: /Вода — 1.?900 из 1.?800 мл/,
+    })).not.toBeNull()
+    expect(screen.getByText('Цель выполнена')).not.toBeNull()
+    expect(window.location.hash).toBe('')
+  })
+
+  it('не показывает белый экран при повреждённом fragment', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/#health-water/v1/apple-health/2026-02-30/nope',
+    )
+
+    render(<HealthScreen />)
+
+    expect(await screen.findByText(/Не удалось импортировать воду/)).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' })).not.toBeNull()
+    expect(window.location.hash).toBe('')
   })
 
   it('показывает спокойную подсказку после второй кружки кофе', async () => {

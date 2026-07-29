@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { createSalaryMonth } from './calculations'
 import { buildFinanceCalendarTimeline } from './financeCalendar'
-import { createDefaultFinanceState } from './financeDefaults'
+import {
+  DEPOSIT_INTEREST_SCHEDULE_ID,
+  createDefaultFinanceState,
+} from './financeDefaults'
 import { rublesToKopecks } from './financeMoney'
 import { buildFinanceOverview, buildOverviewOperations } from './financeOverview'
 import { setFinanceOperationStatus } from './financeObligations'
 import { buildFinanceReport, formatFinanceFeedItem } from './financeReport'
+import { normalizeFinanceState } from './financeStorage'
 
 describe('финансовый отчёт', () => {
   it('формирует подробную ленту с арифметикой остатка', () => {
@@ -152,6 +156,45 @@ describe('финансовый отчёт', () => {
     expect(item.salaryForecastSourceDate).toBe('2026-07-25')
     expect(formatFinanceFeedItem(item).join('\n')).not.toContain(
       'Прогноз по выплате',
+    )
+  })
+
+  it('не включает отключённые будущие проценты по вкладу в отчёт', () => {
+    const state = createDefaultFinanceState()
+    const source = state.operations.find(
+      (operation) => operation.id === 'deposit-interest-2026-07-15',
+    )!
+    state.operations.push({
+      ...source,
+      id: 'deposit-interest-2026-08-15',
+      date: '2026-08-15',
+      status: 'planned',
+      recurringScheduleId: DEPOSIT_INTEREST_SCHEDULE_ID,
+    })
+    const normalized = normalizeFinanceState(state, '2026-07-29')!
+    const overview = buildFinanceOverview({
+      state: normalized,
+      salaryMonths: [],
+      todayIsoDate: '2026-07-29',
+    })
+    const items = buildFinanceCalendarTimeline({
+      anchors: normalized.anchors,
+      operations: overview.operations,
+      obligations: normalized.obligations,
+      todayIsoDate: '2026-07-29',
+    })
+    const report = buildFinanceReport({
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      anchor: overview.current.anchor,
+      currentBalanceKopecks: overview.current.balanceKopecks,
+      overview,
+      items,
+    })
+
+    expect(report).not.toContain('Проценты по вкладу')
+    expect(overview.operations).not.toContainEqual(
+      expect.objectContaining({ id: 'deposit-interest-2026-08-15' }),
     )
   })
 })

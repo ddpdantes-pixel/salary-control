@@ -181,6 +181,38 @@ describe('хранилище здоровья', () => {
     expect(migrateHealthState(migrated)).toEqual(migrated)
   })
 
+  it('восстанавливает необязательные поля Apple Health в существующей записи', () => {
+    const entry = {
+      ...createHealthEntry('2026-07-29'),
+      coffeeCups: 2,
+      waterMl: 1850,
+      waterSource: 'apple-health' as const,
+      waterSyncedAt: '2026-07-29T18:00:00.000Z',
+    }
+    const state = upsertHealthEntry(createEmptyHealthState(), entry)
+
+    expect(saveStoredHealthState(state)).toBe(true)
+    expect(loadStoredHealthState().state.entries[entry.date]).toMatchObject({
+      coffeeCups: 2,
+      waterMl: 1850,
+      waterSource: 'apple-health',
+      waterSyncedAt: '2026-07-29T18:00:00.000Z',
+    })
+  })
+
+  it('старые записи без Apple Health продолжают загружаться', () => {
+    const legacy = createHealthEntry('2026-07-28')
+    legacy.waterCups = 6
+
+    const migrated = migrateHealthState({
+      schemaVersion: 7,
+      entries: { [legacy.date]: legacy },
+    })
+
+    expect(migrated.entries[legacy.date]).toMatchObject({ waterCups: 6 })
+    expect(migrated.entries[legacy.date].waterMl).toBeUndefined()
+  })
+
   it('идемпотентно мигрирует задачи в том же ключе здоровья', () => {
     const legacy = createEmptyHealthState()
     legacy.taskDebts['robot-vacuum-service:2026-07-19'] = {

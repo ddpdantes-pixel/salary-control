@@ -20,6 +20,10 @@ import type {
   RelaxationState,
   ScalpNote,
 } from './healthTypes'
+import {
+  getHealthEntryWaterCupsEquivalent,
+  isWaterGoalMet,
+} from './appleHealthWater'
 
 export interface HealthWeekLearningDirection {
   hasData: boolean
@@ -243,7 +247,9 @@ function calculateHealthWeekCore(
     (entry) => eligibleSet.has(entry.date) && hasHealthEntryData(entry),
   )
   const eligibleFilledEntries = filledEntries
-  const waterValues = filledEntries.map((entry) => entry.waterCups)
+  const waterValues = filledEntries.map((entry) =>
+    getHealthEntryWaterCupsEquivalent(entry, settings),
+  )
   const coffeeValues = filledEntries.map((entry) => entry.coffeeCups)
 
   const activeWorkouts = getActiveWorkouts(settings)
@@ -312,8 +318,8 @@ function calculateHealthWeekCore(
     water: {
       averageCups: average(waterValues),
       averageLiters: average(waterValues.map((cups) => cups * settings.water.cupVolumeMl / 1000)),
-      goalDays: filledEntries.filter((entry) => entry.waterCups >= settings.water.goalCups).length,
-      belowGoalDays: filledEntries.filter((entry) => entry.waterCups < settings.water.goalCups).length,
+      goalDays: filledEntries.filter((entry) => isWaterGoalMet(entry, settings)).length,
+      belowGoalDays: filledEntries.filter((entry) => !isWaterGoalMet(entry, settings)).length,
       bestCups: maximum(waterValues),
     },
     coffee: {

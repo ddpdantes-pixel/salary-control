@@ -32,6 +32,10 @@ import {
   getRelaxationSettings,
   type HealthSettings,
 } from './healthSettings'
+import {
+  getHealthEntryWaterMl,
+  getWaterGoalMl,
+} from './appleHealthWater'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const ALCOHOL_LABELS: Record<AlcoholChoice, string> = {
@@ -252,7 +256,7 @@ function HealthHistoryList({
             </button>
           </div>
           <div className="health-history-card-summary">
-            <span>Вода: {entry.waterCups} из {settings.water.goalCups}</span>
+            <span>{formatHistoryWater(entry, settings)}</span>
             <span>Кофе: {entry.coffeeCups}</span>
             <span>Тренировки: {entry.selectedWorkouts.length}</span>
             <span>Распирание: {formatOptionalNumber(entry.bloating)}</span>
@@ -370,7 +374,7 @@ function HealthHistoryDayDetails({
       </header>
 
       <DetailBlock title="Вода и кофе">
-        <DetailRow label="Вода" value={`${entry.waterCups} из ${settings.water.goalCups} кружек — ${formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л`} />
+        <DetailRow label="Вода" value={formatHistoryWater(entry, settings, true)} />
         <DetailRow label="Кофе" value={`${entry.coffeeCups} — ${entry.coffeeCups <= settings.coffee.maxPerDay ? 'В пределах цели' : 'Выше цели'}`} />
       </DetailBlock>
 
@@ -552,6 +556,20 @@ function formatHistoryDate(dateId: string): string {
 
 function formatCosmetologyHistoryDate(dateId: string): string {
   return formatHealthDate(dateId, '').dateLabel
+}
+
+function formatHistoryWater(
+  entry: HealthEntry,
+  settings: HealthSettings,
+  detailed = false,
+): string {
+  const prefix = detailed ? '' : 'Вода: '
+  if (entry.waterSource === 'apple-health' && entry.waterMl !== undefined) {
+    return `${prefix}${getHealthEntryWaterMl(entry, settings)} из ${getWaterGoalMl(settings)} мл${detailed ? ' · Apple Health' : ''}`
+  }
+  return detailed
+    ? `${entry.waterCups} из ${settings.water.goalCups} кружек — ${formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л`
+    : `${prefix}${entry.waterCups} из ${settings.water.goalCups}`
 }
 
 function formatOptionalNumber(value: number | null, fallback = '—'): string {

@@ -148,6 +148,7 @@ export function createHealthEntry(
 export function isMeaningfulHealthEntry(entry: HealthEntry): boolean {
   return (
     entry.waterCups > 0 ||
+    (entry.waterMl ?? 0) > 0 ||
     entry.coffeeCups > 0 ||
     entry.psyllium ||
     entry.fruit ||

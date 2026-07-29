@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createDefaultFinanceState } from './financeDefaults'
+import {
+  DEPOSIT_INTEREST_SCHEDULE_ID,
+  createDefaultFinanceState,
+} from './financeDefaults'
 import { rublesToKopecks } from './financeMoney'
 import { calculateCurrentBalance } from './financeCalculations'
 import { setFinanceOperationStatus } from './financeObligations'
@@ -56,6 +59,57 @@ describe('локальное хранение финансов', () => {
     })
   })
 
+  it('удаляет будущие системные проценты и сохраняет прошлую историю', () => {
+    const state = createDefaultFinanceState()
+    const historical = state.operations.find(
+      (operation) => operation.id === 'deposit-interest-2026-07-15',
+    )!
+    historical.status = 'completed'
+    historical.actualDate = '2026-07-15'
+    historical.completedDate = '2026-07-15'
+    state.operations.push({
+      ...historical,
+      id: 'deposit-interest-2026-08-15',
+      date: '2026-08-15',
+      status: 'planned',
+      actualDate: undefined,
+      completedDate: undefined,
+      recurringScheduleId: DEPOSIT_INTEREST_SCHEDULE_ID,
+    })
+
+    const migrated = normalizeFinanceState(state, '2026-07-29')!
+
+    expect(migrated.operations).toContainEqual(
+      expect.objectContaining({ id: historical.id, status: 'completed' }),
+    )
+    expect(migrated.operations).not.toContainEqual(
+      expect.objectContaining({ id: 'deposit-interest-2026-08-15' }),
+    )
+  })
+
+  it('не удаляет ручной доход категории «Вклад» и повторяется идемпотентно', () => {
+    const state = createDefaultFinanceState()
+    const historical = state.operations.find(
+      (operation) => operation.id === 'deposit-interest-2026-07-15',
+    )!
+    state.operations.push({
+      ...historical,
+      id: 'manual-deposit-income',
+      date: '2026-08-20',
+      status: 'planned',
+      source: 'manual',
+      category: 'manualIncome',
+      recurringScheduleId: undefined,
+    })
+    const first = normalizeFinanceState(state, '2026-07-29')!
+    const second = normalizeFinanceState(first, '2026-07-29')!
+
+    expect(first.operations).toContainEqual(
+      expect.objectContaining({ id: 'manual-deposit-income' }),
+    )
+    expect(second).toEqual(first)
+  })
+
   it('переводит ошибочно завершённые будущие операции старой базы в planned', () => {
     const state = createDefaultFinanceState()
     const legacyState = JSON.parse(JSON.stringify(state)) as Record<
@@ -86,7 +140,7 @@ describe('локальное хранение финансов', () => {
     }
 
     expect(migratedPayment?.status).toBe('planned')
-    expect(saved.schemaVersion).toBe(8)
+    expect(saved.schemaVersion).toBe(9)
   })
 
   it('мигрирует досрочную оплату и сохраняет исходную дату графика', () => {
@@ -219,7 +273,7 @@ describe('локальное хранение финансов', () => {
       (expense) => expense.id === 'rent',
     )!
 
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(9)
     expect(migrated.personalExpenses).toHaveLength(6)
     expect(rent.active).toBe(true)
     expect(rent.amountHistory[0].amountKopecks).toBe(

@@ -158,6 +158,24 @@ describe('недельные показатели здоровья', () => {
     ), TODAY, TODAY).water.goalDays).toBe(1)
   })
 
+  it('считает импорт Apple Health в недельной цели без двойного учёта кружек', () => {
+    const summary = calculateHealthWeek(entries(
+      entry('2026-07-06', {
+        waterCups: 2,
+        waterMl: 1800,
+        waterSource: 'apple-health',
+        waterSyncedAt: '2026-07-06T18:00:00.000Z',
+      }),
+    ), TODAY, TODAY)
+
+    expect(summary.water).toMatchObject({
+      averageCups: 6,
+      averageLiters: 1.8,
+      goalDays: 1,
+      belowGoalDays: 0,
+    })
+  })
+
   it('считает лучший результат и дни ниже цели воды', () => {
     const water = calculateHealthWeek(entries(
       entry('2026-07-06', { waterCups: 6 }),

@@ -115,6 +115,7 @@ import type { PasswordVaultEnvelope } from './passwordVaultCrypto'
 import { clearRetiredPlansStorage } from './retiredPlansCleanup'
 import { getTimerTitle, getTimerTotalRemaining } from './healthTimer'
 import { useHealthTimer } from './useHealthTimer'
+import { hasAppleHealthWaterFragment } from './appleHealthWater'
 import './App.css'
 
 type SaveState = 'saved' | 'saving' | 'error'
@@ -147,6 +148,11 @@ interface RestorePreview {
 }
 
 function App() {
+  const [hasInitialAppleHealthWaterImport] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      hasAppleHealthWaterFragment(window.location.hash),
+  )
   const [initialState, setInitialState] = useState<InitialState | null>(null)
   const [calendarNavigationTarget, setCalendarNavigationTarget] =
     useState<PaymentNotificationNavigationTarget | null>(() =>
@@ -166,7 +172,11 @@ function App() {
   const [selectedMonthId, setSelectedMonthId] = useState('')
   const [isBooting, setIsBooting] = useState(true)
   const [activeTab, setActiveTab] = useState<TabId>(
-    calendarNavigationTarget ? 'money' : 'home',
+    hasInitialAppleHealthWaterImport
+      ? 'health'
+      : calendarNavigationTarget
+        ? 'money'
+        : 'home',
   )
   const [salaryView, setSalaryView] = useState<SalaryView>('current')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -189,11 +199,22 @@ function App() {
   const financeDidMountRef = useRef(false)
   const financeSaveTimerRef = useRef<number | undefined>(undefined)
   const dailySalesDidMountRef = useRef(false)
+
   const dailySalesSaveTimerRef = useRef<number | undefined>(undefined)
   const cashAtHomeDidMountRef = useRef(false)
   const notificationSettingsDidMountRef = useRef(false)
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const firstRenderRef = useRef(true)
+
+  useEffect(() => {
+    const openAppleHealthWaterImport = () => {
+      if (hasAppleHealthWaterFragment(window.location.hash)) {
+        setActiveTab('health')
+      }
+    }
+    window.addEventListener('hashchange', openAppleHealthWaterImport)
+    return () => window.removeEventListener('hashchange', openAppleHealthWaterImport)
+  }, [])
 
   if (firstRenderRef.current) {
     firstRenderRef.current = false

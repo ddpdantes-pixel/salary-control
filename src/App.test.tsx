@@ -13,7 +13,7 @@ import {
 } from './storage'
 import { createDefaultFinanceState } from './financeDefaults'
 import { saveStoredFinanceState } from './financeStorage'
-import { createEmptyHealthState, createHealthEntry } from './healthModel'
+import { createEmptyHealthState, createHealthEntry, getLocalDateId } from './healthModel'
 import { HEALTH_STATE_KEY, saveStoredHealthState } from './healthStorage'
 import {
   DAILY_SALES_STATE_KEY,
@@ -159,6 +159,21 @@ describe('оболочка приложения', () => {
       screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' }),
     ).not.toBeNull()
     expect(screen.getByText('Выбрать дату')).not.toBeNull()
+  })
+
+  it('открывает здоровье напрямую по локальной ссылке Apple Health', async () => {
+    const today = getLocalDateId()
+    window.history.replaceState(
+      {},
+      '',
+      `/#health-water/v1/apple-health/${today}/1800`,
+    )
+
+    await renderApp()
+
+    expect(await screen.findByText(/Вода обновлена: 1.?800 мл/)).not.toBeNull()
+    expect(screen.getByRole('heading', { name: /Вода — 1.?800 из 1.?800 мл/ })).not.toBeNull()
+    expect(window.location.hash).toBe('')
   })
 
   it('открывает защищённый раздел Пароли с Главного без пятой нижней вкладки', async () => {

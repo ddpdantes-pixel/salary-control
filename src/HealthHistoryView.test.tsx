@@ -95,6 +95,21 @@ describe('интерфейс истории здоровья', () => {
     expect(within(details).getByText('Выполнено: 14 июля 2026')).not.toBeNull()
   })
 
+  it('показывает импорт Apple Health вместо старого числа кружек', async () => {
+    const user = userEvent.setup()
+    const synced = entry('2026-07-14', {
+      waterCups: 2,
+      waterMl: 1800,
+      waterSource: 'apple-health',
+      waterSyncedAt: '2026-07-14T18:00:00.000Z',
+    })
+    render(<HistoryHarness entries={entryMap(synced)} />)
+
+    expect(screen.getByText('Вода: 1800 из 1800 мл')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: /Открыть запись за 14 июля/ }))
+    expect(screen.getByText('1800 из 1800 мл · Apple Health')).not.toBeNull()
+  })
+
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()

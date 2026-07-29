@@ -212,6 +212,7 @@ function normalizeEntry(
   return {
     ...fallback,
     waterCups: boundedNumber(value.waterCups, 0, 100, fallback.waterCups),
+    ...normalizeAppleHealthWater(value),
     coffeeCups: boundedNumber(value.coffeeCups, 0, 100, fallback.coffeeCups),
     psyllium: Boolean(value.psyllium),
     fruit: Boolean(value.fruit),
@@ -271,6 +272,38 @@ function normalizeEntry(
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : fallback.createdAt,
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : fallback.updatedAt,
   }
+}
+
+function normalizeAppleHealthWater(
+  value: Record<string, unknown>,
+): Pick<HealthEntry, 'waterMl' | 'waterSource' | 'waterSyncedAt'> {
+  const waterMl = boundedOptionalInteger(value.waterMl, 0, 20_000)
+  if (
+    waterMl === undefined ||
+    value.waterSource !== 'apple-health' ||
+    typeof value.waterSyncedAt !== 'string' ||
+    !Number.isFinite(Date.parse(value.waterSyncedAt))
+  ) {
+    return {}
+  }
+  return {
+    waterMl,
+    waterSource: 'apple-health',
+    waterSyncedAt: value.waterSyncedAt,
+  }
+}
+
+function boundedOptionalInteger(
+  value: unknown,
+  min: number,
+  max: number,
+): number | undefined {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= min &&
+    value <= max
+    ? value
+    : undefined
 }
 
 function normalizeCosmetology(value: unknown): Record<string, boolean> {

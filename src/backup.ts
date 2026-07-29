@@ -89,13 +89,30 @@ export function createBackupData(
     },
     ...(financeState ? { financeState } : {}),
     ...(dailySalesState ? { dailySalesState } : {}),
-    ...(healthState ? { healthState } : {}),
+    ...(healthState
+      ? { healthState: excludeAppleHealthWaterFromBackup(healthState) }
+      : {}),
     ...(healthSettings ? { healthSettings } : {}),
     ...(cashAtHome ? { cashAtHome } : {}),
     ...(paymentNotificationSettings
       ? { paymentNotificationSettings }
       : {}),
     ...(passwordVault ? { passwordVault } : {}),
+  }
+}
+
+function excludeAppleHealthWaterFromBackup(state: HealthState): HealthState {
+  return {
+    ...state,
+    entries: Object.fromEntries(
+      Object.entries(state.entries).map(([date, source]) => {
+        const entry = { ...source }
+        delete entry.waterMl
+        delete entry.waterSource
+        delete entry.waterSyncedAt
+        return [date, entry]
+      }),
+    ),
   }
 }
 
