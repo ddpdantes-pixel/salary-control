@@ -6,7 +6,10 @@ import {
 } from './healthModel'
 import type { HealthEntry, HealthState } from './healthTypes'
 import type { HealthSettings } from './healthSettings'
-import { isAppleHealthSyncToken } from './healthSettings'
+import {
+  DEFAULT_APPLE_HEALTH_SHORTCUT_NAME,
+  isAppleHealthSyncToken,
+} from './healthSettings'
 import { PAYMENT_PUSH_PRODUCTION_CONFIG } from './paymentPushProductionConfig'
 
 export const APPLE_HEALTH_WATER_FRAGMENT_PREFIX =
@@ -18,6 +21,15 @@ export const APPLE_HEALTH_WATER_SYNC_EVENT =
   'moi-ritm:apple-health-water-sync'
 export const APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT =
   'moi-ritm:apple-health-water-sync-request'
+export const APPLE_HEALTH_SHORTCUT_REFRESH_EVENT =
+  'moi-ritm:apple-health-shortcut-refresh'
+export const APPLE_HEALTH_SHORTCUT_CLIENT = 'ios-shortcut-v1'
+export const APPLE_HEALTH_SHORTCUT_POLL_DELAYS_MS = [
+  1_000,
+  3_000,
+  6_000,
+  10_000,
+] as const
 
 export interface AppleHealthWaterPayload {
   version: 1
@@ -41,6 +53,12 @@ export interface AppleHealthWaterRemotePayload {
   date: string
   waterMl: number
   updatedAt: string
+}
+
+export interface AppleHealthWaterRefreshBaseline {
+  waterMl: number | null
+  updatedAt: string | null
+  startedAt?: string
 }
 
 export type AppleHealthWaterFragmentPayload =
@@ -269,6 +287,64 @@ export function getAppleHealthWaterSyncLinkBase(
   return `${origin}${normalizedBase}${APPLE_HEALTH_WATER_SYNC_FRAGMENT_PREFIX}${token}/`
 }
 
+export function getAppleHealthShortcutRunUrl(shortcutName: string): string {
+  const normalized = shortcutName.trim() || DEFAULT_APPLE_HEALTH_SHORTCUT_NAME
+  return `shortcuts://run-shortcut?name=${encodeURIComponent(normalized)}`
+}
+
+export function isAppleHealthDirectSyncConfigured(
+  settings: HealthSettings,
+): boolean {
+  return Boolean(
+    settings.appleHealth.syncToken &&
+    settings.appleHealth.directSyncConfigured &&
+    settings.appleHealth.shortcutName.trim(),
+  )
+}
+
+export function maskAppleHealthSyncToken(token: string | null): string {
+  return token ? '••••••••••••••••' : 'Ключ ещё не создан'
+}
+
+export function hasNewAppleHealthWater(
+  payload: AppleHealthWaterRemotePayload,
+  baseline: AppleHealthWaterRefreshBaseline,
+): boolean {
+  if (baseline.updatedAt === null) {
+    const startedAt = baseline.startedAt ? Date.parse(baseline.startedAt) : Number.NaN
+    const incomingAt = Date.parse(payload.updatedAt)
+    return Number.isFinite(startedAt)
+      ? Number.isFinite(incomingAt) && incomingAt >= startedAt
+      : true
+  }
+  if (payload.updatedAt === baseline.updatedAt) return false
+  const currentTime = Date.parse(baseline.updatedAt)
+  const incomingTime = Date.parse(payload.updatedAt)
+  if (Number.isFinite(incomingTime) && Number.isFinite(currentTime)) {
+    return incomingTime > currentTime
+  }
+  return payload.waterMl !== baseline.waterMl
+}
+
+export async function waitForUpdatedAppleHealthWater(options: {
+  baseline: AppleHealthWaterRefreshBaseline
+  fetchRemote: (signal?: AbortSignal) => Promise<AppleHealthWaterRemotePayload | null>
+  signal?: AbortSignal
+  delaysMs?: readonly number[]
+  wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>
+}): Promise<AppleHealthWaterRemotePayload | null> {
+  const delays = options.delaysMs ?? APPLE_HEALTH_SHORTCUT_POLL_DELAYS_MS
+  const wait = options.wait ?? waitWithAbort
+  let elapsed = 0
+  for (const targetDelay of delays) {
+    await wait(Math.max(0, targetDelay - elapsed), options.signal)
+    elapsed = targetDelay
+    const remote = await options.fetchRemote(options.signal)
+    if (remote && hasNewAppleHealthWater(remote, options.baseline)) return remote
+  }
+  return null
+}
+
 export async function sendAppleHealthWaterToWorker(
   payload: AppleHealthWaterSyncPayload,
   fetchImpl: typeof fetch = fetch,
@@ -447,6 +523,20 @@ function parseTimestamp(value: string | undefined): number | null {
   if (!value) return null
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function waitWithAbort(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = window.setTimeout(resolve, milliseconds)
+    signal?.addEventListener('abort', () => {
+      window.clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+  })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

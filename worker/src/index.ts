@@ -474,7 +474,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
   return {
     ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Confirm-Delete',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Confirm-Delete, X-Moi-Ritm-Client',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   }

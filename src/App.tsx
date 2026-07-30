@@ -116,11 +116,15 @@ import { clearRetiredPlansStorage } from './retiredPlansCleanup'
 import { getTimerTitle, getTimerTotalRemaining } from './healthTimer'
 import { useHealthTimer } from './useHealthTimer'
 import {
+  APPLE_HEALTH_SHORTCUT_REFRESH_EVENT,
   APPLE_HEALTH_WATER_SYNC_EVENT,
   APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
   applyRemoteAppleHealthWater,
   fetchAppleHealthWaterFromWorker,
   hasAppleHealthWaterFragment,
+  waitForUpdatedAppleHealthWater,
+  type AppleHealthWaterRefreshBaseline,
+  type AppleHealthWaterRemotePayload,
 } from './appleHealthWater'
 import './App.css'
 
@@ -203,6 +207,9 @@ function App() {
   const healthStateRef = useRef(healthState)
   const appleHealthSyncAbortRef = useRef<AbortController | null>(null)
   const appleHealthSyncInFlightRef = useRef<Promise<void> | null>(null)
+  const appleHealthShortcutRefreshRef = useRef<AppleHealthWaterRefreshBaseline | null>(null)
+  const appleHealthShortcutPollRef = useRef<Promise<void> | null>(null)
+  const appleHealthShortcutStartTimerRef = useRef<number | undefined>(undefined)
   const appleHealthLastSyncRef = useRef(0)
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
@@ -235,6 +242,19 @@ function App() {
     if (isBooting || !token) return
     let disposed = false
 
+    const applyRemote = (remote: AppleHealthWaterRemotePayload) => {
+      const applied = applyRemoteAppleHealthWater(
+        healthStateRef.current,
+        remote,
+      )
+      if (applied.state !== healthStateRef.current) {
+        healthStateRef.current = applied.state
+        saveStoredHealthState(applied.state)
+        setHealthState(applied.state)
+      }
+      return applied.status
+    }
+
     const syncWater = (force = false): Promise<void> => {
       if (appleHealthSyncInFlightRef.current) {
         return appleHealthSyncInFlightRef.current
@@ -264,18 +284,10 @@ function App() {
             }))
             return
           }
-          const applied = applyRemoteAppleHealthWater(
-            healthStateRef.current,
-            remote,
-          )
-          if (applied.state !== healthStateRef.current) {
-            healthStateRef.current = applied.state
-            saveStoredHealthState(applied.state)
-            setHealthState(applied.state)
-          }
+          const status = applyRemote(remote)
           window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
             detail: {
-              status: applied.status === 'available-manual'
+              status: status === 'available-manual'
                 ? 'available-manual'
                 : 'synced',
               waterMl: remote.waterMl,
@@ -293,30 +305,132 @@ function App() {
       })().finally(() => {
         if (appleHealthSyncInFlightRef.current === request) {
           appleHealthSyncInFlightRef.current = null
-          appleHealthSyncAbortRef.current = null
+          if (appleHealthSyncAbortRef.current === controller) {
+            appleHealthSyncAbortRef.current = null
+          }
         }
       })
       appleHealthSyncInFlightRef.current = request
       return request
     }
 
+    const pollShortcutRefresh = (): Promise<void> => {
+      if (appleHealthShortcutPollRef.current) {
+        return appleHealthShortcutPollRef.current
+      }
+      const baseline = appleHealthShortcutRefreshRef.current
+      if (!baseline) return Promise.resolve()
+
+      appleHealthSyncAbortRef.current?.abort()
+      const controller = new AbortController()
+      appleHealthSyncAbortRef.current = controller
+      window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+        detail: { status: 'waiting', manualRefresh: true },
+      }))
+
+      const request = (async () => {
+        try {
+          const remote = await waitForUpdatedAppleHealthWater({
+            baseline,
+            signal: controller.signal,
+            fetchRemote: (signal) => fetchAppleHealthWaterFromWorker(
+              token,
+              getLocalIsoDate(),
+              { signal },
+            ),
+          })
+          if (disposed) return
+          appleHealthShortcutRefreshRef.current = null
+          if (!remote) {
+            window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+              detail: { status: 'timeout', manualRefresh: true },
+            }))
+            return
+          }
+          const status = applyRemote(remote)
+          window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+            detail: {
+              status: status === 'available-manual'
+                ? 'available-manual'
+                : 'synced',
+              waterMl: remote.waterMl,
+              updatedAt: remote.updatedAt,
+              manualRefresh: true,
+            },
+          }))
+        } catch (error) {
+          if (disposed || (error instanceof DOMException && error.name === 'AbortError')) {
+            return
+          }
+          appleHealthShortcutRefreshRef.current = null
+          window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+            detail: { status: 'error', manualRefresh: true },
+          }))
+        }
+      })().finally(() => {
+        if (appleHealthShortcutPollRef.current === request) {
+          appleHealthShortcutPollRef.current = null
+          if (appleHealthSyncAbortRef.current === controller) {
+            appleHealthSyncAbortRef.current = null
+          }
+        }
+      })
+      appleHealthShortcutPollRef.current = request
+      return request
+    }
+
     const requestSync = (event: Event) => {
       const force = event instanceof CustomEvent && event.detail?.force === true
-      void syncWater(force)
+      if (appleHealthShortcutRefreshRef.current) {
+        void pollShortcutRefresh()
+      } else {
+        void syncWater(force)
+      }
     }
-    const syncOnFocus = () => void syncWater()
+    const startShortcutRefresh = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return
+      appleHealthSyncAbortRef.current?.abort()
+      appleHealthShortcutPollRef.current = null
+      appleHealthShortcutRefreshRef.current = {
+        waterMl: typeof event.detail?.waterMl === 'number'
+          ? event.detail.waterMl
+          : null,
+        updatedAt: typeof event.detail?.updatedAt === 'string'
+          ? event.detail.updatedAt
+          : null,
+        startedAt: typeof event.detail?.startedAt === 'string'
+          ? event.detail.startedAt
+          : new Date().toISOString(),
+      }
+      window.dispatchEvent(new CustomEvent(APPLE_HEALTH_WATER_SYNC_EVENT, {
+        detail: { status: 'launching', manualRefresh: true },
+      }))
+      window.clearTimeout(appleHealthShortcutStartTimerRef.current)
+      appleHealthShortcutStartTimerRef.current = window.setTimeout(() => {
+        void pollShortcutRefresh()
+      }, 500)
+    }
+    const syncOnFocus = () => {
+      if (appleHealthShortcutRefreshRef.current) void pollShortcutRefresh()
+      else void syncWater()
+    }
     const syncWhenVisible = () => {
-      if (document.visibilityState === 'visible') void syncWater()
+      if (document.visibilityState !== 'visible') return
+      if (appleHealthShortcutRefreshRef.current) void pollShortcutRefresh()
+      else void syncWater()
     }
 
     window.addEventListener(APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT, requestSync)
+    window.addEventListener(APPLE_HEALTH_SHORTCUT_REFRESH_EVENT, startShortcutRefresh)
     window.addEventListener('focus', syncOnFocus)
     document.addEventListener('visibilitychange', syncWhenVisible)
     void syncWater(true)
     return () => {
       disposed = true
       appleHealthSyncAbortRef.current?.abort()
+      window.clearTimeout(appleHealthShortcutStartTimerRef.current)
       window.removeEventListener(APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT, requestSync)
+      window.removeEventListener(APPLE_HEALTH_SHORTCUT_REFRESH_EVENT, startShortcutRefresh)
       window.removeEventListener('focus', syncOnFocus)
       document.removeEventListener('visibilitychange', syncWhenVisible)
     }
@@ -773,13 +887,14 @@ function App() {
       ? {
           ...pendingRestore.healthSettings,
           appleHealth: {
+            ...pendingRestore.healthSettings.appleHealth,
             syncToken: healthSettings.appleHealth.syncToken,
           },
         }
       : {
           ...createDefaultHealthSettings(),
           appleHealth: {
-            syncToken: healthSettings.appleHealth.syncToken,
+            ...healthSettings.appleHealth,
           },
         }
     saveStoredHealthSettings(restoredHealthSettings)

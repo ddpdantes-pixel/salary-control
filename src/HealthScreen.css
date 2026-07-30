@@ -1517,6 +1517,16 @@
 .health-apple-water-heading span { color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
 .health-apple-water-heading span.error { color: var(--danger); }
 .health-apple-water-heading strong { font-size: 15px; }
+.health-apple-water-direct { display: grid; gap: 10px; min-width: 0; padding-top: 4px; }
+.health-apple-water-direct h4, .health-apple-water-direct > p { margin: 0; }
+.health-apple-water-direct h4 { font-size: 14px; }
+.health-apple-water-direct > p { color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
+.health-apple-water-field { display: grid; gap: 6px; min-width: 0; font-size: 13px; font-weight: 700; }
+.health-apple-water-field input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 10px; color: var(--text-primary); background: var(--surface); font: inherit; font-size: 16px; }
+.health-apple-water-field small.error { color: var(--danger); font-size: 12px; }
+.health-apple-water-secret { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; font-size: 13px; }
+.health-apple-water-secret strong { max-width: 100%; overflow-wrap: anywhere; letter-spacing: 0; }
+.health-apple-water-warning { margin: 0; color: var(--warning-text, #8a5a00); font-size: 12px; }
 .health-apple-water-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .health-apple-water-actions button { flex: 1 1 150px; min-width: 0; min-height: 42px; padding: 8px 10px; color: var(--accent); background: var(--accent-soft); box-shadow: none; font-size: 13px; overflow-wrap: anywhere; }
 .health-apple-water-actions button:disabled { opacity: .55; }
@@ -1525,6 +1535,12 @@
 .health-apple-water-message.error { color: var(--danger); }
 .health-apple-water-note { color: var(--text-secondary); }
 .health-apple-water-privacy { color: var(--text-primary); }
+.health-apple-water-confirm { margin-top: 2px; }
+.health-apple-water-automation, .health-apple-water-fallback { min-width: 0; border-top: 1px solid var(--border); padding-top: 8px; }
+.health-apple-water-automation summary, .health-apple-water-fallback summary { min-height: 40px; cursor: pointer; font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+.health-apple-water-automation > div, .health-apple-water-fallback { color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
+.health-apple-water-automation p, .health-apple-water-fallback p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.health-apple-water-fallback button { max-width: 100%; min-height: 40px; padding: 8px 10px; color: var(--accent); background: var(--accent-soft); box-shadow: none; font-size: 13px; overflow-wrap: anywhere; }
 .health-apple-water-reset { justify-self: start; min-height: 38px; padding: 7px 10px; color: var(--danger); background: transparent; border: 1px solid var(--border); box-shadow: none; font-size: 12px; }
 .health-apple-water-steps { display: grid; gap: 7px; margin: 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
 .health-apple-water-steps li { padding-left: 2px; overflow-wrap: anywhere; }

@@ -40,6 +40,39 @@ describe('Worker bridge воды Apple Health', () => {
     expect((await context.fetch(postRequest('short'))).status).toBe(401)
   })
 
+  it('для прямого POST без Origin требует Authorization и client header', async () => {
+    const context = createContext()
+    expect((await context.fetch(directPostRequest(''))).status).toBe(401)
+    expect((await context.fetch(directPostRequest('short'))).status).toBe(401)
+    expect((await context.fetch(directPostRequest(TOKEN, 1020, {}, null))).status).toBe(403)
+    expect((await context.fetch(directPostRequest(TOKEN, 1020, {}, 'other-client'))).status).toBe(403)
+  })
+
+  it('принимает авторизованный POST iOS Shortcut без Origin', async () => {
+    const context = createContext()
+    const response = await context.fetch(directPostRequest(TOKEN, 1450))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
+    expect(context.database.rows<{ channel_hash: string; water_ml: number }>(
+      'SELECT channel_hash, water_ml FROM health_water_sync',
+    )).toEqual([{
+      channel_hash: await hashSyncToken(TOKEN),
+      water_ml: 1450,
+    }])
+  })
+
+  it('повторный прямой POST заменяет воду, а не складывает её', async () => {
+    const context = createContext()
+    await context.fetch(directPostRequest(TOKEN, 900))
+    await context.fetch(directPostRequest(TOKEN, 1250))
+
+    expect(context.database.rows<{ water_ml: number }>(
+      'SELECT water_ml FROM health_water_sync',
+    )).toEqual([{ water_ml: 1250 }])
+  })
+
   it('создаёт запись только с SHA-256 hash и не сохраняет raw token', async () => {
     const context = createContext()
     const response = await context.fetch(postRequest(TOKEN))
@@ -95,6 +128,24 @@ describe('Worker bridge воды Apple Health', () => {
     ))).status).toBe(415)
   })
 
+  it('отклоняет неверное clientUpdatedAt и слишком большой body прямого запроса', async () => {
+    const context = createContext()
+    expect((await context.fetch(directPostRequest(TOKEN, 1000, {
+      clientUpdatedAt: 'not-a-date',
+    }))).status).toBe(400)
+
+    const oversized = new Request('https://worker.example/api/health-water-sync', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        'Content-Type': 'application/json',
+        'X-Moi-Ritm-Client': 'ios-shortcut-v1',
+      },
+      body: JSON.stringify({ payload: 'x'.repeat(140_000) }),
+    })
+    expect((await context.fetch(oversized)).status).toBe(413)
+  })
+
   it('GET возвращает запись только владельцу и 404 для пустой даты', async () => {
     const context = createContext()
     await context.fetch(postRequest(TOKEN, 1400))
@@ -144,6 +195,7 @@ describe('Worker bridge воды Apple Health', () => {
     expect(response.status).toBe(204)
     expect(response.headers.get('Access-Control-Allow-Origin')).not.toBe('*')
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization')
+    expect(response.headers.get('Access-Control-Allow-Headers')).toContain('X-Moi-Ritm-Client')
   })
 
   it('удаляет записи старше семи календарных дней при обращении', async () => {
@@ -206,6 +258,30 @@ function postRequest(
       Origin: 'https://ddpdantes-pixel.github.io',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      version: 2,
+      date: '2026-07-29',
+      waterMl,
+      source: 'apple-health',
+      clientUpdatedAt: '2026-07-29T17:59:00.000Z',
+      ...override,
+    }),
+  })
+}
+
+function directPostRequest(
+  token = TOKEN,
+  waterMl = 1020,
+  override: Record<string, unknown> = {},
+  client: string | null = 'ios-shortcut-v1',
+): Request {
+  return new Request('https://worker.example/api/health-water-sync', {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'Content-Type': 'application/json',
+      ...(client ? { 'X-Moi-Ritm-Client': client } : {}),
     },
     body: JSON.stringify({
       version: 2,

@@ -62,6 +62,21 @@ describe('настройки здоровья', () => {
     expect(loadStoredHealthSettings().water.goalCups).toBe(7)
   })
 
+  it('добавляет настройки прямой синхронизации без замены существующего ключа', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultHealthSettings())) as Record<string, unknown>
+    const token = 'L'.repeat(43)
+    legacy.appleHealth = { syncToken: token }
+    window.localStorage.setItem(HEALTH_SETTINGS_KEY, JSON.stringify(legacy))
+
+    const settings = loadStoredHealthSettings()
+    expect(settings.appleHealth).toEqual({
+      syncToken: token,
+      shortcutName: 'Вода в Мой ритм',
+      directSyncConfigured: false,
+    })
+    expect(loadStoredHealthSettings().appleHealth).toEqual(settings.appleHealth)
+  })
+
   it('хранит настройки отдельно от записи дня', () => {
     const entry = createHealthEntry('2026-07-14')
 

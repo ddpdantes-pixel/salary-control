@@ -8,6 +8,7 @@ import type {
 
 export const HEALTH_SETTINGS_KEY = 'moi-ritm.health-settings.v1'
 export const HEALTH_SETTINGS_SCHEMA_VERSION = 1
+export const DEFAULT_APPLE_HEALTH_SHORTCUT_NAME = 'Вода в Мой ритм'
 
 export type QuickItemKey =
   | 'psyllium'
@@ -67,6 +68,8 @@ export interface CosmetologySettings {
 
 export interface AppleHealthSettings {
   syncToken: string | null
+  shortcutName: string
+  directSyncConfigured: boolean
 }
 
 export interface HealthSettings {
@@ -243,6 +246,8 @@ export function normalizeHealthSettings(value: unknown): HealthSettings {
       syncToken: isAppleHealthSyncToken(appleHealth.syncToken)
         ? appleHealth.syncToken
         : null,
+      shortcutName: normalizeAppleHealthShortcutName(appleHealth.shortcutName),
+      directSyncConfigured: appleHealth.directSyncConfigured === true,
     },
     coffee: { maxPerDay: integerInRange(coffee.maxPerDay, 0, 10) ?? defaults.coffee.maxPerDay },
     quickItems: {
@@ -290,6 +295,12 @@ export function validateHealthSettings(settings: HealthSettings): HealthSettings
     !isAppleHealthSyncToken(settings.appleHealth.syncToken)
   ) {
     errors['appleHealth.syncToken'] = 'Ключ синхронизации повреждён.'
+  }
+  if (
+    !settings.appleHealth.shortcutName.trim() ||
+    settings.appleHealth.shortcutName.trim().length > 120
+  ) {
+    errors['appleHealth.shortcutName'] = 'Укажите имя Команды до 120 символов.'
   }
   requireInteger(errors, 'coffee.maxPerDay', settings.coffee.maxPerDay, 0, 10)
   requireInteger(errors, 'quickItems.squatsRepetitions', settings.quickItems.squatsRepetitions, 1, 500)
@@ -454,7 +465,11 @@ function createHealthSettingsDefaults(now: Date): HealthSettings {
   return {
     schemaVersion: HEALTH_SETTINGS_SCHEMA_VERSION,
     water: { goalCups: 6, cupVolumeMl: 300 },
-    appleHealth: { syncToken: null },
+    appleHealth: {
+      syncToken: null,
+      shortcutName: DEFAULT_APPLE_HEALTH_SHORTCUT_NAME,
+      directSyncConfigured: false,
+    },
     coffee: { maxPerDay: 2 },
     quickItems: {
       psyllium: true,
@@ -482,6 +497,14 @@ function createHealthSettingsDefaults(now: Date): HealthSettings {
 
 export function isAppleHealthSyncToken(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)
+}
+
+function normalizeAppleHealthShortcutName(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_APPLE_HEALTH_SHORTCUT_NAME
+  const normalized = value.trim()
+  return normalized && normalized.length <= 120
+    ? normalized
+    : DEFAULT_APPLE_HEALTH_SHORTCUT_NAME
 }
 
 export function createDefaultCosmetologySettings(now = new Date()): CosmetologySettings {

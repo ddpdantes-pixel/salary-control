@@ -7,15 +7,19 @@ import {
   clearAppleHealthWaterFragment,
   createAppleHealthSyncToken,
   fetchAppleHealthWaterFromWorker,
+  getAppleHealthShortcutRunUrl,
   getAppleHealthWaterLinkBase,
   getAppleHealthWaterSyncLinkBase,
   getHealthEntryWaterMl,
   getWaterGoalMl,
   isWaterGoalMet,
+  isAppleHealthDirectSyncConfigured,
+  maskAppleHealthSyncToken,
   parseAppleHealthWaterFragment,
   sendAppleHealthWaterToWorker,
   switchHealthEntryToManualWater,
   useAvailableAppleHealthWater,
+  waitForUpdatedAppleHealthWater,
 } from './appleHealthWater'
 import { createEmptyHealthState, createHealthEntry } from './healthModel'
 import { createDefaultHealthSettings } from './healthSettings'
@@ -166,6 +170,110 @@ describe('локальный импорт воды из Apple Health', () => {
     expect(token).toHaveLength(43)
     expect(token).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(token).not.toMatch(/[+/=]/)
+  })
+
+  it('строит shortcuts URL с кодированным именем и без token', () => {
+    const token = 'secret-token-that-must-not-be-in-url'
+    const url = getAppleHealthShortcutRunUrl('Вода & Мой ритм')
+
+    expect(url).toBe(
+      'shortcuts://run-shortcut?name=%D0%92%D0%BE%D0%B4%D0%B0%20%26%20%D0%9C%D0%BE%D0%B9%20%D1%80%D0%B8%D1%82%D0%BC',
+    )
+    expect(url).not.toContain(token)
+  })
+
+  it('считает прямую синхронизацию настроенной только после подтверждения', () => {
+    const settings = createDefaultHealthSettings()
+    settings.appleHealth.syncToken = 'A'.repeat(43)
+    expect(isAppleHealthDirectSyncConfigured(settings)).toBe(false)
+
+    settings.appleHealth.directSyncConfigured = true
+    expect(isAppleHealthDirectSyncConfigured(settings)).toBe(true)
+    expect(maskAppleHealthSyncToken(settings.appleHealth.syncToken)).toBe('••••••••••••••••')
+    expect(maskAppleHealthSyncToken(null)).toBe('Ключ ещё не создан')
+  })
+
+  it('не принимает старую серверную запись как результат только что запущенной Команды', async () => {
+    const oldRemote = {
+      version: 2 as const,
+      date: '2026-07-29',
+      waterMl: 900,
+      source: 'apple-health' as const,
+      updatedAt: '2026-07-29T17:59:59.000Z',
+    }
+    const newRemote = { ...oldRemote, waterMl: 1200, updatedAt: '2026-07-29T18:00:01.000Z' }
+    const fetchRemote = vi.fn()
+      .mockResolvedValueOnce(oldRemote)
+      .mockResolvedValueOnce(newRemote)
+
+    await expect(waitForUpdatedAppleHealthWater({
+      baseline: {
+        waterMl: null,
+        updatedAt: null,
+        startedAt: '2026-07-29T18:00:00.000Z',
+      },
+      fetchRemote,
+      delaysMs: [1, 2],
+      wait: async () => undefined,
+    })).resolves.toEqual(newRemote)
+    expect(fetchRemote).toHaveBeenCalledTimes(2)
+  })
+
+  it('ограниченно ожидает новую серверную запись и прекращает запросы после успеха', async () => {
+    const baseline = { waterMl: 900, updatedAt: '2026-07-29T18:00:00.000Z' }
+    const unchanged = {
+      version: 2 as const,
+      date: '2026-07-29',
+      waterMl: 900,
+      source: 'apple-health' as const,
+      updatedAt: baseline.updatedAt,
+    }
+    const updated = { ...unchanged, waterMl: 1200, updatedAt: '2026-07-29T18:05:00.000Z' }
+    const fetchRemote = vi.fn()
+      .mockResolvedValueOnce(unchanged)
+      .mockResolvedValueOnce(updated)
+    const wait = vi.fn<(milliseconds: number, signal?: AbortSignal) => Promise<void>>(
+      async () => undefined,
+    )
+
+    await expect(waitForUpdatedAppleHealthWater({
+      baseline,
+      fetchRemote,
+      delaysMs: [1000, 3000, 6000, 10000],
+      wait,
+    })).resolves.toEqual(updated)
+    expect(wait.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([1000, 2000])
+    expect(fetchRemote).toHaveBeenCalledTimes(2)
+  })
+
+  it('останавливает ожидание после последней попытки без постоянного polling', async () => {
+    const fetchRemote = vi.fn().mockResolvedValue(null)
+    const wait = vi.fn<(milliseconds: number, signal?: AbortSignal) => Promise<void>>(
+      async () => undefined,
+    )
+
+    await expect(waitForUpdatedAppleHealthWater({
+      baseline: { waterMl: null, updatedAt: null },
+      fetchRemote,
+      delaysMs: [1, 3, 6, 10],
+      wait,
+    })).resolves.toBeNull()
+    expect(fetchRemote).toHaveBeenCalledTimes(4)
+    expect(wait.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([1, 2, 3, 4])
+  })
+
+  it('прерывает старое ожидание через AbortController до нового GET', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const fetchRemote = vi.fn().mockResolvedValue(null)
+
+    await expect(waitForUpdatedAppleHealthWater({
+      baseline: { waterMl: null, updatedAt: null },
+      fetchRemote,
+      delaysMs: [10],
+      signal: controller.signal,
+    })).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchRemote).not.toHaveBeenCalled()
   })
 
   it('строит v2 основу только во fragment и с завершающим слешем', () => {

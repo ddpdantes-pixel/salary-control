@@ -2,6 +2,7 @@ import { RequestValidationError, readJsonWithLimit } from './validation'
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const MAX_WATER_ML = 20_000
+export const IOS_SHORTCUT_CLIENT = 'ios-shortcut-v1'
 
 export interface HealthWaterRecord {
   channelHash: string
@@ -93,6 +94,13 @@ export async function handleHealthWaterSync(
   consumeRateLimit: (channelHash: string) => Promise<void>,
 ): Promise<HealthWaterResult> {
   const token = readBearerToken(request)
+  if (
+    request.method === 'POST' &&
+    !request.headers.get('Origin') &&
+    request.headers.get('X-Moi-Ritm-Client') !== IOS_SHORTCUT_CLIENT
+  ) {
+    throw new RequestValidationError('Некорректный клиент', 403)
+  }
   const channelHash = await hashSyncToken(token)
   await consumeRateLimit(channelHash)
   await store.deleteBefore(getRetentionCutoffDate(now))

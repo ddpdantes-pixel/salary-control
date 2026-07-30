@@ -15,14 +15,16 @@ import type { HealthEntry, PlannedWorkoutDay, WorkoutDefinition } from './health
 import { getLocalDateId } from './healthModel'
 import {
   createAppleHealthSyncToken,
+  getAppleHealthWaterSyncApiUrl,
   getAppleHealthWaterSyncLinkBase,
+  maskAppleHealthSyncToken,
 } from './appleHealthWater'
 
 interface HealthSettingsScreenProps {
   settings: HealthSettings
   entries: Record<string, HealthEntry>
   appleHealthImportError?: boolean
-  appleHealthSyncStatus?: 'idle' | 'checking' | 'transferred' | 'synced' | 'available-manual' | 'empty' | 'error'
+  appleHealthSyncStatus?: 'idle' | 'checking' | 'transferred' | 'synced' | 'available-manual' | 'empty' | 'launching' | 'waiting' | 'timeout' | 'error'
   onCheckAppleHealthSync?: () => void
   onSave: (settings: HealthSettings) => boolean
   onDirtyChange: (dirty: boolean) => void
@@ -56,7 +58,9 @@ export function HealthSettingsScreen({
   const [workoutFilter, setWorkoutFilter] = useState<'active' | 'archived'>('active')
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
   const [appleSetupOpen, setAppleSetupOpen] = useState(false)
-  const [appleLinkState, setAppleLinkState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [appleLinkState, setAppleLinkState] = useState<
+    'idle' | 'worker-copied' | 'token-copied' | 'safari-copied' | 'error'
+  >('idle')
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(settings),
     [draft, settings],
@@ -78,16 +82,22 @@ export function HealthSettingsScreen({
     [entries],
   )
   const appleHealthStatus = appleHealthImportError || appleHealthSyncStatus === 'error'
-    ? 'Ошибка передачи'
-    : appleHealthSyncStatus === 'checking'
-      ? 'Проверяем синхронизацию'
-      : appleHealthSyncStatus === 'transferred'
-        ? 'Передано Командой, ожидается получение'
-    : latestAppleHealthEntry?.date === getLocalDateId()
-      ? 'Синхронизировано сегодня'
-      : draft.appleHealth.syncToken
-        ? 'Готово к синхронизации'
-        : 'Не настроено'
+    ? 'Ошибка прямой отправки'
+    : appleHealthSyncStatus === 'launching'
+      ? 'Запускаю Быструю команду'
+      : appleHealthSyncStatus === 'checking' ||
+          appleHealthSyncStatus === 'waiting' ||
+          appleHealthSyncStatus === 'transferred'
+        ? 'Ожидаю новые данные'
+        : appleHealthSyncStatus === 'timeout'
+          ? 'Ошибка прямой отправки'
+          : !draft.appleHealth.syncToken
+            ? 'Не настроено'
+            : !draft.appleHealth.directSyncConfigured
+              ? 'Требуется изменить Быструю команду'
+              : latestAppleHealthEntry?.date === getLocalDateId()
+                ? 'Синхронизировано сегодня'
+                : 'Готово к автоматической синхронизации'
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   useEffect(() => {
@@ -115,18 +125,53 @@ export function HealthSettingsScreen({
     }
   }
 
+  function ensureAppleHealthSyncToken(): string | null {
+    if (draft.appleHealth.syncToken) return draft.appleHealth.syncToken
+    const token = createAppleHealthSyncToken()
+    const next = {
+      ...draft,
+      appleHealth: { ...draft.appleHealth, syncToken: token },
+    }
+    if (!onSave(structuredClone(next))) return null
+    setDraft(next)
+    return token
+  }
+
+  async function copyAppleHealthWorkerAddress(): Promise<void> {
+    await copyAppleHealthValue(
+      getAppleHealthWaterSyncApiUrl(),
+      'worker-copied',
+    )
+  }
+
+  async function copyAppleHealthSyncKey(): Promise<void> {
+    const token = ensureAppleHealthSyncToken()
+    if (!token) {
+      setAppleLinkState('error')
+      return
+    }
+    await copyAppleHealthValue(token, 'token-copied')
+  }
+
   async function copyAppleHealthLinkBase(): Promise<void> {
+    const token = ensureAppleHealthSyncToken()
+    if (!token) {
+      setAppleLinkState('error')
+      return
+    }
+    await copyAppleHealthValue(
+      getAppleHealthWaterSyncLinkBase(token),
+      'safari-copied',
+    )
+  }
+
+  async function copyAppleHealthValue(
+    value: string,
+    success: Exclude<typeof appleLinkState, 'idle' | 'error'>,
+  ): Promise<void> {
     try {
-      const token = draft.appleHealth.syncToken ?? createAppleHealthSyncToken()
-      const next = draft.appleHealth.syncToken
-        ? draft
-        : { ...draft, appleHealth: { syncToken: token } }
-      if (!draft.appleHealth.syncToken) {
-        if (!onSave(structuredClone(next))) throw new Error('save failed')
-        setDraft(next)
-      }
-      await navigator.clipboard.writeText(getAppleHealthWaterSyncLinkBase(token))
-      setAppleLinkState('copied')
+      await navigator.clipboard.writeText(value)
+      setAppleLinkState(success)
     } catch {
       setAppleLinkState('error')
     }
@@ -186,7 +231,7 @@ export function HealthSettingsScreen({
     if (confirmation?.kind === 'restore') {
       const defaults = {
         ...createDefaultHealthSettings(),
-        appleHealth: { syncToken: draft.appleHealth.syncToken },
+        appleHealth: { ...draft.appleHealth },
       }
       setDraft(defaults)
       setErrors({})
@@ -201,12 +246,16 @@ export function HealthSettingsScreen({
     if (confirmation?.kind === 'reset-apple-health-key') {
       const next = {
         ...draft,
-        appleHealth: { syncToken: createAppleHealthSyncToken() },
+        appleHealth: {
+          ...draft.appleHealth,
+          syncToken: createAppleHealthSyncToken(),
+          directSyncConfigured: false,
+        },
       }
       if (onSave(structuredClone(next))) {
         setDraft(next)
         setAppleLinkState('idle')
-        setMessage('Ключ сброшен. Скопируйте новую основу ссылки.')
+        setMessage('Ключ сброшен. Скопируйте новый ключ в Быструю команду.')
       } else {
         setMessage('Не удалось сбросить ключ синхронизации')
       }
@@ -281,33 +330,119 @@ export function HealthSettingsScreen({
               </p>
             )}
           </div>
-          <div className="health-apple-water-actions">
-            <button type="button" onClick={() => setAppleSetupOpen((current) => !current)}>
-              {appleSetupOpen ? 'Скрыть инструкцию' : 'Как настроить'}
+          <div className="health-apple-water-direct">
+            <h4>Прямая синхронизация</h4>
+            <p>Быстрая команда отправляет воду прямо в «Мой ритм», не открывая Safari.</p>
+            <label className="health-apple-water-field">
+              <span>Имя Быстрой команды</span>
+              <input
+                type="text"
+                value={draft.appleHealth.shortcutName}
+                maxLength={120}
+                onChange={(event) => {
+                  const shortcutName = event.currentTarget.value
+                  updateDraft((current) => ({
+                    ...current,
+                    appleHealth: {
+                      ...current.appleHealth,
+                      shortcutName,
+                    },
+                  }))
+                }}
+              />
+              {errors['appleHealth.shortcutName'] && (
+                <small className="error">{errors['appleHealth.shortcutName']}</small>
+              )}
+            </label>
+            <div className="health-apple-water-secret">
+              <span>Ключ синхронизации</span>
+              <strong aria-label="Ключ синхронизации скрыт">
+                {maskAppleHealthSyncToken(draft.appleHealth.syncToken)}
+              </strong>
+            </div>
+            <p className="health-apple-water-warning">Не отправляйте этот ключ другим людям.</p>
+            <div className="health-apple-water-actions">
+              <button type="button" onClick={() => void copyAppleHealthWorkerAddress()}>
+                Скопировать адрес Worker
+              </button>
+              <button type="button" onClick={() => void copyAppleHealthSyncKey()}>
+                Скопировать ключ синхронизации
+              </button>
+              <button type="button" onClick={() => setAppleSetupOpen((current) => !current)}>
+                {appleSetupOpen ? 'Скрыть инструкцию' : 'Показать инструкцию'}
+              </button>
+            </div>
+            {appleLinkState === 'worker-copied' && <p className="health-apple-water-message success">Адрес Worker скопирован</p>}
+            {appleLinkState === 'token-copied' && <p className="health-apple-water-message success">Ключ синхронизации скопирован</p>}
+            {appleLinkState === 'error' && <p className="health-apple-water-message error">Не удалось скопировать данные</p>}
+            {appleSetupOpen && (
+              <ol className="health-apple-water-steps">
+                <li>Откройте команду «{draft.appleHealth.shortcutName || 'Вода в Мой ритм'}» в приложении «Быстрые команды».</li>
+                <li>Оставьте действия поиска воды за сегодня, получения значений, суммы, округления и форматирования даты как yyyy-MM-dd.</li>
+                <li>Добавьте форматирование текущей даты и времени в ISO 8601 для поля clientUpdatedAt.</li>
+                <li>Удалите старые действия «Текст» со ссылкой, «Получить URL-адреса» и «Открыть URL-адреса».</li>
+                <li>Добавьте действие «URL-адрес» и вставьте скопированный адрес Worker.</li>
+                <li>Добавьте «Получить содержимое URL», раскройте параметры и выберите метод POST.</li>
+                <li>Добавьте заголовок Authorization со значением Bearer, пробел и скопированный ключ. Второй заголовок: X-Moi-Ritm-Client со значением ios-shortcut-v1.</li>
+                <li>Выберите тело запроса JSON. Добавьте version = 2, date = форматированная дата, waterMl = округлённая сумма как число, source = apple-health и clientUpdatedAt = время ISO 8601.</li>
+                <li>Запустите Команду один раз для проверки. При успехе Safari открываться не должен.</li>
+              </ol>
+            )}
+            <label className="health-settings-switch health-apple-water-confirm">
+              <input
+                type="checkbox"
+                checked={draft.appleHealth.directSyncConfigured}
+                onChange={(event) => {
+                  const directSyncConfigured = event.currentTarget.checked
+                  updateDraft((current) => ({
+                    ...current,
+                    appleHealth: {
+                      ...current.appleHealth,
+                      directSyncConfigured,
+                    },
+                  }))
+                }}
+              />
+              <span>Прямая отправка в Команде настроена</span>
+              <small>Это отметка-памятка. PWA не изменяет настройки iOS.</small>
+            </label>
+          </div>
+
+          <details className="health-apple-water-automation">
+            <summary>Автоматическое обновление четыре раза в день</summary>
+            <div>
+              <p>Рекомендуемые времена: 09:00, 13:00, 18:00 и 22:30. Можно выбрать другие.</p>
+              <ol className="health-apple-water-steps">
+                <li>Откройте «Быстрые команды» и вкладку «Автоматизация».</li>
+                <li>Нажмите «+», выберите «Время суток», укажите время и повтор «Ежедневно».</li>
+                <li>Выберите «Запускать немедленно» или аналогичный вариант запуска без подтверждения.</li>
+                <li>Добавьте действие «Запустить быструю команду» и выберите «{draft.appleHealth.shortcutName || 'Вода в Мой ритм'}».</li>
+                <li>Сохраните и повторите эти шаги отдельно для каждого из четырёх времён.</li>
+              </ol>
+              <p>iOS может показать служебный баннер. Команда не должна открывать Safari или GitHub Pages.</p>
+            </div>
+          </details>
+
+          <details className="health-apple-water-fallback">
+            <summary>Резервный способ через Safari</summary>
+            <p>Используйте только если прямая отправка временно не работает. Основной способ Safari не открывает.</p>
+            <button type="button" onClick={() => void copyAppleHealthLinkBase()}>
+              Скопировать резервную основу ссылки
             </button>
-            <button type="button" onClick={copyAppleHealthLinkBase}>Скопировать основу ссылки</button>
+            {appleLinkState === 'safari-copied' && <p className="health-apple-water-message success">Резервная основа ссылки скопирована</p>}
+          </details>
+
+          <div className="health-apple-water-actions">
             <button
               type="button"
               disabled={!draft.appleHealth.syncToken || appleHealthSyncStatus === 'checking'}
               onClick={onCheckAppleHealthSync}
             >
-              Проверить синхронизацию
+              Проверить данные в Worker
             </button>
           </div>
-          {appleLinkState === 'copied' && <p className="health-apple-water-message success">Основа ссылки скопирована</p>}
-          {appleLinkState === 'error' && <p className="health-apple-water-message error">Не удалось скопировать ссылку</p>}
-          {appleSetupOpen && (
-            <ol className="health-apple-water-steps">
-              <li>Нажмите «Скопировать основу ссылки».</li>
-              <li>Откройте Команду «Вода в Мой ритм».</li>
-              <li>В действии «Текст» замените только старую обычную ссылку перед переменной даты.</li>
-              <li>Переменные «Форматированная дата» и «Округлённое число» не удаляйте.</li>
-              <li>Запустите Команду.</li>
-              <li>После сообщения об успешной передаче вернитесь в «Мой ритм» с домашнего экрана.</li>
-            </ol>
-          )}
           <p className="health-apple-water-note">Команду заново создавать не нужно.</p>
-          <p className="health-apple-water-privacy">Через сервер временно передаются только дата и итоговый объём воды. Исходные записи Apple Health и другие показатели здоровья не передаются.</p>
+          <p className="health-apple-water-privacy">Быстрая команда передаёт в «Мой ритм» только дату и общий объём воды за день. Отдельные записи и другие показатели Apple Health не передаются.</p>
           {draft.appleHealth.syncToken && (
             <button
               type="button"

@@ -126,7 +126,10 @@ function excludeAppleHealthSecretFromBackup(
 ): HealthSettings {
   return {
     ...structuredClone(settings),
-    appleHealth: { syncToken: null },
+    appleHealth: {
+      ...structuredClone(settings.appleHealth),
+      syncToken: null,
+    },
   }
 }
 

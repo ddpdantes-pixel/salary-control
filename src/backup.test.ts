@@ -33,6 +33,8 @@ describe('резервная копия', () => {
 
     const healthSettings = createDefaultHealthSettings()
     healthSettings.appleHealth.syncToken = 'S'.repeat(43)
+    healthSettings.appleHealth.shortcutName = 'Моя вода'
+    healthSettings.appleHealth.directSyncConfigured = true
     const backup = createBackupData(
       [],
       null,
@@ -49,6 +51,10 @@ describe('резервная копия', () => {
     expect(serialized).not.toContain('apple-health')
     expect(serialized).not.toContain('S'.repeat(43))
     expect(backup.healthSettings?.appleHealth.syncToken).toBeNull()
+    expect(backup.healthSettings?.appleHealth).toMatchObject({
+      shortcutName: 'Моя вода',
+      directSyncConfigured: true,
+    })
     expect(restored?.entries['2026-07-29']).toMatchObject({
       waterCups: 2,
       coffeeCups: 1,
@@ -89,6 +95,8 @@ describe('резервная копия', () => {
   it('не включает token Apple Health в облачный backup payload', async () => {
     const settings = createDefaultHealthSettings()
     settings.appleHealth.syncToken = 'T'.repeat(43)
+    settings.appleHealth.shortcutName = 'Вода без Safari'
+    settings.appleHealth.directSyncConfigured = true
     const backup = createBackupData([], null, null, null, null, settings)
     const envelope = await createCloudBackupEnvelope(JSON.stringify(backup), {
       now: new Date('2026-07-29T18:00:00.000Z'),
@@ -97,6 +105,8 @@ describe('резервная копия', () => {
 
     expect(envelope.payload).not.toContain('T'.repeat(43))
     expect(envelope.payload).toContain('"syncToken":null')
+    expect(envelope.payload).toContain('"shortcutName":"Вода без Safari"')
+    expect(envelope.payload).toContain('"directSyncConfigured":true')
   })
   it('не экспортирует планы и безопасно игнорирует поле plansState в старой копии', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
