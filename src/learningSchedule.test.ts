@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { createHealthEntry } from './healthModel'
 import { createDefaultHealthSettings } from './healthSettings'
 import {
+  buildWeeklyLearningProgress,
   buildCurrentLearningPlan,
+  getLearningWeekRange,
   getNextLearningNumber,
+  isLearningCompletionInWeek,
 } from './learningSchedule'
 
 describe('расписание обучения', () => {
@@ -131,5 +134,79 @@ describe('расписание обучения', () => {
     expect(getNextLearningNumber({ [first.date]: first, [second.date]: second }, 'porcelain', 'lesson')).toBe(4)
     expect(getNextLearningNumber({ [first.date]: first, [second.date]: second }, 'porcelain', 'practice')).toBe(7)
     expect(getNextLearningNumber({}, 'speech', 'session')).toBeNull()
+  })
+
+  it('определяет локальную неделю с понедельника 00:00 до воскресенья 23:59', () => {
+    expect(getLearningWeekRange('2026-07-15')).toEqual({
+      startDate: '2026-07-13',
+      endDate: '2026-07-19',
+    })
+    expect(isLearningCompletionInWeek('2026-07-13T00:00:00', '2026-07-15')).toBe(true)
+    expect(isLearningCompletionInWeek('2026-07-19T23:59:59', '2026-07-15')).toBe(true)
+    expect(isLearningCompletionInWeek('2026-07-12T23:59:59', '2026-07-15')).toBe(false)
+    expect(isLearningCompletionInWeek('2026-07-20T00:00:00', '2026-07-15')).toBe(false)
+  })
+
+  it('считает фактически выполненные занятия недели по фиксированным нормам', () => {
+    const monday = createHealthEntry('2026-07-13')
+    monday.learning.speech = { status: 'done', activityType: 'session', number: 1, note: '' }
+    const tuesday = createHealthEntry('2026-07-14')
+    tuesday.learning.speech = { status: 'done', activityType: 'session', number: 2, note: '' }
+    tuesday.learning.cavist = { status: 'done', activityType: 'lesson', number: 4, note: '' }
+    const wednesday = createHealthEntry('2026-07-15')
+    wednesday.learning.porcelain = { status: 'done', activityType: 'lesson', number: 8, note: '' }
+
+    expect(buildWeeklyLearningProgress({
+      [monday.date]: monday,
+      [tuesday.date]: tuesday,
+      [wednesday.date]: wednesday,
+    }, '2026-07-15')).toEqual([
+      { direction: 'speech', label: 'Речь и дикция', completed: 2, goal: 3, complete: false },
+      { direction: 'cavist', label: 'Кавист', completed: 1, goal: 2, complete: false },
+      { direction: 'porcelain', label: 'Керамогранит', completed: 1, goal: 1, complete: true },
+    ])
+  })
+
+  it('не учитывает один урок дважды и ограничивает результат недельной нормой', () => {
+    const entries: Record<string, ReturnType<typeof createHealthEntry>> = {}
+    for (const [index, date] of ['2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16'].entries()) {
+      const entry = createHealthEntry(date)
+      entry.learning.speech = { status: 'done', activityType: 'session', number: index + 1, note: '' }
+      entry.learning.porcelain = { status: 'done', activityType: 'lesson', number: 9, note: '' }
+      entries[date] = entry
+    }
+    const duplicate = createHealthEntry('2026-07-17')
+    duplicate.learning.speech = { status: 'done', activityType: 'session', number: 1, note: 'повторное сохранение' }
+    entries.duplicate = duplicate
+
+    const progress = buildWeeklyLearningProgress(entries, '2026-07-19')
+    expect(progress.find((item) => item.direction === 'speech')).toMatchObject({ completed: 3, goal: 3, complete: true })
+    expect(progress.find((item) => item.direction === 'porcelain')).toMatchObject({ completed: 1, goal: 1, complete: true })
+  })
+
+  it('не считает невыполненные записи, прошлую неделю и будущие даты', () => {
+    const previous = createHealthEntry('2026-07-12')
+    previous.learning.speech = { status: 'done', activityType: 'session', number: 1, note: '' }
+    const current = createHealthEntry('2026-07-13')
+    current.learning.speech = { status: 'not_done', activityType: 'session', number: 2, note: '' }
+    const futureThisWeek = createHealthEntry('2026-07-19')
+    futureThisWeek.learning.speech = { status: 'done', activityType: 'session', number: 3, note: '' }
+    const nextWeek = createHealthEntry('2026-07-20')
+    nextWeek.learning.speech = { status: 'done', activityType: 'session', number: 4, note: '' }
+
+    const progress = buildWeeklyLearningProgress({ previous, current, futureThisWeek, nextWeek }, '2026-07-15')
+    expect(progress.find((item) => item.direction === 'speech')?.completed).toBe(0)
+  })
+
+  it('начинает новый расчёт в понедельник, сохраняя записи прошлой недели', () => {
+    const sunday = createHealthEntry('2026-07-19')
+    sunday.learning.cavist = { status: 'done', activityType: 'lesson', number: 4, note: '' }
+    const monday = createHealthEntry('2026-07-20')
+    monday.learning.cavist = { status: 'done', activityType: 'practice', number: 5, note: '' }
+    const entries = { [sunday.date]: sunday, [monday.date]: monday }
+
+    expect(buildWeeklyLearningProgress(entries, '2026-07-19').find((item) => item.direction === 'cavist')?.completed).toBe(1)
+    expect(buildWeeklyLearningProgress(entries, '2026-07-20').find((item) => item.direction === 'cavist')?.completed).toBe(1)
+    expect(entries[sunday.date].learning.cavist.status).toBe('done')
   })
 })

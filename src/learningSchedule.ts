@@ -6,7 +6,27 @@ import {
   type LearningScheduleDirection,
   type LearningScheduleItem,
 } from './healthSettings'
+import { getLocalDateId, parseLocalDate } from './healthModel'
 import type { HealthEntry } from './healthTypes'
+
+export const LEARNING_WEEKLY_GOALS = {
+  speech: 3,
+  cavist: 2,
+  porcelain: 1,
+} as const satisfies Record<LearningScheduleDirection, number>
+
+export interface LearningWeekRange {
+  startDate: string
+  endDate: string
+}
+
+export interface WeeklyLearningProgress {
+  direction: LearningScheduleDirection
+  label: string
+  completed: number
+  goal: number
+  complete: boolean
+}
 
 export interface LearningPlanItem {
   id: string
@@ -61,6 +81,68 @@ export function buildCurrentLearningPlan(
   const openItems = items.filter((item) => !item.fulfilled)
 
   return { items, openItems: openItems.slice(0, 4), extraOpenCount: Math.max(0, openItems.length - 4) }
+}
+
+export function getLearningWeekRange(anchor: string | Date): LearningWeekRange {
+  const anchorDateId = normalizeLocalDateId(anchor)
+  if (!anchorDateId) throw new Error('Invalid learning week date')
+  const anchorDate = parseLocalDate(anchorDateId)
+  const mondayOffset = (anchorDate.getDay() + 6) % 7
+  const startDate = addDays(anchorDateId, -mondayOffset)
+  return { startDate, endDate: addDays(startDate, 6) }
+}
+
+export function isLearningCompletionInWeek(
+  completionDate: string | Date,
+  anchor: string | Date,
+): boolean {
+  const dateId = normalizeLocalDateId(completionDate)
+  if (!dateId) return false
+  const range = getLearningWeekRange(anchor)
+  return dateId >= range.startDate && dateId <= range.endDate
+}
+
+export function buildWeeklyLearningProgress(
+  entries: Record<string, HealthEntry>,
+  today: string | Date,
+): WeeklyLearningProgress[] {
+  const todayDateId = normalizeLocalDateId(today)
+  if (!todayDateId) throw new Error('Invalid current learning date')
+  const range = getLearningWeekRange(todayDateId)
+  const completed = new Map<LearningScheduleDirection, number>([
+    ['speech', 0],
+    ['cavist', 0],
+    ['porcelain', 0],
+  ])
+  const seen = new Set<string>()
+
+  for (const entry of Object.values(entries)) {
+    const completionDate = normalizeLocalDateId(entry.date)
+    if (!completionDate || completionDate < range.startDate || completionDate > range.endDate || completionDate > todayDateId) continue
+
+    for (const direction of Object.keys(LEARNING_WEEKLY_GOALS) as LearningScheduleDirection[]) {
+      const learning = entry.learning[direction]
+      if (learning.status !== 'done' || learning.activityType === null || !getLearningActivityTypes(direction).includes(learning.activityType)) continue
+      const identity = Number.isSafeInteger(learning.number) && (learning.number ?? 0) > 0
+        ? `${direction}:${learning.activityType}:${learning.number}`
+        : `${direction}:${learning.activityType}:${completionDate}`
+      if (seen.has(identity)) continue
+      seen.add(identity)
+      completed.set(direction, (completed.get(direction) ?? 0) + 1)
+    }
+  }
+
+  return (Object.keys(LEARNING_WEEKLY_GOALS) as LearningScheduleDirection[]).map((direction) => {
+    const goal = LEARNING_WEEKLY_GOALS[direction]
+    const count = Math.min(goal, Math.max(0, completed.get(direction) ?? 0))
+    return {
+      direction,
+      label: getLearningDirectionLabel(direction),
+      completed: count,
+      goal,
+      complete: count === goal,
+    }
+  })
 }
 
 export function getNextLearningNumber(
@@ -187,4 +269,11 @@ function addDays(dateId: string, days: number): string {
 
 function daysBetween(from: string, to: string): number {
   return Math.round((getDate(to).getTime() - getDate(from).getTime()) / 86_400_000)
+}
+
+function normalizeLocalDateId(value: string | Date): string | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : getLocalDateId(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? null : getLocalDateId(new Date(timestamp))
 }

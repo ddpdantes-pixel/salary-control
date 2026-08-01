@@ -30,7 +30,7 @@ export function HomeTodayCard({
   onOpenLearning: () => void
   onOpenHealth?: () => void
 }) {
-  const learning = buildHomeLearningPreview(settings, healthState.entries, todayIsoDate)
+  const learning = buildHomeLearningPreview(healthState.entries, todayIsoDate)
   const health = buildHomeHealthPreview(settings, healthState, todayIsoDate)
   const tasks = buildHomeTasksPreview(healthState, todayIsoDate)
   const finance = overview ? buildHomeFinancePreview(overview, todayIsoDate) : null
@@ -58,14 +58,16 @@ export function HomeTodayCard({
       </div>
       <div className="home-today-section">
         <h3>Обучение</h3>
-        {learning.emptyLabel ? <p className="home-today-muted">{learning.emptyLabel}</p> : (
-          <>
-            <ul className="home-today-learning">
-              {learning.lines.map((line) => <li key={line.id} className={line.tone}><button type="button" aria-label={`Открыть обучение: ${line.label}`} onClick={onOpenLearning}>{line.label}</button></li>)}
-            </ul>
-            {learning.extraCount > 0 && <p className="home-today-more">+{learning.extraCount} ещё по графику</p>}
-          </>
-        )}
+        <ul className="home-today-learning">
+          {learning.lines.map((line) => (
+            <li key={line.id} className={line.complete ? 'complete' : undefined}>
+              <button type="button" aria-label={`Открыть обучение: ${line.label} — ${line.completed} из ${line.goal}`} onClick={onOpenLearning}>
+                <span>{line.label}</span>
+                <strong>{line.completed} из {line.goal}</strong>
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
       <div className="home-today-section home-health-summary">
         <h3>Здоровье</h3>

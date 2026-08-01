@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { createHealthEntry } from './healthModel'
-import { createDefaultHealthSettings } from './healthSettings'
 import {
   buildHomeFinancePreview,
   buildHomeLearningPreview,
@@ -28,47 +27,23 @@ describe('карточка Сегодня', () => {
     expect(formatHomeFinanceOperation(preview.attention[0].operation, preview.attention[0].status)).toContain('−500,00 ₽')
   })
 
-  it('не показывает будущие занятия как пропущенные и оставляет номер пустым без надёжной истории', () => {
-    const settings = createDefaultHealthSettings(new Date(2026, 6, 13, 12))
-    settings.learningSchedule = settings.learningSchedule.filter((item) => item.direction === 'speech')
-    const preview = buildHomeLearningPreview(settings, {}, '2026-07-14')
+  it('всегда показывает три направления в фиксированном порядке', () => {
+    const preview = buildHomeLearningPreview({}, '2026-07-14')
 
     expect(preview.lines).toEqual([
-      expect.objectContaining({ label: 'Сегодня: Речь и дикция — занятие' }),
-    ])
-    expect(preview.lines[0].label).not.toContain('№')
-  })
-
-  it('показывает позднее закрытие без накопления задач прошлых недель', () => {
-    const settings = createDefaultHealthSettings(new Date(2026, 6, 13, 12))
-    const entry = createHealthEntry('2026-07-16')
-    entry.learning.speech = { status: 'done', activityType: 'session', number: 4, note: '' }
-
-    const preview = buildHomeLearningPreview(settings, { [entry.date]: entry }, '2026-07-16')
-    expect(preview.lines).toEqual([
-      expect.objectContaining({ label: 'Сегодня: Речь и дикция — занятие №5' }),
-      expect.objectContaining({ label: 'Сегодня: Кавист — урок' }),
+      { id: 'speech', label: 'Речь и дикция', completed: 0, goal: 3, complete: false },
+      { id: 'cavist', label: 'Кавист', completed: 0, goal: 2, complete: false },
+      { id: 'porcelain', label: 'Керамогранит', completed: 0, goal: 1, complete: false },
     ])
   })
 
-  it('нумерует два пропущенных занятия речи последовательно', () => {
-    const settings = createDefaultHealthSettings(new Date(2026, 6, 13, 12))
-    settings.learningSchedule = settings.learningSchedule.filter((item) => item.direction === 'speech')
+  it('показывает только прогресс без будущих и просроченных уроков', () => {
     const entry = createHealthEntry('2026-07-14')
     entry.learning.speech = { status: 'done', activityType: 'session', number: 6, note: '' }
-    const preview = buildHomeLearningPreview(settings, { [entry.date]: entry }, '2026-07-18')
-    expect(preview.lines.map((item) => item.label)).toContain('Пропущено: Речь и дикция — занятие №7 за четверг')
-    expect(preview.lines.map((item) => item.label).some((label) => label.includes('Речь и дикция — занятие №8'))).toBe(true)
-  })
+    const preview = buildHomeLearningPreview({ [entry.date]: entry }, '2026-07-18')
+    const renderedText = JSON.stringify(preview)
 
-  it('не считает выполненный урок керамогранита в дополнительных пунктах недели', () => {
-    const settings = createDefaultHealthSettings(new Date(2026, 6, 20, 12))
-    const monday = createHealthEntry('2026-07-20')
-    monday.learning.porcelain = { status: 'done', activityType: 'lesson', number: 7, note: '' }
-
-    const preview = buildHomeLearningPreview(settings, { [monday.date]: monday }, '2026-07-24')
-
-    expect(preview.lines.some((line) => line.label.includes('Керамогранит — урок'))).toBe(false)
-    expect(preview.extraCount).toBe(0)
+    expect(preview.lines[0]).toMatchObject({ completed: 1, goal: 3 })
+    expect(renderedText).not.toMatch(/Сегодня|Пропущено|№|следующ|Осталось|Неделя закрыта/)
   })
 })

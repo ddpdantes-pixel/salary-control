@@ -39,15 +39,39 @@ describe('блок Сегодня на Главном', () => {
     expect(onOpenOperation).toHaveBeenCalledWith(operation)
   })
 
-  it('показывает занятия только с понедельника по сегодняшний день', () => {
+  it('показывает только три компактные строки недельного прогресса', () => {
     const entry = createHealthEntry('2026-07-16')
     entry.learning.speech = { status: 'done', activityType: 'session', number: 3, note: '' }
     const state = createEmptyHealthState()
     state.entries[entry.date] = entry
     render(<HomeTodayCard overview={null} healthState={state} settings={createDefaultHealthSettings(new Date(2026, 6, 13, 12))} todayIsoDate="2026-07-16" title="Сегодня, четверг, 16 июля" onOpenFinanceOverview={() => {}} onOpenOperation={() => {}} onOpenLearning={() => {}} />)
 
-    expect(screen.getByText('Сегодня: Речь и дикция — занятие №4')).not.toBeNull()
-    expect(screen.queryByText(/субботу/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Речь и дикция — 1 из 3' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Кавист — 0 из 2' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Керамогранит — 0 из 1' })).not.toBeNull()
+    const learning = document.querySelector('.home-today-learning')
+    expect(learning?.textContent).not.toMatch(/Сегодня:|Пропущено:|следующей неделе|Осталось|Неделя закрыта|№\d/)
+    expect(learning?.querySelectorAll('li')).toHaveLength(3)
+  })
+
+  it('отмечает полностью выполненные направления без дополнительных строк', () => {
+    const state = createEmptyHealthState()
+    for (const [index, date] of ['2026-07-13', '2026-07-14', '2026-07-15'].entries()) {
+      const entry = createHealthEntry(date)
+      entry.learning.speech = { status: 'done', activityType: 'session', number: index + 1, note: '' }
+      if (index < 2) entry.learning.cavist = { status: 'done', activityType: index === 0 ? 'lesson' : 'practice', number: index + 1, note: '' }
+      if (index === 0) entry.learning.porcelain = { status: 'done', activityType: 'lesson', number: 1, note: '' }
+      state.entries[date] = entry
+    }
+    const { container } = render(<HomeTodayCard overview={null} healthState={state} settings={createDefaultHealthSettings()} todayIsoDate="2026-07-19" title="Сегодня, воскресенье, 19 июля" onOpenFinanceOverview={() => {}} onOpenOperation={() => {}} onOpenLearning={() => {}} />)
+
+    const speech = screen.getByRole('button', { name: 'Открыть обучение: Речь и дикция — 3 из 3' })
+    expect(speech.closest('li')?.classList.contains('complete')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Кавист — 2 из 2' }).closest('li')?.classList.contains('complete')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Керамогранит — 1 из 1' }).closest('li')?.classList.contains('complete')).toBe(true)
+    expect(container.querySelectorAll('.home-today-learning li')).toHaveLength(3)
+    expect(container.querySelector('.home-today-learning')?.textContent).not.toMatch(/Сегодня:|Пропущено:|следующей неделе|Осталось|Неделя закрыта|№\d/)
+    expect(screen.queryByText('Неделя закрыта')).toBeNull()
   })
 
   it('показывает здоровье и отдельные задачи после обучения', () => {

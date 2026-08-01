@@ -2,15 +2,8 @@ import { formatShortDateLabel } from './format'
 import type { FinanceOverviewData } from './financeOverview'
 import { formatMoney } from './financeMoney'
 import type { FinanceOperation } from './financeTypes'
-import {
-  buildCurrentLearningPlan,
-  getLearningActivityLabel,
-  getLearningDirectionLabel,
-  getLearningWeekdayLabel,
-  getNextLearningNumber,
-} from './learningSchedule'
+import { buildWeeklyLearningProgress } from './learningSchedule'
 import type { HealthEntry } from './healthTypes'
-import type { HealthSettings } from './healthSettings'
 
 export interface HomeFinancePreview {
   balanceLabel: string
@@ -23,13 +16,13 @@ export interface HomeFinancePreview {
 export interface HomeLearningPreviewLine {
   id: string
   label: string
-  tone: 'today' | 'missed'
+  completed: number
+  goal: number
+  complete: boolean
 }
 
 export interface HomeLearningPreview {
   lines: HomeLearningPreviewLine[]
-  extraCount: number
-  emptyLabel: string | null
 }
 
 export function buildHomeFinancePreview(
@@ -72,34 +65,16 @@ function compareOperations(left: FinanceOperation, right: FinanceOperation): num
 }
 
 export function buildHomeLearningPreview(
-  settings: HealthSettings,
   entries: Record<string, HealthEntry>,
-  todayIsoDate: string,
+  today: string | Date,
 ): HomeLearningPreview {
-  const plan = buildCurrentLearningPlan(settings, entries, todayIsoDate)
-  if (plan.items.length === 0) {
-    return { lines: [], extraCount: 0, emptyLabel: 'До сегодня занятий по графику нет' }
-  }
-  if (plan.openItems.length === 0) {
-    return { lines: [], extraCount: 0, emptyLabel: 'По графику всё выполнено' }
-  }
-
-  const numberedOpenItems = plan.items.filter((item) => !item.fulfilled)
   return {
-    lines: numberedOpenItems.slice(0, 4).map((item, index) => {
-      const baseNumber = getNextLearningNumber(entries, item.direction, item.activityType)
-      const sameBefore = numberedOpenItems.slice(0, index).filter((candidate) => candidate.direction === item.direction && candidate.activityType === item.activityType).length
-      const nextNumber = baseNumber === null ? null : baseNumber + sameBefore
-      const description = `${getLearningDirectionLabel(item.direction)} — ${getLearningActivityLabel(item.activityType)}${nextNumber ? ` №${nextNumber}` : ''}`
-      return {
-        id: item.id,
-        label: item.date === todayIsoDate
-          ? `Сегодня: ${description}`
-          : `Пропущено: ${description} за ${getLearningWeekdayLabel(item.date)}`,
-        tone: item.date === todayIsoDate ? 'today' : 'missed',
-      }
-    }),
-    extraCount: plan.extraOpenCount,
-    emptyLabel: null,
+    lines: buildWeeklyLearningProgress(entries, today).map((item) => ({
+      id: item.direction,
+      label: item.label,
+      completed: item.completed,
+      goal: item.goal,
+      complete: item.complete,
+    })),
   }
 }

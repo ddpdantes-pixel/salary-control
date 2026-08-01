@@ -836,7 +836,7 @@ describe('экран здоровья сегодня', () => {
 
     await user.click(screen.getByRole('tab', { name: 'История' }))
     await user.click(screen.getByRole('button', { name: 'Календарь' }))
-    await user.click(screen.getByRole('button', { name: new RegExp(`${Number(today.slice(-2))} .*записи нет`, 'i') }))
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${Number(today.slice(-2))} .*: записи нет$`, 'i') }))
     await user.click(screen.getByRole('button', { name: /Заполнить день/ }))
 
     expect((screen.getByLabelText('Выбрать дату') as HTMLInputElement).value).toBe(today)
