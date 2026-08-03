@@ -8,6 +8,7 @@ import {
 } from './financeCalculations'
 import { generateObligationOperations } from './financeObligations'
 import {
+  addCalendarMonths,
   addDays,
   addMonthsToYearMonth,
   compareIsoDates,
@@ -148,7 +149,7 @@ export function buildFinanceOverview(input: {
           input.todayIsoDate,
         ),
       })),
-    coverage: buildCoverageSummary(forecast, input.state, input.todayIsoDate),
+    coverage: buildCoverageSummary(forecast, input.state),
   }
 }
 
@@ -312,25 +313,12 @@ function createIncomeOverview(
 function buildCoverageSummary(
   forecast: BalanceForecast,
   state: FinanceState,
-  todayIsoDate: string,
 ): FinanceCoverageSummary {
   const activeObligations = state.obligations.filter((item) => item.status === 'active')
-  const futureObligationDates = activeObligations.flatMap((obligation) => [
-    obligation.endDate,
-    ...obligation.payments
-      .filter((payment) => payment.status !== 'cancelled')
-      .map((payment) => payment.date),
-  ])
-    .filter((date): date is string => date !== null)
-    .filter((date) => compareIsoDates(date, todayIsoDate) >= 0)
-  const latestKnownDate = futureObligationDates.sort(compareIsoDates).at(-1) ?? null
-  const hasOpenEndedSchedule = activeObligations.some((obligation) =>
-    obligation.scheduleType === 'monthlyFixed' && obligation.endDate === null,
-  )
 
-  if (activeObligations.length === 0 || (!latestKnownDate && !hasOpenEndedSchedule)) {
+  if (activeObligations.length === 0) {
     return {
-      tone: 'neutral',
+      tone: 'success',
       headline: 'Активных обязательств нет',
       detail: '',
     }
@@ -339,37 +327,42 @@ function buildCoverageSummary(
   if (forecast.firstNegativeDate) {
     return {
       tone: 'danger',
-      headline: `Денег не хватает на платёж ${formatDateLabel(forecast.firstNegativeDate)}`,
-      detail: '',
-    }
-  }
-
-  if (hasOpenEndedSchedule || !latestKnownDate) {
-    return {
-      tone: 'neutral',
-      headline: `По внесённым данным расчёт возможен до ${formatDateLabel(forecast.forecastEndDate)}`,
+      headline: `Денег не хватает на платёж ${formatCoverageDate(forecast.firstNegativeDate)}`,
       detail: '',
     }
   }
 
   return {
     tone: 'success',
-    headline: `Все обязательства обеспечены до ${formatDateLabel(latestKnownDate)}`,
+    headline: `Денег хватает до ${formatCoverageDate(forecast.forecastEndDate)}`,
     detail: '',
   }
 }
 
 function getForecastEndDate(state: FinanceState, todayIsoDate: string): string {
   const anchorDate = getLatestBalanceAnchor(state.anchors)?.date ?? todayIsoDate
-  const minimumEnd = addDays(anchorDate, Math.max(60, state.settings.forecastDays))
-  const obligationDates = state.obligations.flatMap((obligation) => [
-    obligation.endDate,
-    ...obligation.payments.map((payment) => payment.date),
-  ]).filter((date): date is string => date !== null)
+  const configuredMinimumEnd = addDays(anchorDate, Math.max(60, state.settings.forecastDays))
+  const calendarMinimumEnd = addCalendarMonths(todayIsoDate, 3)
+  const minimumEnd = compareIsoDates(configuredMinimumEnd, calendarMinimumEnd) > 0
+    ? configuredMinimumEnd
+    : calendarMinimumEnd
+  const obligationDates = state.obligations
+    .filter((obligation) => obligation.status === 'active')
+    .flatMap((obligation) => [
+      obligation.endDate,
+      ...obligation.payments
+        .filter((payment) => payment.status !== 'cancelled')
+        .map((payment) => payment.date),
+    ])
+    .filter((date): date is string => date !== null)
   const latestKnownObligation = obligationDates.sort(compareIsoDates).at(-1)
   return latestKnownObligation && compareIsoDates(latestKnownObligation, minimumEnd) > 0
     ? latestKnownObligation
     : minimumEnd
+}
+
+function formatCoverageDate(isoDate: string): string {
+  return `${formatDateLabel(isoDate)} года`
 }
 
 function getNextIncomeDate(

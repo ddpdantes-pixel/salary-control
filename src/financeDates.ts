@@ -27,6 +27,20 @@ export function addDays(isoDate: string, days: number): string {
   )
 }
 
+export function addCalendarMonths(isoDate: string, months: number): string {
+  const date = parseIsoDateToUtc(isoDate)
+  const targetMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1))
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(targetMonth.getUTCFullYear(), targetMonth.getUTCMonth() + 1, 0),
+  ).getUTCDate()
+
+  return formatIsoDate(
+    targetMonth.getUTCFullYear(),
+    targetMonth.getUTCMonth() + 1,
+    Math.min(date.getUTCDate(), lastDayOfTargetMonth),
+  )
+}
+
 export function getDateYearMonth(isoDate: string): string {
   const date = parseIsoDateToUtc(isoDate)
 

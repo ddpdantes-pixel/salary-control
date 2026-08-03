@@ -224,7 +224,7 @@ describe('данные финансового обзора', () => {
     })
 
     expect(overview.coverage.tone).toBe('success')
-    expect(overview.coverage.headline).toBe('Все обязательства обеспечены до 12 февраля 2027')
+    expect(overview.coverage.headline).toBe('Денег хватает до 12 февраля 2027 года')
     expect(overview.coverage.detail).toBe('')
   })
 
@@ -252,7 +252,7 @@ describe('данные финансового обзора', () => {
     })
 
     expect(overview.coverage.tone).toBe('danger')
-    expect(overview.coverage.headline).toBe('Денег не хватает на платёж 24 июля 2026')
+    expect(overview.coverage.headline).toBe('Денег не хватает на платёж 24 июля 2026 года')
     expect(overview.coverage.detail).toBe('')
   })
 
@@ -261,7 +261,7 @@ describe('данные финансового обзора', () => {
     const overview = buildFinanceOverview({ state, salaryMonths: createSalaryMonths(), todayIsoDate: '2026-07-10' })
 
     expect(overview.forecast.forecastEndDate).toBe('2027-02-12')
-    expect(overview.coverage.headline).toContain('12 февраля 2027')
+    expect(overview.coverage.headline).toBe('Денег хватает до 12 февраля 2027 года')
   })
 
   it('сразу пересчитывает прогноз после изменения обязательства', () => {
@@ -287,22 +287,25 @@ describe('данные финансового обзора', () => {
     state.anchors = [{ ...state.anchors[0], balanceKopecks: 10_000_000_00 }]
     const overview = buildFinanceOverview({ state, salaryMonths: [], todayIsoDate: '2026-08-03' })
     expect(overview.forecast.forecastEndDate).toBe('2048-05-15')
-    expect(overview.coverage.headline).toBe('Все обязательства обеспечены до 15 мая 2048')
+    expect(overview.coverage.headline).toBe('Денег хватает до 15 мая 2048 года')
     expect(overview.forecast.dailyTimeline.length).toBeGreaterThan(200)
   })
 
-  it('честно различает отсутствие обязательств и открытый график', () => {
+  it('сохраняет зелёное состояние для отсутствующих обязательств и открытого графика', () => {
     const emptyState = createDefaultFinanceState()
     emptyState.obligations = []
     emptyState.operations = []
     const empty = buildFinanceOverview({ state: emptyState, salaryMonths: [], todayIsoDate: '2026-08-03' })
+    expect(empty.coverage.tone).toBe('success')
     expect(empty.coverage.headline).toBe('Активных обязательств нет')
 
     const openState = createDefaultFinanceState()
     openState.obligations = [openState.obligations.find((item) => item.scheduleType === 'monthlyFixed')!]
     openState.operations = []
     const open = buildFinanceOverview({ state: openState, salaryMonths: [], todayIsoDate: '2026-08-03' })
-    expect(open.coverage.headline).toMatch(/^По внесённым данным расчёт возможен до/)
+    expect(open.coverage.tone).toBe('success')
+    expect(open.forecast.forecastEndDate).toBe('2026-11-03')
+    expect(open.coverage.headline).toBe('Денег хватает до 3 ноября 2026 года')
   })
 
   it('использует одинаковое историческое среднее в обзоре и календаре', () => {

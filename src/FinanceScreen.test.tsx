@@ -76,7 +76,7 @@ describe('навигация раздела Деньги', () => {
     )
 
     expect(screen.getByText('Счёт для кредитов')).not.toBeNull()
-    expect(screen.getByText(/Денег не хватает на платёж|Все обязательства обеспечены до|По внесённым данным расчёт возможен до/)).not.toBeNull()
+    expect(screen.getByText(/Денег не хватает на платёж|Денег хватает до/)).not.toBeNull()
     expect(screen.getByRole('heading', { name: 'Июль 2026' })).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Обновить остаток' })).not.toBeNull()
     expect(screen.queryByText('Ближайший платёж')).toBeNull()
@@ -87,6 +87,10 @@ describe('навигация раздела Деньги', () => {
     expect(hero.textContent).not.toContain('Ближайшие платежи обеспечены')
     expect(hero.textContent).not.toContain('Планируемое:')
     expect(hero.textContent).not.toContain('Фактический остаток подтверждён')
+    expect(hero.textContent).not.toContain('По внесённым данным расчёт возможен до')
+    expect(hero.textContent).not.toContain('Все обязательства обеспечены до')
+    expect(hero.classList.contains('neutral')).toBe(false)
+    expect(hero.classList.contains('success') || hero.classList.contains('danger')).toBe(true)
     expect(screen.getByText(/Последнее подтверждение:/).compareDocumentPosition(hero) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Календарь' }))
