@@ -44,4 +44,13 @@ describe('регулярные задачи здоровья', () => {
     const entry = createHealthEntry('2026-07-26')
     expect(setHealthTaskCompletion(entry, 'global-tile-vogclub', true).tasks).toEqual({ 'global-tile-vogclub': true })
   })
+
+  it('повторная отметка остаётся идемпотентной и не меняет другую задачу', () => {
+    const entry = createHealthEntry('2026-07-26')
+    const once = setHealthTaskCompletion(entry, 'global-tile-vogclub', true)
+    const twice = setHealthTaskCompletion(once, 'global-tile-vogclub', true)
+
+    expect(twice.tasks).toEqual({ 'global-tile-vogclub': true })
+    expect(twice.tasks['robot-vacuum-service']).toBeUndefined()
+  })
 })

@@ -25,7 +25,7 @@ export function CloudBackupSection({
   createBackupPayload,
   onRequestRestore,
 }: {
-  createBackupPayload: () => string
+  createBackupPayload: () => string | Promise<string>
   onRequestRestore: (
     payload: string,
     label: string,
@@ -96,7 +96,7 @@ export function CloudBackupSection({
   function handleSave(): void {
     void runBusy(async () => {
       const cloudKey = getOrCreateKey()
-      const saved = await saveCloudBackup(createBackupPayload(), cloudKey)
+      const saved = await saveCloudBackup(await createBackupPayload(), cloudKey)
       const next = await refreshBackups(cloudKey, false)
       setStatus(`Облачная копия сохранена ${formatCloudBackupDate(saved.createdAt)}`)
       setBackups(next)
@@ -267,7 +267,7 @@ export function CloudBackupSection({
       </dl>
 
       <p className="cloud-backup-note">
-        Записи и настройки сохраняются. Прикреплённые фотографии пока остаются только на этом устройстве.
+        Записи, настройки и изображения целей сохраняются. Фотографии здоровья остаются только на этом устройстве.
       </p>
 
       <div className="cloud-backup-actions">

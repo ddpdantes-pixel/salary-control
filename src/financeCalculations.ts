@@ -270,10 +270,14 @@ export function calculateForecastBalance(input: {
     input.operations,
     forecastStartDate,
   )
-  const dates = [...new Set(planned.map((operation) => operation.date))]
+  const operationsByDate = new Map<string, FinanceOperation[]>()
+  for (const operation of planned) {
+    const operations = operationsByDate.get(operation.date) ?? []
+    operations.push(operation)
+    operationsByDate.set(operation.date, operations)
+  }
 
-  for (const date of dates) {
-    const operations = planned.filter((operation) => operation.date === date)
+  for (const [date, operations] of operationsByDate) {
     const resolved = operations.map((operation) => ({
       operation,
       amountKopecks:

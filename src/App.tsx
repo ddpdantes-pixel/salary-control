@@ -112,6 +112,11 @@ import {
   savePasswordVaultEnvelope,
 } from './passwordVaultStorage'
 import type { PasswordVaultEnvelope } from './passwordVaultCrypto'
+import {
+  exportFinanceGoalImages,
+  restoreFinanceGoalImages,
+  type FinanceGoalImageBackup,
+} from './financeGoalImages'
 import { clearRetiredPlansStorage } from './retiredPlansCleanup'
 import { getTimerTitle, getTimerTotalRemaining } from './healthTimer'
 import { useHealthTimer } from './useHealthTimer'
@@ -155,6 +160,7 @@ interface RestorePreview {
   cashAtHome: CashAtHomeState | null
   paymentNotificationSettings: PaymentNotificationSettings | null
   passwordVault: PasswordVaultEnvelope | null
+  goalImages: FinanceGoalImageBackup[]
 }
 
 function App() {
@@ -777,7 +783,7 @@ function App() {
     )
   }
 
-  function createCurrentBackupData() {
+  function createCurrentBackupData(goalImages: FinanceGoalImageBackup[] = []) {
     return createBackupData(
       months,
       selectedMonthId,
@@ -788,11 +794,15 @@ function App() {
       cashAtHome,
       paymentNotificationSettings,
       loadPasswordVaultEnvelopeSafely(),
+      goalImages,
     )
   }
 
-  function createCurrentBackupText(): string {
-    return JSON.stringify(createCurrentBackupData())
+  async function createCurrentBackupText(): Promise<string> {
+    const goalImages = await exportFinanceGoalImages(
+      financeState?.goals.map((goal) => goal.id) ?? [],
+    )
+    return JSON.stringify(createCurrentBackupData(goalImages))
   }
 
   function readBackupFile(file: File | null): void {
@@ -839,6 +849,7 @@ function App() {
         paymentNotificationSettings:
           parsedBackup.paymentNotificationSettings,
         passwordVault: parsedBackup.passwordVault,
+        goalImages: parsedBackup.goalImages,
       })
     } catch (error) {
       setStorageMessage(
@@ -849,7 +860,7 @@ function App() {
     }
   }
 
-  function confirmRestore(): void {
+  async function confirmRestore(): Promise<void> {
     if (!pendingRestore) {
       return
     }
@@ -868,13 +879,21 @@ function App() {
     }
 
     if (pendingRestore.source === 'cloud') {
-      saveCloudRestoreSnapshot(createCurrentBackupText())
+      saveCloudRestoreSnapshot(await createCurrentBackupText())
     }
 
     setMonths(restoredMonths)
     setSelectedMonthId(restoredSelectedMonthId)
     if (pendingRestore.financeState) {
       setFinanceState(pendingRestore.financeState)
+      try {
+        await restoreFinanceGoalImages(
+          pendingRestore.goalImages,
+          new Set(pendingRestore.financeState.goals.map((goal) => goal.id)),
+        )
+      } catch {
+        setStorageMessage('Основные данные восстановлены, но изображения целей восстановить не удалось.')
+      }
     }
     if (pendingRestore.dailySalesState) {
       setDailySalesState(pendingRestore.dailySalesState)
@@ -1165,7 +1184,6 @@ function App() {
           }}
           onOpenLearning={() => { setLearningFocusRequest((value) => value + 1); setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
           onOpenHealth={() => { setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
-          onOpenPasswords={() => { setPasswordVaultOpen(true); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
         />
       )}
       {activeTab === 'salary' && (
@@ -1233,6 +1251,7 @@ function App() {
           onStopFutureDepositInterest={stopScheduledDepositInterest}
           notificationSettings={paymentNotificationSettings}
           onChangeNotificationSettings={setPaymentNotificationSettings}
+          onOpenPasswords={() => { setPasswordVaultOpen(true); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
           initialCalendarTarget={calendarNavigationTarget}
           onOpenSalaryMonth={(monthId) => {
             selectOrCreateMonth(monthId)
@@ -1365,7 +1384,6 @@ function HomeScreen({
   onOpenFinanceOperation,
   onOpenLearning,
   onOpenHealth,
-  onOpenPasswords,
 }: {
   month: SalaryMonth
   summary: CalculationSummary
@@ -1382,7 +1400,6 @@ function HomeScreen({
   onOpenFinanceOperation: (operation: import('./financeTypes').FinanceOperation) => void
   onOpenLearning: () => void
   onOpenHealth: () => void
-  onOpenPasswords: () => void
 }) {
   const financeOverview = useMemo(
     () => financeState
@@ -1456,11 +1473,6 @@ function HomeScreen({
         onOpenLearning={onOpenLearning}
         onOpenHealth={onOpenHealth}
       />
-      <button type="button" className="home-password-vault-card" onClick={onOpenPasswords}>
-        <span aria-hidden="true">🔒</span>
-        <span><strong>Пароли</strong><small>Защищённое хранилище</small></span>
-        <b aria-hidden="true">›</b>
-      </button>
     </section>
   )
 }
@@ -1663,7 +1675,7 @@ function HistoryScreen({
   selectedMonthId: string
   onCreate: () => void
   onDelete: (monthId: string) => void
-  createBackupPayload: () => string
+  createBackupPayload: () => string | Promise<string>
   onCloudRestore: (
     payload: string,
     label: string,
@@ -2108,7 +2120,7 @@ function RestoreDialog({
   onCancel,
 }: {
   preview: RestorePreview
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   onCancel: () => void
 }) {
   return (
@@ -2127,6 +2139,8 @@ function RestoreDialog({
           <div><dt>Обязательства</dt><dd>{preview.financeState?.obligations.length ?? 0}</dd></div>
           <div><dt>Фактические остатки</dt><dd>{preview.financeState?.anchors.length ?? 0}</dd></div>
           <div><dt>Регулярные личные расходы</dt><dd>{preview.financeState?.personalExpenses.length ?? 0}</dd></div>
+          <div><dt>Накопительные цели</dt><dd>{preview.financeState?.goals.length ?? 0}</dd></div>
+          <div><dt>Изображения целей</dt><dd>{preview.goalImages.length}</dd></div>
           <div><dt>Ежедневные продажи</dt><dd>{Object.keys(preview.dailySalesState?.entries ?? {}).length}</dd></div>
           <div><dt>Дни здоровья</dt><dd>{Object.keys(preview.healthState?.entries ?? {}).length}</dd></div>
           <div><dt>Настройки здоровья</dt><dd>{preview.healthSettings ? 'Включены' : 'Стандартные'}</dd></div>
@@ -2141,7 +2155,7 @@ function RestoreDialog({
           {preview.passwordVault && ' Текущая локальная зашифрованная версия паролей будет заменена; после восстановления хранилище останется заблокированным.'}
         </p>
         <div className="dialog-actions">
-          <button type="button" className="primary-action" onClick={onConfirm}>
+          <button type="button" className="primary-action" onClick={() => { void onConfirm() }}>
             Восстановить
           </button>
           <button type="button" onClick={onCancel}>

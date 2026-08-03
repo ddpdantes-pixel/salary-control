@@ -2,7 +2,6 @@ import {
   calculateCurrentBalance,
   calculateForecastBalance,
   calculateIncomeTransferPlan,
-  getAmountClarificationMessage,
   getLatestBalanceAnchor,
   getOperationDisplayStatus,
   sortFinanceOperations,
@@ -15,8 +14,7 @@ import {
   getDateYearMonth,
 } from './financeDates'
 import { resolveSalaryLinkedIncome } from './financeSalaryLinks'
-import { formatMoney } from './financeMoney'
-import { formatShortDateLabel } from './format'
+import { formatDateLabel } from './format'
 import type {
   BalanceForecast,
   CurrentBalanceCalculation,
@@ -62,11 +60,6 @@ export interface FinanceCoverageSummary {
   detail: string
 }
 
-export interface FinancePlanningSummary {
-  headline: string
-  detail: string
-}
-
 export interface FinanceOverviewData {
   operations: FinanceOperation[]
   current: CurrentBalanceCalculation
@@ -75,7 +68,6 @@ export interface FinanceOverviewData {
   nextIncome: FinanceOverviewIncome | null
   upcomingObligations: FinanceOverviewObligation[]
   coverage: FinanceCoverageSummary
-  planning: FinancePlanningSummary
 }
 
 export interface FinanceMonthSummary {
@@ -156,8 +148,7 @@ export function buildFinanceOverview(input: {
           input.todayIsoDate,
         ),
       })),
-    coverage: buildCoverageSummary(forecast, operations, input.todayIsoDate),
-    planning: buildPlanningSummary(forecast),
+    coverage: buildCoverageSummary(forecast, input.state, input.todayIsoDate),
   }
 }
 
@@ -320,78 +311,51 @@ function createIncomeOverview(
 
 function buildCoverageSummary(
   forecast: BalanceForecast,
-  operations: FinanceOperation[],
+  state: FinanceState,
   todayIsoDate: string,
 ): FinanceCoverageSummary {
-  if (forecast.coverageStatus === 'unknown') {
-    const unknownOperation = operations.find(
-      (operation) =>
-        operation.status !== 'cancelled' &&
-        operation.amountKopecks === null &&
-        compareIsoDates(operation.date, todayIsoDate) > 0,
-    )
-    const clarification = unknownOperation
-      ? unknownOperation.source === 'salary'
-        ? 'Сумма связанной выплаты пока неизвестна.'
-        : getAmountClarificationMessage(unknownOperation)
-      : null
+  const activeObligations = state.obligations.filter((item) => item.status === 'active')
+  const futureObligationDates = activeObligations.flatMap((obligation) => [
+    obligation.endDate,
+    ...obligation.payments
+      .filter((payment) => payment.status !== 'cancelled')
+      .map((payment) => payment.date),
+  ])
+    .filter((date): date is string => date !== null)
+    .filter((date) => compareIsoDates(date, todayIsoDate) >= 0)
+  const latestKnownDate = futureObligationDates.sort(compareIsoDates).at(-1) ?? null
+  const hasOpenEndedSchedule = activeObligations.some((obligation) =>
+    obligation.scheduleType === 'monthlyFixed' && obligation.endDate === null,
+  )
 
+  if (activeObligations.length === 0 || (!latestKnownDate && !hasOpenEndedSchedule)) {
     return {
       tone: 'neutral',
-      headline: 'Остаток пока не рассчитан',
-      detail: clarification ?? 'Уточните неизвестные будущие суммы.',
+      headline: 'Активных обязательств нет',
+      detail: '',
     }
   }
 
-  if (
-    forecast.firstNegativeDate &&
-    forecast.firstNegativeBalanceKopecks !== null
-  ) {
-    const startsImmediately =
-      forecast.firstNegativeDate === forecast.forecastStartDate
+  if (forecast.firstNegativeDate) {
     return {
       tone: 'danger',
-      headline: startsImmediately
-        ? 'Дефицит начинается сразу'
-        : `Денег хватит до ${formatShortDateLabel(addDays(forecast.firstNegativeDate, -1))}`,
-      detail: `Первый ожидаемый дефицит — ${formatShortDateLabel(forecast.firstNegativeDate)}, не хватает ${formatMoney(Math.abs(forecast.firstNegativeBalanceKopecks))}`,
+      headline: `Денег не хватает на платёж ${formatDateLabel(forecast.firstNegativeDate)}`,
+      detail: '',
     }
   }
 
-  if (forecast.coveredExpenseCount === 0) {
+  if (hasOpenEndedSchedule || !latestKnownDate) {
     return {
       tone: 'neutral',
-      headline: 'Расчётный остаток актуален',
-      detail: 'Ближайших запланированных платежей пока нет.',
+      headline: `По внесённым данным расчёт возможен до ${formatDateLabel(forecast.forecastEndDate)}`,
+      detail: '',
     }
   }
 
   return {
     tone: 'success',
-    headline: 'Ближайшие платежи обеспечены',
-    detail: `Расчёт выполнен по ${formatShortDateLabel(forecast.forecastEndDate)}.`,
-  }
-}
-
-function buildPlanningSummary(forecast: BalanceForecast): FinancePlanningSummary {
-  if (forecast.hasUnknownRequiredAmounts) {
-    return {
-      headline: 'Планируемое: расчёт уточняется',
-      detail: 'Есть будущие операции с неизвестной суммой.',
-    }
-  }
-  if (forecast.firstNegativeDate && forecast.firstNegativeBalanceKopecks !== null) {
-    const startsImmediately = forecast.firstNegativeDate === forecast.forecastStartDate
-    return {
-      headline: startsImmediately
-        ? 'Планируемое: дефицит начинается сразу'
-        : `Планируемое: денег хватит до ${formatShortDateLabel(addDays(forecast.firstNegativeDate, -1))}`,
-      detail: `Первый ожидаемый дефицит — ${formatShortDateLabel(forecast.firstNegativeDate)}, не хватает ${formatMoney(Math.abs(forecast.firstNegativeBalanceKopecks))}`,
-    }
-  }
-  return {
-    headline: 'Планируемое: до конца расчётного периода денег хватает',
-    detail: `Минимальный ожидаемый остаток — ${formatMoney(forecast.minimumBalanceKopecks)}, ${formatShortDateLabel(forecast.minimumBalanceDate)}`,
+    headline: `Все обязательства обеспечены до ${formatDateLabel(latestKnownDate)}`,
+    detail: '',
   }
 }
 

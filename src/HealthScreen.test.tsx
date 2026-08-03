@@ -674,6 +674,33 @@ describe('экран здоровья сегодня', () => {
     })
   })
 
+  it('отмечает обычную задачу без падения и восстанавливает её после повторного рендера', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), {
+      target: { value: '2026-08-02' },
+    })
+    const tasks = screen.getByRole('heading', { name: 'Задачи' }).closest('section')!
+    const globalTile = within(tasks).getByRole('checkbox', { name: /Внести продажи Global Tile/ })
+
+    await user.click(globalTile)
+
+    expect(screen.getByText('Здоровье')).not.toBeNull()
+    expect((globalTile as HTMLInputElement).checked).toBe(true)
+    expect((within(tasks).getByRole('checkbox', { name: /робота-пылесоса/ }) as HTMLInputElement).checked).toBe(false)
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}')
+      expect(stored.entries['2026-08-02'].tasks).toEqual({ 'global-tile-vogclub': true })
+    })
+
+    cleanup()
+    render(<HealthScreen />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), {
+      target: { value: '2026-08-02' },
+    })
+    expect((screen.getByRole('checkbox', { name: /Внести продажи Global Tile/ }) as HTMLInputElement).checked).toBe(true)
+  })
+
   it('не показывает поля заметок у всех направлений обучения', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)

@@ -123,8 +123,8 @@ describe('резервная копия', () => {
     const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
     const backup = createBackupData([month], month.id)
 
-    expect(backup.structureVersion).toBe(9)
-    expect(backup.schemaVersion).toBe(9)
+    expect(backup.structureVersion).toBe(10)
+    expect(backup.schemaVersion).toBe(10)
     expect(backup.appName).toBe('Мой ритм')
     expect(backup.createdAt).toEqual(expect.any(String))
     expect(backup.months).toHaveLength(1)
@@ -303,7 +303,7 @@ describe('резервная копия', () => {
       (operation) => operation.id === splitOperation.id,
     )
 
-    expect(backup.structureVersion).toBe(9)
+    expect(backup.structureVersion).toBe(10)
     expect(restored.months).toHaveLength(1)
     expect(restored.financeState?.operations).toHaveLength(
       completed.operations.length,
@@ -547,6 +547,27 @@ describe('резервная копия', () => {
     expect(() => parseBackupData(JSON.stringify(backup))).toThrow(
       'В резервной копии повреждены данные здоровья.',
     )
+  })
+
+  it('сохраняет цели, пополнения и обработанные изображения', () => {
+    const month = createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')
+    const financeState = createDefaultFinanceState()
+    financeState.goals = [{
+      id: 'goal-1',
+      title: 'Путешествие',
+      targetKopecks: 100_000_00,
+      targetDate: '2027-01-10',
+      initialSavedKopecks: 10_000_00,
+      imageUpdatedAt: '2026-08-03T10:00:00.000Z',
+      contributions: [{ id: 'payment-1', goalId: 'goal-1', amountKopecks: 5_000_00, date: '2026-08-03', note: '', createdAt: '2026-08-03T10:00:00.000Z', updatedAt: '2026-08-03T10:00:00.000Z' }],
+      createdAt: '2026-08-03T10:00:00.000Z',
+      updatedAt: '2026-08-03T10:00:00.000Z',
+    }]
+    const backup = createBackupData([month], month.id, financeState)
+    backup.goalImages = [{ goalId: 'goal-1', mimeType: 'image/jpeg', dataBase64: 'YQ==', updatedAt: '2026-08-03T10:00:00.000Z' }]
+    const restored = parseBackupData(JSON.stringify(backup))
+    expect(restored.financeState?.goals[0].contributions).toHaveLength(1)
+    expect(restored.goalImages).toEqual(backup.goalImages)
   })
 
   it('отклоняет несовместимую версию резервной копии', () => {

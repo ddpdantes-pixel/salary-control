@@ -1288,7 +1288,10 @@ function HealthToday({
                 <input
                   type="checkbox"
                   checked={entry.tasks[task.id] === true}
-                  onChange={(event) => onChange((current) => setHealthTaskCompletion(current, task.id, event.currentTarget.checked))}
+                  onChange={(event) => {
+                    const completed = event.currentTarget.checked
+                    onChange((current) => setHealthTaskCompletion(current, task.id, completed))
+                  }}
                 />
                 <span><strong>{task.title}</strong><small>По графику сегодня</small></span>
               </label>

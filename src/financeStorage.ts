@@ -33,6 +33,7 @@ import {
   isFinanceTimestamp,
 } from './financeTimestamps'
 import { isManagedFutureDepositInterest } from './financeDeposit'
+import { normalizeSavingsGoals } from './financeGoals'
 
 const FINANCE_STATE_KEY = 'kontrol-zarplaty.finance-state.v1'
 
@@ -135,6 +136,7 @@ export function normalizeFinanceState(
     raw.personalExpenses,
     fallback.personalExpenses,
   )
+  const goals = normalizeSavingsGoals(raw.goals)
 
   if (!settings || anchors.length === 0) {
     return null
@@ -169,6 +171,7 @@ export function normalizeFinanceState(
     obligations,
     obligationPayments,
     personalExpenses,
+    goals,
     createdAt: stringValue(raw.createdAt, fallback.createdAt),
     updatedAt: stringValue(raw.updatedAt, fallback.updatedAt),
   }

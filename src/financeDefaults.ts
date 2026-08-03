@@ -11,7 +11,7 @@ import type {
 const INITIAL_CREATED_AT = '2026-06-25T12:00:00.000Z'
 const INITIAL_CONFIRMED_THROUGH = '2026-07-10'
 
-export const FINANCE_SCHEMA_VERSION = 9
+export const FINANCE_SCHEMA_VERSION = 10
 export const DEPOSIT_INTEREST_SCHEDULE_ID = 'deposit-interest-monthly-v1'
 
 export const INITIAL_FUTURE_OPERATION_IDS: ReadonlySet<string> = new Set([
@@ -237,6 +237,7 @@ export function createDefaultFinanceState(
     obligations: createInitialObligations(),
     obligationPayments: [],
     personalExpenses: createDefaultPersonalExpenses(nowIso),
+    goals: [],
     createdAt: nowIso,
     updatedAt: nowIso,
   }

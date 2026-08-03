@@ -185,6 +185,28 @@ export interface ObligationPayment {
   updatedAt: string
 }
 
+export interface SavingsGoalContribution {
+  id: string
+  goalId: string
+  amountKopecks: Kopecks
+  date: string
+  note: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SavingsGoal {
+  id: string
+  title: string
+  targetKopecks: Kopecks
+  targetDate: string
+  initialSavedKopecks: Kopecks
+  imageUpdatedAt: string | null
+  contributions: SavingsGoalContribution[]
+  createdAt: string
+  updatedAt: string
+}
+
 export interface FinanceState {
   schemaVersion: number
   settings: FinanceSettings
@@ -193,6 +215,7 @@ export interface FinanceState {
   obligations: Obligation[]
   obligationPayments: ObligationPayment[]
   personalExpenses: PersonalExpense[]
+  goals: SavingsGoal[]
   createdAt: string
   updatedAt: string
 }

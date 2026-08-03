@@ -20,9 +20,13 @@ import {
   assertPasswordVaultEnvelope,
   type PasswordVaultEnvelope,
 } from './passwordVaultCrypto'
+import {
+  normalizeFinanceGoalImageBackups,
+  type FinanceGoalImageBackup,
+} from './financeGoalImages'
 
 const BACKUP_APP_ID = 'kontrol-zarplaty'
-const BACKUP_STRUCTURE_VERSION = 9
+const BACKUP_STRUCTURE_VERSION = 10
 const SUPPORTED_BACKUP_VERSIONS = new Set([
   2,
   3,
@@ -31,6 +35,7 @@ const SUPPORTED_BACKUP_VERSIONS = new Set([
   6,
   7,
   8,
+  9,
   BACKUP_STRUCTURE_VERSION,
 ])
 
@@ -51,6 +56,7 @@ export interface BackupData {
   cashAtHome?: CashAtHomeState
   paymentNotificationSettings?: PaymentNotificationSettings
   passwordVault?: PasswordVaultEnvelope
+  goalImages?: FinanceGoalImageBackup[]
 }
 
 export interface ParsedBackup {
@@ -64,6 +70,7 @@ export interface ParsedBackup {
   cashAtHome: CashAtHomeState | null
   paymentNotificationSettings: PaymentNotificationSettings | null
   passwordVault: PasswordVaultEnvelope | null
+  goalImages: FinanceGoalImageBackup[]
 }
 
 export function createBackupData(
@@ -76,6 +83,7 @@ export function createBackupData(
   cashAtHome?: CashAtHomeState | null,
   paymentNotificationSettings?: PaymentNotificationSettings | null,
   passwordVault?: PasswordVaultEnvelope | null,
+  goalImages: FinanceGoalImageBackup[] = [],
 ): BackupData {
   return {
     app: BACKUP_APP_ID,
@@ -100,6 +108,7 @@ export function createBackupData(
       ? { paymentNotificationSettings }
       : {}),
     ...(passwordVault ? { passwordVault } : {}),
+    ...(goalImages.length > 0 ? { goalImages } : {}),
   }
 }
 
@@ -204,6 +213,7 @@ export function parseBackupData(text: string): ParsedBackup {
   const passwordVault = parsed.passwordVault === undefined
     ? null
     : normalizePasswordVault(parsed.passwordVault)
+  const goalImages = normalizeFinanceGoalImageBackups(parsed.goalImages)
 
   if (parsed.financeState !== undefined && financeState === null) {
     throw new Error('В резервной копии повреждены финансовые данные.')
@@ -245,6 +255,7 @@ export function parseBackupData(text: string): ParsedBackup {
     cashAtHome,
     paymentNotificationSettings,
     passwordVault,
+    goalImages,
   }
 }
 

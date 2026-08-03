@@ -59,6 +59,22 @@ describe('локальное хранение финансов', () => {
     })
   })
 
+  it('сохраняет цели с пополнениями и мигрирует старое состояние без goals', () => {
+    const state = createDefaultFinanceState()
+    state.goals = [{
+      id: 'goal-1', title: 'Переезд', targetKopecks: 200_000_00, targetDate: '2027-06-01', initialSavedKopecks: 10_000_00,
+      imageUpdatedAt: null,
+      contributions: [{ id: 'payment-1', goalId: 'goal-1', amountKopecks: 5_000_00, date: '2026-08-03', note: '', createdAt: '2026-08-03T10:00:00.000Z', updatedAt: '2026-08-03T10:00:00.000Z' }],
+      createdAt: '2026-08-03T10:00:00.000Z', updatedAt: '2026-08-03T10:00:00.000Z',
+    }]
+    saveStoredFinanceState(state)
+    expect(loadStoredFinanceState()?.goals[0].contributions).toHaveLength(1)
+
+    const oldState = JSON.parse(JSON.stringify(state))
+    delete oldState.goals
+    expect(normalizeFinanceState(oldState)?.goals).toEqual([])
+  })
+
   it('удаляет будущие системные проценты и сохраняет прошлую историю', () => {
     const state = createDefaultFinanceState()
     const historical = state.operations.find(
@@ -140,7 +156,7 @@ describe('локальное хранение финансов', () => {
     }
 
     expect(migratedPayment?.status).toBe('planned')
-    expect(saved.schemaVersion).toBe(9)
+    expect(saved.schemaVersion).toBe(10)
   })
 
   it('мигрирует досрочную оплату и сохраняет исходную дату графика', () => {
@@ -273,7 +289,7 @@ describe('локальное хранение финансов', () => {
       (expense) => expense.id === 'rent',
     )!
 
-    expect(migrated.schemaVersion).toBe(9)
+    expect(migrated.schemaVersion).toBe(10)
     expect(migrated.personalExpenses).toHaveLength(6)
     expect(rent.active).toBe(true)
     expect(rent.amountHistory[0].amountKopecks).toBe(

@@ -87,7 +87,7 @@ describe('оболочка приложения', () => {
 
     expect(screen.queryByText('Планы')).toBeNull()
     expect(screen.queryByRole('button', { name: /план/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /Пароли/ })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /Пароли/ })).toBeNull()
     expect(window.localStorage.getItem('moi-ritm.plans.v1')).toBeNull()
     expect(window.localStorage.getItem(HEALTH_STATE_KEY)).not.toBeNull()
   })
@@ -216,13 +216,14 @@ describe('оболочка приложения', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
   })
 
-  it('открывает защищённый раздел Пароли с Главного без пятой нижней вкладки', async () => {
+  it('открывает защищённый раздел Пароли из Денег без пятой нижней вкладки', async () => {
     const user = userEvent.setup()
     await renderApp()
 
     const navigation = screen.getByRole('navigation', { name: 'Разделы приложения' })
     expect(within(navigation).getAllByRole('button')).toHaveLength(4)
-    await user.click(screen.getByRole('button', { name: /Пароли.*Защищённое хранилище/ }))
+    await user.click(within(navigation).getByRole('button', { name: 'Деньги' }))
+    await user.click(screen.getByRole('button', { name: 'Пароли' }))
 
     expect(screen.getByRole('heading', { name: 'Создание защищённого хранилища' })).not.toBeNull()
     expect(screen.getByLabelText('Мастер-пароль')).not.toBeNull()
@@ -339,8 +340,7 @@ describe('оболочка приложения', () => {
     expect(window.localStorage.getItem(CLOUD_RESTORE_SNAPSHOT_STORAGE)).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Восстановить' }))
 
-    const snapshot = window.localStorage.getItem(CLOUD_RESTORE_SNAPSHOT_STORAGE)
-    expect(snapshot).toContain('"salary":45000')
+    await waitFor(() => expect(window.localStorage.getItem(CLOUD_RESTORE_SNAPSHOT_STORAGE)).toContain('"salary":45000'))
     expect(window.localStorage.getItem(PAYMENT_PUSH_DEVICE_KEY)).toBe(pushDevice)
     await user.click(screen.getByRole('tab', { name: 'Авансы' }))
     expect(screen.getByDisplayValue('99 000')).not.toBeNull()

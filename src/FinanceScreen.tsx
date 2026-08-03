@@ -5,6 +5,7 @@ import { FinanceCashAtHomeScreen } from './FinanceCashAtHomeScreen'
 import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
 import { FinanceObligationsScreen } from './FinanceObligationsScreen'
 import { FinanceSettingsScreen } from './FinanceSettingsScreen'
+import { FinanceGoalsScreen } from './FinanceGoalsScreen'
 import type { CashAtHomeState } from './cashAtHome'
 import type {
   PaymentNotificationNavigationTarget,
@@ -36,14 +37,18 @@ type FinanceSection =
   | 'calendar'
   | 'obligations'
   | 'settings'
+  | 'passwords'
   | 'cash'
+  | 'goals'
 
 const FINANCE_SECTIONS: Array<{ id: FinanceSection; label: string; icon: ComponentType }> = [
   { id: 'overview', label: 'Обзор', icon: OverviewIcon },
   { id: 'calendar', label: 'Календарь', icon: CalendarIcon },
   { id: 'obligations', label: 'Обязательства', icon: ObligationsIcon },
   { id: 'settings', label: 'Расходы', icon: ExpensesIcon },
+  { id: 'passwords', label: 'Пароли', icon: LockIcon },
   { id: 'cash', label: 'Кубышка', icon: WalletIcon },
+  { id: 'goals', label: 'Цели', icon: TargetIcon },
 ]
 
 const ANCHOR_EXPLANATION =
@@ -68,6 +73,7 @@ export function FinanceScreen({
   onStopFutureDepositInterest = () => 0,
   notificationSettings,
   onChangeNotificationSettings,
+  onOpenPasswords = () => undefined,
   initialCalendarTarget = null,
 }: {
   state: FinanceState | null
@@ -84,6 +90,7 @@ export function FinanceScreen({
   onChangeNotificationSettings: (
     settings: PaymentNotificationSettings,
   ) => void
+  onOpenPasswords?: () => void
   initialCalendarTarget?: PaymentNotificationNavigationTarget | null
 }) {
   const [activeSection, setActiveSection] =
@@ -123,7 +130,7 @@ export function FinanceScreen({
   }, [salaryMonths, selectedFinanceMonth, state, todayIsoDate])
 
   if (!state || !overview) {
-    return <FinanceSetupWizard onComplete={onCompleteSetup} />
+    return <FinanceSetupWizard onComplete={onCompleteSetup} onOpenPasswords={onOpenPasswords} />
   }
 
   const latestAnchor = overview.current.anchor
@@ -132,7 +139,13 @@ export function FinanceScreen({
     <section className="screen finance-screen">
       <FinanceSectionTabs
         activeSection={activeSection}
-        onChange={setActiveSection}
+        onChange={(section) => {
+          if (section === 'passwords') {
+            onOpenPasswords()
+            return
+          }
+          setActiveSection(section)
+        }}
       />
 
       {featureMessage && (
@@ -160,20 +173,7 @@ export function FinanceScreen({
             <strong>{formatMoney(overview.current.balanceKopecks)}</strong>
             <div className="finance-coverage" role="status">
               <b>{overview.coverage.headline}</b>
-              <span>{overview.coverage.detail}</span>
-            </div>
-            {latestAnchor && (
-              <p className="finance-anchor-summary">
-                Фактический остаток подтверждён
-                <span>
-                  {formatDateLabel(latestAnchor.date)} —{' '}
-                  {formatMoney(latestAnchor.balanceKopecks)}
-                </span>
-              </p>
-            )}
-            <div className="finance-planning-summary" role="status">
-              <b>{overview.planning.headline}</b>
-              <span>{overview.planning.detail}</span>
+              {overview.coverage.detail && <span>{overview.coverage.detail}</span>}
             </div>
           </section>
 
@@ -201,6 +201,12 @@ export function FinanceScreen({
               <span>Обновить остаток</span>
             </button>
           </section>
+          {latestAnchor && (
+            <p className="finance-last-anchor">
+              Последнее подтверждение: {formatDateLabel(latestAnchor.date)} —{' '}
+              {formatMoney(latestAnchor.balanceKopecks)}
+            </p>
+          )}
         </>
       ) : activeSection === 'calendar' ? (
         <FinanceCalendarScreen
@@ -234,6 +240,12 @@ export function FinanceScreen({
           onChange={onChangeCashAtHome}
           onStopFutureDepositInterest={onStopFutureDepositInterest}
         />
+      ) : activeSection === 'goals' ? (
+        <FinanceGoalsScreen
+          state={state}
+          todayIsoDate={todayIsoDate}
+          onChangeState={onChangeState}
+        />
       ) : (
         null
       )}
@@ -260,11 +272,19 @@ export function FinanceScreen({
 
 function FinanceSetupWizard({
   onComplete,
+  onOpenPasswords,
 }: {
   onComplete: (input: FinanceAnchorInput) => void
+  onOpenPasswords: () => void
 }) {
   return (
     <section className="screen finance-screen finance-setup">
+      <FinanceSectionTabs
+        activeSection="overview"
+        onChange={(section) => {
+          if (section === 'passwords') onOpenPasswords()
+        }}
+      />
       <header className="finance-setup-intro">
         <p className="finance-kicker">Первоначальная настройка</p>
         <h2>Настроим счёт для кредитов</h2>
@@ -698,6 +718,25 @@ function ExpensesIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 7.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2h10" />
       <path d="m14 13 3 3 3-3M17 8v8" />
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="5" y="10" width="14" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" />
+    </svg>
+  )
+}
+
+function TargetIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="m14 10 6-6M16 4h4v4" />
     </svg>
   )
 }

@@ -21,10 +21,15 @@ export function resolveFinanceOperationAmounts(
   operations: FinanceOperation[],
   confirmedBalanceDate: string,
 ): Map<string, FinanceOperationAmountResolution> {
+  const historicalIndex = buildHistoricalSourceIndex(operations)
   return new Map(
     operations.map((operation) => [
       operation.id,
-      resolveFinanceOperationAmount(operation, operations, confirmedBalanceDate),
+      resolveFinanceOperationAmountWithIndex(
+        operation,
+        confirmedBalanceDate,
+        historicalIndex,
+      ),
     ]),
   )
 }
@@ -33,6 +38,18 @@ export function resolveFinanceOperationAmount(
   operation: FinanceOperation,
   operations: FinanceOperation[],
   confirmedBalanceDate: string,
+): FinanceOperationAmountResolution {
+  return resolveFinanceOperationAmountWithIndex(
+    operation,
+    confirmedBalanceDate,
+    buildHistoricalSourceIndex(operations),
+  )
+}
+
+function resolveFinanceOperationAmountWithIndex(
+  operation: FinanceOperation,
+  confirmedBalanceDate: string,
+  historicalIndex: Map<string, FinanceOperation[]>,
 ): FinanceOperationAmountResolution {
   const storedAmountKopecks = normalizeAmount(operation.amountKopecks)
 
@@ -52,7 +69,7 @@ export function resolveFinanceOperationAmount(
     }
   }
 
-  const sourceOperations = findHistoricalSources(operation, operations)
+  const sourceOperations = findHistoricalSources(operation, historicalIndex)
 
   if (sourceOperations.length === 0) {
     return {
@@ -80,10 +97,12 @@ export function resolveFinanceOperationAmount(
 
 function findHistoricalSources(
   operation: FinanceOperation,
-  operations: FinanceOperation[],
+  historicalIndex: Map<string, FinanceOperation[]>,
 ): FinanceOperation[] {
   const sources: FinanceOperation[] = []
   let month = getDateYearMonth(operation.date)
+  const identity = getRecurringIncomeIdentity(operation)
+  if (!identity) return sources
 
   for (
     let checkedMonthCount = 0;
@@ -92,20 +111,40 @@ function findHistoricalSources(
     checkedMonthCount += 1
   ) {
     month = getPreviousYearMonth(month)
-    const source = operations
-      .filter(
-        (candidate) =>
-          candidate.id !== operation.id &&
-          getDateYearMonth(candidate.date) === month &&
-          isActualForecastSource(candidate) &&
-          hasSameRecurringIncomeIdentity(operation, candidate),
-      )
-      .sort(compareForecastSources)[0]
+    const source = historicalIndex.get(`${identity}|${month}`)?.[0]
 
     if (source) sources.push(source)
   }
 
   return sources
+}
+
+function buildHistoricalSourceIndex(
+  operations: FinanceOperation[],
+): Map<string, FinanceOperation[]> {
+  const index = new Map<string, FinanceOperation[]>()
+  for (const operation of operations) {
+    if (!isActualForecastSource(operation)) continue
+    const identity = getRecurringIncomeIdentity(operation)
+    if (!identity) continue
+    const key = `${identity}|${getDateYearMonth(operation.date)}`
+    const entries = index.get(key) ?? []
+    entries.push(operation)
+    index.set(key, entries)
+  }
+  for (const entries of index.values()) entries.sort(compareForecastSources)
+  return index
+}
+
+function getRecurringIncomeIdentity(operation: FinanceOperation): string | null {
+  if (operation.direction !== 'income') return null
+  if (operation.source === 'salary' && operation.category === 'salaryTransfer' && operation.salaryField) {
+    return `salary|salaryTransfer|${operation.salaryField}`
+  }
+  if (operation.recurringScheduleId) {
+    return `${operation.source}|${operation.category}|${operation.recurringScheduleId}`
+  }
+  return null
 }
 
 function isUnknownFutureRecurringIncome(
@@ -134,30 +173,6 @@ function isRecurringSystemIncome(operation: FinanceOperation): boolean {
   }
 
   return Boolean(operation.recurringScheduleId)
-}
-
-function hasSameRecurringIncomeIdentity(
-  operation: FinanceOperation,
-  candidate: FinanceOperation,
-): boolean {
-  if (
-    candidate.direction !== 'income' ||
-    candidate.source !== operation.source ||
-    candidate.category !== operation.category
-  ) {
-    return false
-  }
-
-  if (operation.source === 'salary') {
-    return (
-      operation.salaryField !== undefined &&
-      candidate.salaryField === operation.salaryField
-    )
-  }
-
-  if (!operation.recurringScheduleId) return false
-
-  return candidate.recurringScheduleId === operation.recurringScheduleId
 }
 
 function compareForecastSources(

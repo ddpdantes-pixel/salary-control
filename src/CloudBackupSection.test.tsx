@@ -44,7 +44,7 @@ describe('интерфейс облачной копии', () => {
     renderSection()
     expect(screen.getByRole('heading', { name: 'Облачная копия' })).not.toBeNull()
     expect(screen.getByText('Не подключено')).not.toBeNull()
-    expect(screen.getByText(/Прикреплённые фотографии пока остаются только на этом устройстве/)).not.toBeNull()
+    expect(screen.getByText(/изображения целей сохраняются/)).not.toBeNull()
   })
 
   it('при первом сохранении создаёт ключ, обновляет дату и блокирует двойную отправку', async () => {
