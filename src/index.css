@@ -38,6 +38,9 @@
   --danger-bg: var(--danger-soft);
   --danger-border: #efbaba;
   --danger-text: var(--danger);
+  --progress-blue-border: #a9cbe9;
+  --progress-blue-background: #e9f3ff;
+  --progress-blue-fill: #b7d8f6;
 
   color: var(--text-primary);
   background: var(--background);
@@ -69,6 +72,9 @@
     --warning-text: #f4d57f;
     --danger-border: #7b393d;
     --danger-text: var(--danger);
+    --progress-blue-border: #3d6f9f;
+    --progress-blue-background: #1b3046;
+    --progress-blue-fill: #2c689f;
 
     color: var(--text-primary);
     background: var(--background);

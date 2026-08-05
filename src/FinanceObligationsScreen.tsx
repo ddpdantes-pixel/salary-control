@@ -262,6 +262,7 @@ function ObligationCard({
         <CompactProgressBar
           valueLabel={`${formatMoney(progress.paidKopecks)} из ${formatMoney(progress.totalKopecks)}`}
           percent={progress.progressPercent}
+          tone="green"
           ariaLabel={`Обязательство ${obligation.title}: оплачено ${formatMoney(progress.paidKopecks)} из ${formatMoney(progress.totalKopecks)}, погашено ${Math.round(progress.progressPercent)} процентов`}
         />
       )}

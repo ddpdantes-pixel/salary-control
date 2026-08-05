@@ -30,7 +30,8 @@ describe('редактор обязательств', () => {
     const split = screen.getByRole('heading', { name: 'Яндекс Сплит' }).closest('article')!
     const creditCard = screen.getByRole('heading', { name: /кредитная карта/i }).closest('article')!
 
-    expect(within(split).getByRole('img', { name: /Обязательство Яндекс Сплит: оплачено/ })).not.toBeNull()
+    const progressBar = within(split).getByRole('img', { name: /Обязательство Яндекс Сплит: оплачено/ })
+    expect(progressBar.classList.contains('tone-green')).toBe(true)
     expect(within(creditCard).queryByRole('img')).toBeNull()
   })
 

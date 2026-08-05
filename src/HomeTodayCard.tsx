@@ -106,6 +106,7 @@ export function HomeTodayCard({
                 label={goal.title}
                 valueLabel={`${formatMoney(progress.paidThisMonthKopecks)} из ${formatMoney(progress.monthlyPlanKopecks)}`}
                 percent={progress.progressPercent}
+                tone="blue"
                 ariaLabel={`Цель ${goal.title}: внесено ${formatMoney(progress.paidThisMonthKopecks)} из ${formatMoney(progress.monthlyPlanKopecks)}, выполнено ${Math.round(progress.progressPercent)} процентов`}
               />
             ))}

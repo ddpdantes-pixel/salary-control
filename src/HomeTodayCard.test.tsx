@@ -97,6 +97,7 @@ describe('блок Сегодня на Главном', () => {
     const headings = [...container.querySelectorAll('h3')].map((heading) => heading.textContent)
     expect(headings.at(-1)).toBe('Цели')
     expect(screen.getAllByRole('img')).toHaveLength(2)
+    expect(screen.getAllByRole('img').every((progressBar) => progressBar.classList.contains('tone-blue'))).toBe(true)
     expect(screen.getByRole('img', { name: /Цель Таиланд: внесено/ }).textContent).toContain('Таиланд')
     expect(screen.getByRole('img', { name: /Цель Телефон: внесено/ }).textContent).toContain('Телефон')
     expect(screen.queryByText('Готовая цель')).toBeNull()

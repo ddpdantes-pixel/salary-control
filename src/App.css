@@ -710,14 +710,23 @@ button:active {
 }
 
 .compact-progress-bar {
+  --compact-progress-border: color-mix(in srgb, var(--success) 28%, var(--border));
+  --compact-progress-background: color-mix(in srgb, var(--success) 10%, var(--surface-muted));
+  --compact-progress-fill: color-mix(in srgb, var(--success) 42%, var(--surface));
   position: relative;
   min-width: 0;
   min-height: 38px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border));
+  border: 1px solid var(--compact-progress-border);
   border-radius: 8px;
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--success) 10%, var(--surface-muted));
+  background: var(--compact-progress-background);
+}
+
+.compact-progress-bar.tone-blue {
+  --compact-progress-border: var(--progress-blue-border);
+  --compact-progress-background: var(--progress-blue-background);
+  --compact-progress-fill: var(--progress-blue-fill);
 }
 
 .compact-progress-bar-fill {
@@ -725,7 +734,7 @@ button:active {
   inset: 0 auto 0 0;
   z-index: 0;
   border-radius: inherit;
-  background: color-mix(in srgb, var(--success) 42%, var(--surface));
+  background: var(--compact-progress-fill);
 }
 
 .compact-progress-bar-content {
