@@ -74,7 +74,6 @@ import { DailySalesScreen } from './DailySalesScreen'
 import { WorkScheduleCard } from './WorkScheduleCard'
 import { HomeTodayCard } from './HomeTodayCard'
 import { buildFinanceOverview } from './financeOverview'
-import { getDateYearMonth } from './financeDates'
 import { CloudBackupSection } from './CloudBackupSection'
 import {
   clearCloudRestoreSnapshot,
@@ -1174,14 +1173,6 @@ function App() {
             setActiveTab('money')
             window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
           }}
-          onOpenFinanceOperation={(operation) => {
-            setCalendarNavigationTarget({
-              monthId: getDateYearMonth(operation.date),
-              operationId: operation.id,
-            })
-            setActiveTab('money')
-            window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-          }}
           onOpenLearning={() => { setLearningFocusRequest((value) => value + 1); setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
           onOpenHealth={() => { setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
         />
@@ -1381,7 +1372,6 @@ function HomeScreen({
   onShiftMonth,
   onOpenWorkSchedule,
   onOpenFinanceOverview,
-  onOpenFinanceOperation,
   onOpenLearning,
   onOpenHealth,
 }: {
@@ -1397,7 +1387,6 @@ function HomeScreen({
   onShiftMonth: (offset: number) => void
   onOpenWorkSchedule: () => void
   onOpenFinanceOverview: () => void
-  onOpenFinanceOperation: (operation: import('./financeTypes').FinanceOperation) => void
   onOpenLearning: () => void
   onOpenHealth: () => void
 }) {
@@ -1446,12 +1435,9 @@ function HomeScreen({
         </div>
         <strong>{formatRubles(summary.expectedBonusPayment)}</strong>
         <small>Расчёт за {formatMonthLabel(month.salesMonth).toLowerCase()}</small>
-      </section>
-
-      <section className="month-meta-card">
-        <div>
+        <div className="hero-period">
           <span>Период продаж</span>
-          <strong>{formatSalesPeriod(summary.dates)}</strong>
+          <b>{formatSalesPeriod(summary.dates)}</b>
         </div>
       </section>
 
@@ -1468,9 +1454,7 @@ function HomeScreen({
         healthState={healthState}
         settings={healthSettings}
         todayIsoDate={todayIsoDate}
-        title={formatTodayTitle(todayIsoDate)}
         onOpenFinanceOverview={onOpenFinanceOverview}
-        onOpenOperation={onOpenFinanceOperation}
         onOpenLearning={onOpenLearning}
         onOpenHealth={onOpenHealth}
       />
@@ -2337,11 +2321,6 @@ function getLocalIsoDate(date = new Date()): string {
   const day = String(date.getDate()).padStart(2, '0')
 
   return `${year}-${month}-${day}`
-}
-
-function formatTodayTitle(dateId: string): string {
-  const [year, month, day] = dateId.split('-').map(Number)
-  return `Сегодня, ${new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(year, month - 1, day, 12))}`
 }
 
 function getNextAvailableMonthId(months: SalaryMonth[]): string {

@@ -309,9 +309,10 @@ button:active {
 
 .hero-total {
   display: grid;
-  gap: 10px;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 18px;
   color: #083f3b;
   background:
     linear-gradient(135deg, #dff5ef 0%, #bfe9df 52%, #edf9f5 100%);
@@ -350,6 +351,27 @@ button:active {
   color: color-mix(in srgb, #083f3b 68%, transparent);
   font-size: 14px;
   font-weight: 600;
+}
+
+.hero-period {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.hero-period span {
+  color: color-mix(in srgb, #083f3b 68%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hero-period b {
+  color: #083f3b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .month-meta-card {
@@ -392,6 +414,7 @@ button:active {
   display: grid;
   gap: 10px;
   min-width: 0;
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   padding: 12px;
   background: var(--surface);
@@ -559,55 +582,44 @@ button:active {
   font-weight: 750;
 }
 
-.home-today-card {
+.home-dashboard {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
+}
+
+.home-dashboard-card {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  padding: 14px;
+  padding: 12px;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
 }
 
-.home-today-card > h2,
-.home-today-section h3 {
-  margin: 0;
+.home-dashboard-card h2 {
   color: var(--text-primary);
+  font-size: 17px;
 }
 
-.home-today-card > h2 { font-size: 18px; }
-
-.home-today-section {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.home-today-section h3 {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.home-today-balance,
-.home-today-operation {
+.home-today-balance {
   width: 100%;
   text-align: left;
   box-shadow: none;
 }
-.home-today-operation.expense, .home-today-deficit { color: var(--warning); }
-.home-today-operation.income { color: var(--accent); }
-.home-today-deficit { margin: 0; font-size: 12px; font-weight: 700; }
 
 .home-today-balance {
   display: grid;
-  gap: 3px;
-  padding: 10px;
+  gap: 2px;
+  min-height: 0;
+  padding: 0;
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: transparent;
 }
 
 .home-today-balance span,
-.home-today-balance small,
 .home-today-muted,
 .home-today-more {
   color: var(--text-secondary);
@@ -616,22 +628,13 @@ button:active {
 }
 
 .home-today-balance strong {
-  font-size: 18px;
+  font-size: 24px;
   line-height: 1.1;
-}
-
-.home-today-operation {
-  padding: 8px 10px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
 }
 
 .home-today-learning {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   margin: 0;
   padding: 0;
@@ -641,47 +644,59 @@ button:active {
 .home-today-learning li {
   min-width: 0;
   border-radius: 8px;
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-muted) 78%, var(--surface));
+  box-shadow: inset 0 0 0 1px var(--border-soft);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.3;
 }
 .home-today-learning button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   min-width: 0;
-  min-height: 36px;
-  gap: 10px;
-  align-items: center;
-  padding: 7px 10px;
+  min-height: 76px;
+  gap: 5px;
+  align-content: space-between;
+  padding: 8px;
   color: inherit;
   background: transparent;
   box-shadow: none;
   font: inherit;
   text-align: left;
 }
-.home-today-learning button span { min-width: 0; overflow-wrap: anywhere; }
-.home-today-learning button strong { white-space: nowrap; font-size: 13px; }
+.home-learning-label {
+  display: -webkit-box;
+  min-width: 0;
+  min-height: 31px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-weight: 700;
+}
+.home-today-learning button strong { font-size: 12px; }
+.home-learning-progress {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+.home-learning-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
 .home-today-learning li.complete {
   color: var(--success);
   background: color-mix(in srgb, var(--success) 10%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 25%, var(--border));
 }
+.home-today-learning li.complete .home-learning-progress { background: color-mix(in srgb, var(--success) 18%, var(--surface)); }
+.home-today-learning li.complete .home-learning-progress i { background: var(--success); }
 .home-today-muted,
 .home-today-more { margin: 0; }
-
-.home-health-summary,
-.home-tasks-summary,
-.home-goals-summary {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-}
-
-.home-tasks-summary {
-  border-radius: 8px;
-  padding: 10px;
-  background: var(--surface-muted);
-}
 
 .home-summary-line,
 .home-progress-line {
@@ -696,8 +711,6 @@ button:active {
   overflow-wrap: anywhere;
 }
 
-.home-tasks-summary .home-summary-line,
-.home-tasks-summary .home-progress-line { background: var(--surface); }
 .home-summary-line.overdue { color: var(--warning); }
 .home-summary-line.today { color: var(--accent); }
 .home-progress-line span { display: grid; min-width: 0; gap: 2px; }
@@ -707,6 +720,12 @@ button:active {
 .home-goal-progress-list {
   display: grid;
   gap: 6px;
+}
+
+@media (max-width: 359px) {
+  .home-today-learning {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .compact-progress-bar {
@@ -1354,6 +1373,18 @@ button.danger {
   .hero-total small,
   .hero-topline {
     color: color-mix(in srgb, var(--text-primary) 72%, transparent);
+  }
+
+  .hero-period {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .hero-period span {
+    color: color-mix(in srgb, var(--text-primary) 70%, transparent);
+  }
+
+  .hero-period b {
+    color: var(--text-primary);
   }
 
   .hero-icon {
