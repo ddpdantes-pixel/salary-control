@@ -224,7 +224,7 @@ describe('данные финансового обзора', () => {
     })
 
     expect(overview.coverage.tone).toBe('success')
-    expect(overview.coverage.headline).toBe('Денег хватает до 12 февраля 2027 года')
+    expect(overview.coverage.headline).toBe('Денег хватает до 10 октября 2026 года')
     expect(overview.coverage.detail).toBe('')
   })
 
@@ -256,12 +256,43 @@ describe('данные финансового обзора', () => {
     expect(overview.coverage.detail).toBe('')
   })
 
-  it('показывает компактный плановый итог и продлевает период до последнего обязательства', () => {
+  it('ограничивает плановый итог тремя календарными месяцами', () => {
     const state = createDefaultFinanceState()
     const overview = buildFinanceOverview({ state, salaryMonths: createSalaryMonths(), todayIsoDate: '2026-07-10' })
 
-    expect(overview.forecast.forecastEndDate).toBe('2027-02-12')
-    expect(overview.coverage.headline).toBe('Денег хватает до 12 февраля 2027 года')
+    expect(overview.forecast.forecastEndDate).toBe('2026-10-10')
+    expect(overview.coverage.headline).toBe('Денег хватает до 10 октября 2026 года')
+  })
+
+  it('учитывает платёж в последний день горизонта, но не учитывает платёж после него', () => {
+    const state = createDefaultFinanceState()
+    const template = state.obligations.find((item) => item.id === 'yandex-split')!
+    state.obligations = [{
+      ...template,
+      endDate: '2026-11-04',
+      payments: [{ ...template.payments[0], date: '2026-11-04', amountKopecks: rublesToKopecks(5_000), status: 'planned' }],
+    }]
+    state.operations = []
+    state.anchors = [{ ...state.anchors[0], date: '2026-08-03', balanceKopecks: rublesToKopecks(1_000) }]
+
+    const after = buildFinanceOverview({ state, salaryMonths: [], todayIsoDate: '2026-08-03' })
+    const atEnd = buildFinanceOverview({
+      state: {
+        ...state,
+        obligations: [{
+          ...state.obligations[0],
+          endDate: '2026-11-03',
+          payments: [{ ...state.obligations[0].payments[0], date: '2026-11-03' }],
+        }],
+      },
+      salaryMonths: [],
+      todayIsoDate: '2026-08-03',
+    })
+
+    expect(after.forecast.forecastEndDate).toBe('2026-11-03')
+    expect(after.coverage.tone).toBe('success')
+    expect(atEnd.coverage.tone).toBe('danger')
+    expect(atEnd.coverage.headline).toBe('Денег не хватает на платёж 3 ноября 2026 года')
   })
 
   it('сразу пересчитывает прогноз после изменения обязательства', () => {
@@ -279,16 +310,16 @@ describe('данные финансового обзора', () => {
     expect(after.forecast.minimumBalanceKopecks).toBe(before.forecast.minimumBalanceKopecks - rublesToKopecks(1_000))
   })
 
-  it('проверяет полный известный график обязательства до 2048 года', () => {
+  it('не меняет долгий график обязательства, но ограничивает прогноз тремя месяцами', () => {
     const state = createDefaultFinanceState()
     const monthly = state.obligations.find((item) => item.scheduleType === 'monthlyFixed')!
     state.obligations = [{ ...monthly, defaultPaymentKopecks: 100, startDate: '2026-08-04', endDate: '2048-05-15', dueDay: 15 }]
     state.operations = []
     state.anchors = [{ ...state.anchors[0], balanceKopecks: 10_000_000_00 }]
     const overview = buildFinanceOverview({ state, salaryMonths: [], todayIsoDate: '2026-08-03' })
-    expect(overview.forecast.forecastEndDate).toBe('2048-05-15')
-    expect(overview.coverage.headline).toBe('Денег хватает до 15 мая 2048 года')
-    expect(overview.forecast.dailyTimeline.length).toBeGreaterThan(200)
+    expect(state.obligations[0].endDate).toBe('2048-05-15')
+    expect(overview.forecast.forecastEndDate).toBe('2026-11-03')
+    expect(overview.coverage.headline).toBe('Денег хватает до 3 ноября 2026 года')
   })
 
   it('сохраняет зелёное состояние для отсутствующих обязательств и открытого графика', () => {

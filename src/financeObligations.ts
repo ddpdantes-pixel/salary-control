@@ -31,6 +31,35 @@ export interface ObligationDraft {
   }>
 }
 
+export interface ObligationProgress {
+  totalKopecks: number
+  paidKopecks: number
+  progressPercent: number
+}
+
+export function calculateObligationProgress(obligation: Obligation): ObligationProgress | null {
+  if (obligation.category === 'creditCard') return null
+
+  if (
+    isPositiveKopecks(obligation.originalDebtKopecks) &&
+    isValidKopecks(obligation.remainingDebtKopecks)
+  ) {
+    return createObligationProgress(
+      obligation.originalDebtKopecks,
+      obligation.originalDebtKopecks - obligation.remainingDebtKopecks,
+    )
+  }
+
+  if (obligation.scheduleType === 'monthlyFixed' || obligation.payments.length === 0) return null
+  if (!obligation.payments.every((payment) => isPositiveKopecks(payment.amountKopecks))) return null
+
+  const totalKopecks = obligation.payments.reduce((sum, payment) => sum + payment.amountKopecks!, 0)
+  const paidKopecks = obligation.payments
+    .filter((payment) => payment.status === 'completed')
+    .reduce((sum, payment) => sum + payment.amountKopecks!, 0)
+  return createObligationProgress(totalKopecks, paidKopecks)
+}
+
 export function generateObligationOperations(input: {
   obligation: Obligation
   rangeStartDate: string
@@ -257,6 +286,24 @@ export function getObligationOperationsForState(input: {
         ? first.id.localeCompare(second.id)
         : first.date.localeCompare(second.date),
     )
+}
+
+function createObligationProgress(totalKopecks: number, paidKopecks: number): ObligationProgress | null {
+  if (!isPositiveKopecks(totalKopecks)) return null
+  const displayPaidKopecks = Math.min(Math.max(paidKopecks, 0), totalKopecks)
+  return {
+    totalKopecks,
+    paidKopecks: displayPaidKopecks,
+    progressPercent: Math.min(100, Math.max(0, (displayPaidKopecks / totalKopecks) * 100)),
+  }
+}
+
+function isPositiveKopecks(value: number | null): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+function isValidKopecks(value: number | null): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value)
 }
 
 export function closeObligationInState(

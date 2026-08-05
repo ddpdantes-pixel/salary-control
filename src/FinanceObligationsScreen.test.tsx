@@ -24,6 +24,16 @@ describe('редактор обязательств', () => {
     vi.restoreAllMocks()
   })
 
+  it('показывает шкалу погашения только у обязательства с фиксированным графиком', () => {
+    renderHarness()
+
+    const split = screen.getByRole('heading', { name: 'Яндекс Сплит' }).closest('article')!
+    const creditCard = screen.getByRole('heading', { name: /кредитная карта/i }).closest('article')!
+
+    expect(within(split).getByRole('img', { name: /Обязательство Яндекс Сплит: оплачено/ })).not.toBeNull()
+    expect(within(creditCard).queryByRole('img')).toBeNull()
+  })
+
   it('открывает существующее обязательство и не размонтируется при фокусе на сумме', async () => {
     const user = userEvent.setup()
     renderHarness()

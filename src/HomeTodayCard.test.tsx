@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HomeTodayCard } from './HomeTodayCard'
 import { createEmptyHealthState, createHealthEntry } from './healthModel'
 import { createDefaultHealthSettings } from './healthSettings'
+import { addSavingsGoalContribution, createSavingsGoal } from './financeGoals'
 import type { FinanceOverviewData } from './financeOverview'
 
 describe('блок Сегодня на Главном', () => {
@@ -85,5 +86,27 @@ describe('блок Сегодня на Главном', () => {
     expect(screen.getByText('Сегодня: Внести продажи Global Tile в VogClub')).not.toBeNull()
     expect(screen.getByText('Шампунь: 0 из 3')).not.toBeNull()
     expect(screen.getByText('Домашние тренировки: 0 из 3')).not.toBeNull()
+  })
+
+  it('показывает активные цели по порядку как компактные месячные шкалы после задач', () => {
+    const first = addSavingsGoalContribution(createSavingsGoal({ title: 'Таиланд', targetKopecks: 50_000_00, targetDate: '2026-12-31', initialSavedKopecks: 0 }, '2026-07-01T12:00:00.000Z', 'thai'), { amountKopecks: 12_000_00, date: '2026-08-03', note: '' }, '2026-08-03T12:00:00.000Z', 'thai-payment')
+    const second = createSavingsGoal({ title: 'Телефон', targetKopecks: 100_000_00, targetDate: '2027-01-31', initialSavedKopecks: 0 }, '2026-07-01T12:00:00.000Z', 'phone')
+    const completed = createSavingsGoal({ title: 'Готовая цель', targetKopecks: 100_00, targetDate: '2026-12-31', initialSavedKopecks: 100_00 }, '2026-07-01T12:00:00.000Z', 'done')
+    const { container } = render(<HomeTodayCard overview={null} goals={[first, second, completed]} healthState={createEmptyHealthState()} settings={createDefaultHealthSettings()} todayIsoDate="2026-08-03" title="Сегодня" onOpenFinanceOverview={() => {}} onOpenOperation={() => {}} onOpenLearning={() => {}} />)
+
+    const headings = [...container.querySelectorAll('h3')].map((heading) => heading.textContent)
+    expect(headings.at(-1)).toBe('Цели')
+    expect(screen.getAllByRole('img')).toHaveLength(2)
+    expect(screen.getByRole('img', { name: /Цель Таиланд: внесено/ }).textContent).toContain('Таиланд')
+    expect(screen.getByRole('img', { name: /Цель Телефон: внесено/ }).textContent).toContain('Телефон')
+    expect(screen.queryByText('Готовая цель')).toBeNull()
+  })
+
+  it('скрывает группу целей, когда активных целей нет', () => {
+    const completed = createSavingsGoal({ title: 'Готовая цель', targetKopecks: 100_00, targetDate: '2026-12-31', initialSavedKopecks: 100_00 }, '2026-07-01T12:00:00.000Z', 'done')
+    render(<HomeTodayCard overview={null} goals={[completed]} healthState={createEmptyHealthState()} settings={createDefaultHealthSettings()} todayIsoDate="2026-08-03" title="Сегодня" onOpenFinanceOverview={() => {}} onOpenOperation={() => {}} onOpenLearning={() => {}} />)
+
+    expect(screen.queryByRole('heading', { name: 'Цели' })).toBeNull()
+    expect(screen.queryByRole('img')).toBeNull()
   })
 })

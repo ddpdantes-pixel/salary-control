@@ -1464,6 +1464,7 @@ function HomeScreen({
       />
       <HomeTodayCard
         overview={financeOverview}
+        goals={financeState?.goals ?? []}
         healthState={healthState}
         settings={healthSettings}
         todayIsoDate={todayIsoDate}

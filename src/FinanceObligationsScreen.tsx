@@ -5,8 +5,10 @@ import { formatDateLabel, formatMoneyInputText } from './format'
 import { formatMoney, parseMoneyInput } from './financeMoney'
 import { ObligationDateField } from './ObligationDateField'
 import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
+import { CompactProgressBar } from './CompactProgressBar'
 import {
   closeObligationInState,
+  calculateObligationProgress,
   createObligationFromDraft,
   deleteObligationFromState,
   getObligationCategoryLabel,
@@ -225,6 +227,7 @@ function ObligationCard({
   onReopen: () => void
   onDelete: () => void
 }) {
+  const progress = calculateObligationProgress(obligation)
   const nextPayment = useMemo(() => {
     const generated = getObligationOperationsForState({
       state,
@@ -255,6 +258,13 @@ function ObligationCard({
         {obligation.remainingDebtKopecks !== null && <div><dt>Остаток долга</dt><dd>{formatMoney(obligation.remainingDebtKopecks)}</dd></div>}
         {obligation.endDate && <div><dt>Последний платёж</dt><dd>{formatDateLabel(obligation.endDate)}</dd></div>}
       </dl>
+      {progress && (
+        <CompactProgressBar
+          valueLabel={`${formatMoney(progress.paidKopecks)} из ${formatMoney(progress.totalKopecks)}`}
+          percent={progress.progressPercent}
+          ariaLabel={`Обязательство ${obligation.title}: оплачено ${formatMoney(progress.paidKopecks)} из ${formatMoney(progress.totalKopecks)}, погашено ${Math.round(progress.progressPercent)} процентов`}
+        />
+      )}
       {obligation.note && <p>{obligation.note}</p>}
       <div className="finance-obligation-actions">
         <button type="button" onClick={onEdit}>Изменить</button>

@@ -43,6 +43,13 @@ export interface SavingsGoalSummary {
       }
 }
 
+export interface SavingsGoalMonthlyProgress {
+  monthlyPlanKopecks: number
+  paidThisMonthKopecks: number
+  remainingThisMonthKopecks: number
+  progressPercent: number
+}
+
 export function createSavingsGoal(
   draft: SavingsGoalDraft,
   nowIso = new Date().toISOString(),
@@ -176,6 +183,28 @@ export function calculateSavingsGoalSummary(
     requiredWeeklyKopecks,
     requiredMonthlyKopecks,
     forecast: buildForecast(goal, todayIsoDate, remainingKopecks),
+  }
+}
+
+export function calculateSavingsGoalMonthlyProgress(
+  goal: SavingsGoal,
+  todayIsoDate: string,
+): SavingsGoalMonthlyProgress {
+  const summary = calculateSavingsGoalSummary(goal, todayIsoDate)
+  const monthPrefix = todayIsoDate.slice(0, 7)
+  const monthlyPlanKopecks = summary.requiredMonthlyKopecks
+  const paidThisMonthKopecks = goal.contributions
+    .filter((item) => item.date.startsWith(monthPrefix) && item.date <= todayIsoDate)
+    .reduce((sum, item) => sum + item.amountKopecks, 0)
+  const progressPercent = monthlyPlanKopecks > 0
+    ? Math.min(100, Math.max(0, (paidThisMonthKopecks / monthlyPlanKopecks) * 100))
+    : 0
+
+  return {
+    monthlyPlanKopecks,
+    paidThisMonthKopecks,
+    remainingThisMonthKopecks: Math.max(monthlyPlanKopecks - paidThisMonthKopecks, 0),
+    progressPercent: Number.isFinite(progressPercent) ? progressPercent : 0,
   }
 }
 

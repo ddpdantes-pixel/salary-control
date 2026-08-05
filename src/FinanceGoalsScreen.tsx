@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FinanceDialog, FinanceDialogAction } from './FinanceDialog'
 import {
   addSavingsGoalContribution,
+  calculateSavingsGoalMonthlyProgress,
   calculateSavingsGoalSummary,
   createSavingsGoal,
   deleteSavingsGoalContribution,
@@ -162,6 +163,10 @@ function GoalCard({
   onDelete: () => void
 }) {
   const summary = useMemo(() => calculateSavingsGoalSummary(goal, todayIsoDate), [goal, todayIsoDate])
+  const monthlyProgress = useMemo(
+    () => calculateSavingsGoalMonthlyProgress(goal, todayIsoDate),
+    [goal, todayIsoDate],
+  )
   const [imageUrl, setImageUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -201,7 +206,7 @@ function GoalCard({
         </p>
         {summary.status === 'active' && (
           <div className="finance-goal-pace">
-            <div><span>В месяц</span><strong>{formatMoney(summary.requiredMonthlyKopecks)}</strong></div>
+            <div><span>В месяц</span><strong>{formatMoney(monthlyProgress.monthlyPlanKopecks)}</strong></div>
             <div><span>В неделю</span><strong>{formatMoney(summary.requiredWeeklyKopecks)}</strong></div>
             <div><span>В день</span><strong>{formatMoney(summary.requiredDailyKopecks)}</strong></div>
           </div>

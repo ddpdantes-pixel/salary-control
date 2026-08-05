@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addSavingsGoalContribution,
+  calculateSavingsGoalMonthlyProgress,
   calculateSavingsGoalSummary,
   createSavingsGoal,
   deleteSavingsGoalContribution,
@@ -81,6 +82,31 @@ describe('накопительные цели', () => {
     const summary = calculateSavingsGoalSummary(goal(), '2026-08-10')
     expect(summary.savedKopecks).toBe(10_000_00)
     expect(summary.forecast.kind).toBe('insufficient-data')
+  })
+
+  it('считает месячный план и только фактические пополнения текущего локального месяца', () => {
+    let current = goal()
+    current = addSavingsGoalContribution(current, { amountKopecks: 2_000_00, date: '2026-07-31', note: '' }, NOW, 'previous')
+    current = addSavingsGoalContribution(current, { amountKopecks: 5_000_00, date: '2026-08-02', note: '' }, NOW, 'current')
+    current = addSavingsGoalContribution(current, { amountKopecks: 50_000_00, date: '2026-08-25', note: '' }, NOW, 'future')
+
+    const progress = calculateSavingsGoalMonthlyProgress(current, '2026-08-03')
+    const summary = calculateSavingsGoalSummary(current, '2026-08-03')
+
+    expect(progress.monthlyPlanKopecks).toBe(summary.requiredMonthlyKopecks)
+    expect(progress.paidThisMonthKopecks).toBe(5_000_00)
+    expect(progress.remainingThisMonthKopecks).toBe(Math.max(summary.requiredMonthlyKopecks - 5_000_00, 0))
+    expect(progress.progressPercent).toBeGreaterThanOrEqual(0)
+    expect(progress.progressPercent).toBeLessThanOrEqual(100)
+  })
+
+  it('не создаёт NaN и ограничивает перевыполнение месячного плана', () => {
+    const completed = updateSavingsGoal(goal(), { title: 'Путешествие', targetKopecks: 100_00, targetDate: '2026-12-31', initialSavedKopecks: 120_00 })
+    const progress = calculateSavingsGoalMonthlyProgress(completed, '2026-08-03')
+
+    expect(progress.monthlyPlanKopecks).toBe(0)
+    expect(progress.progressPercent).toBe(0)
+    expect(Number.isFinite(progress.progressPercent)).toBe(true)
   })
 
   it('требует минимум два пополнения и семь дней наблюдения', () => {

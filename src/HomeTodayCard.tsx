@@ -1,5 +1,11 @@
 import type { FinanceOverviewData } from './financeOverview'
-import type { FinanceOperation } from './financeTypes'
+import { CompactProgressBar } from './CompactProgressBar'
+import {
+  calculateSavingsGoalMonthlyProgress,
+  calculateSavingsGoalSummary,
+} from './financeGoals'
+import { formatMoney } from './financeMoney'
+import type { FinanceOperation, SavingsGoal } from './financeTypes'
 import type { HealthState } from './healthTypes'
 import type { HealthSettings } from './healthSettings'
 import {
@@ -13,6 +19,7 @@ export function HomeTodayCard({
   overview,
   healthState,
   settings,
+  goals = [],
   todayIsoDate,
   title,
   onOpenFinanceOverview,
@@ -23,6 +30,7 @@ export function HomeTodayCard({
   overview: FinanceOverviewData | null
   healthState: HealthState
   settings: HealthSettings
+  goals?: SavingsGoal[]
   todayIsoDate: string
   title: string
   onOpenFinanceOverview: () => void
@@ -34,6 +42,12 @@ export function HomeTodayCard({
   const health = buildHomeHealthPreview(settings, healthState, todayIsoDate)
   const tasks = buildHomeTasksPreview(healthState, todayIsoDate)
   const finance = overview ? buildHomeFinancePreview(overview, todayIsoDate) : null
+  const activeGoals = goals.flatMap((goal) => {
+    const summary = calculateSavingsGoalSummary(goal, todayIsoDate)
+    return summary.status === 'active'
+      ? [{ goal, progress: calculateSavingsGoalMonthlyProgress(goal, todayIsoDate) }]
+      : []
+  })
 
   return (
     <section className="home-today-card" aria-label="Сегодня">
@@ -82,6 +96,22 @@ export function HomeTodayCard({
         {tasks.extraCount > 0 && <p className="home-today-more">+{tasks.extraCount} ещё по графику</p>}
         {tasks.emptyLabel && <p className="home-today-muted">{tasks.emptyLabel}</p>}
       </div>
+      {activeGoals.length > 0 && (
+        <div className="home-today-section home-goals-summary">
+          <h3>Цели</h3>
+          <div className="home-goal-progress-list">
+            {activeGoals.map(({ goal, progress }) => (
+              <CompactProgressBar
+                key={goal.id}
+                label={goal.title}
+                valueLabel={`${formatMoney(progress.paidThisMonthKopecks)} из ${formatMoney(progress.monthlyPlanKopecks)}`}
+                percent={progress.progressPercent}
+                ariaLabel={`Цель ${goal.title}: внесено ${formatMoney(progress.paidThisMonthKopecks)} из ${formatMoney(progress.monthlyPlanKopecks)}, выполнено ${Math.round(progress.progressPercent)} процентов`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   )
 }

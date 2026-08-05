@@ -15,6 +15,7 @@ describe('календарный горизонт финансового про�
   it('сдвигает дату на месяцы, сохраняя календарный день или последний день месяца', () => {
     expect(addCalendarMonths('2026-08-03', 3)).toBe('2026-11-03')
     expect(addCalendarMonths('2026-08-31', 3)).toBe('2026-11-30')
+    expect(addCalendarMonths('2026-01-31', 3)).toBe('2026-04-30')
     expect(addCalendarMonths('2026-11-30', 3)).toBe('2027-02-28')
     expect(addCalendarMonths('2023-11-30', 3)).toBe('2024-02-29')
   })

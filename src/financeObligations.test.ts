@@ -7,6 +7,7 @@ import {
 import { rublesToKopecks } from './financeMoney'
 import {
   closeObligationInState,
+  calculateObligationProgress,
   createObligationFromDraft,
   deleteObligationFromState,
   generateObligationOperations,
@@ -19,6 +20,50 @@ import type { ObligationDraft } from './financeObligations'
 const NOW = '2026-07-11T10:00:00.000Z'
 
 describe('графики и жизненный цикл обязательств', () => {
+  it('строит шкалу только для обязательств с надёжной полной суммой и подтверждёнными платежами', () => {
+    const state = createDefaultFinanceState()
+    const split = state.obligations.find((item) => item.id === 'yandex-split')!
+    const creditCard = state.obligations.find((item) => item.category === 'creditCard')!
+    const withCompletedPayment = {
+      ...split,
+      payments: split.payments.map((payment, index) => index === 0 ? { ...payment, status: 'completed' as const } : payment),
+    }
+    const progress = calculateObligationProgress(withCompletedPayment)!
+
+    expect(progress.totalKopecks).toBe(withCompletedPayment.payments.reduce((sum, payment) => sum + payment.amountKopecks!, 0))
+    expect(progress.paidKopecks).toBe(withCompletedPayment.payments[0].amountKopecks)
+    expect(progress.progressPercent).toBeGreaterThan(0)
+    expect(progress.progressPercent).toBeLessThan(100)
+    expect(calculateObligationProgress(creditCard)).toBeNull()
+  })
+
+  it('не считает будущие платежи оплаченными и ограничивает переплату ста процентами', () => {
+    const state = createDefaultFinanceState()
+    const split = state.obligations.find((item) => item.id === 'yandex-split')!
+    const future = split.payments.find((payment) => payment.status === 'planned')!
+    const withoutFuture = calculateObligationProgress(split)!
+    const overpaid = calculateObligationProgress({
+      ...state.obligations.find((item) => item.id === 'yandex-credit')!,
+      remainingDebtKopecks: -1,
+    })!
+
+    expect(withoutFuture.paidKopecks).not.toBe(future.amountKopecks)
+    expect(overpaid.paidKopecks).toBe(overpaid.totalKopecks)
+    expect(overpaid.progressPercent).toBe(100)
+  })
+
+  it('не строит шкалу для плавающего ежемесячного платежа без фиксированного долга', () => {
+    const state = createDefaultFinanceState()
+    const floating = {
+      ...state.obligations.find((item) => item.id === 'yandex-credit')!,
+      originalDebtKopecks: null,
+      remainingDebtKopecks: null,
+      endDate: null,
+    }
+
+    expect(calculateObligationProgress(floating)).toBeNull()
+  })
+
   it('создаёт постоянные ежемесячные платежи в заданном диапазоне', () => {
     const obligation = createObligationFromDraft(
       monthlyDraft(),

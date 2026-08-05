@@ -9,7 +9,6 @@ import {
 import { generateObligationOperations } from './financeObligations'
 import {
   addCalendarMonths,
-  addDays,
   addMonthsToYearMonth,
   compareIsoDates,
   getDateYearMonth,
@@ -83,7 +82,7 @@ export function buildFinanceOverview(input: {
   todayIsoDate: string
 }): FinanceOverviewData {
   const operations = buildOverviewOperations(input)
-  const forecastUntilIsoDate = getForecastEndDate(input.state, input.todayIsoDate)
+  const forecastUntilIsoDate = getForecastEndDate(input.todayIsoDate)
   const current = calculateCurrentBalance({
     anchors: input.state.anchors,
     operations,
@@ -163,7 +162,7 @@ export function buildOverviewOperations(input: {
   const latestAnchor = getLatestBalanceAnchor(input.state.anchors)
   const startDate =
     input.rangeStartDate ?? latestAnchor?.date ?? input.todayIsoDate
-  const endDate = input.rangeEndDate ?? getForecastEndDate(input.state, input.todayIsoDate)
+  const endDate = input.rangeEndDate ?? getForecastEndDate(input.todayIsoDate)
   const operationsById = new Map(
     input.state.operations.map((operation) => [operation.id, operation]),
   )
@@ -339,26 +338,8 @@ function buildCoverageSummary(
   }
 }
 
-function getForecastEndDate(state: FinanceState, todayIsoDate: string): string {
-  const anchorDate = getLatestBalanceAnchor(state.anchors)?.date ?? todayIsoDate
-  const configuredMinimumEnd = addDays(anchorDate, Math.max(60, state.settings.forecastDays))
-  const calendarMinimumEnd = addCalendarMonths(todayIsoDate, 3)
-  const minimumEnd = compareIsoDates(configuredMinimumEnd, calendarMinimumEnd) > 0
-    ? configuredMinimumEnd
-    : calendarMinimumEnd
-  const obligationDates = state.obligations
-    .filter((obligation) => obligation.status === 'active')
-    .flatMap((obligation) => [
-      obligation.endDate,
-      ...obligation.payments
-        .filter((payment) => payment.status !== 'cancelled')
-        .map((payment) => payment.date),
-    ])
-    .filter((date): date is string => date !== null)
-  const latestKnownObligation = obligationDates.sort(compareIsoDates).at(-1)
-  return latestKnownObligation && compareIsoDates(latestKnownObligation, minimumEnd) > 0
-    ? latestKnownObligation
-    : minimumEnd
+function getForecastEndDate(todayIsoDate: string): string {
+  return addCalendarMonths(todayIsoDate, 3)
 }
 
 function formatCoverageDate(isoDate: string): string {
