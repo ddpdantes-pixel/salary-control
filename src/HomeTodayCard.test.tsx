@@ -54,6 +54,9 @@ describe('компактный дашборд Главной', () => {
     expect(screen.getByRole('button', { name: 'Открыть обучение: Керамогранит — 0 из 1' })).not.toBeNull()
     expect(learning.querySelectorAll('.home-learning-progress')).toHaveLength(3)
     expect((learning.querySelector('.home-learning-progress i') as HTMLElement).style.width).toBe('33.33333333333333%')
+    expect(learning.querySelector('[data-home-icon="microphone"]')).not.toBeNull()
+    expect(learning.querySelector('[data-home-icon="wine"]')).not.toBeNull()
+    expect(learning.querySelector('[data-home-icon="tile"]')).not.toBeNull()
     expect(learning.textContent).not.toMatch(/Сегодня:|Пропущено:|следующей неделе|Осталось|Неделя закрыта|№\d/)
   })
 
@@ -117,7 +120,25 @@ describe('компактный дашборд Главной', () => {
     expect(screen.getAllByRole('img').every((progressBar) => progressBar.classList.contains('tone-blue'))).toBe(true)
     expect(screen.getByRole('img', { name: /Цель Таиланд: внесено/ }).textContent).toContain('Таиланд')
     expect(screen.getByRole('img', { name: /Цель Телефон: внесено/ }).textContent).toContain('Телефон')
+    expect(container.querySelector('.home-goals-card [data-home-icon="target"]')?.getAttribute('aria-hidden')).toBe('true')
     expect(screen.queryByText('Готовая цель')).toBeNull()
+  })
+
+  it('добавляет единые декоративные иконки, не заменяя подписи и показатели', () => {
+    const { container } = renderDashboard()
+
+    for (const icon of ['wallet', 'book', 'calendar', 'checklist', 'microphone', 'wine', 'tile', 'bottle', 'dumbbell']) {
+      expect(container.querySelector(`[data-home-icon="${icon}"]`)?.getAttribute('aria-hidden')).toBe('true')
+    }
+    expect(screen.getByRole('heading', { name: 'Финансы' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Обучение' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'По графику' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Задачи' })).not.toBeNull()
+    expect(screen.getByText('Шампунь: 0 из 3')).not.toBeNull()
+    expect(screen.getByText('Домашние тренировки: 0 из 3')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Речь и дикция — 0 из 3' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Кавист — 0 из 2' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Открыть обучение: Керамогранит — 0 из 1' })).not.toBeNull()
   })
 
   it('не показывает карточку целей, когда активных целей нет', () => {

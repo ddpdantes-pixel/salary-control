@@ -15,7 +15,10 @@ describe('мобильные сводки Главной, здоровья и д
     expect(appCss).toMatch(/\.home-today-learning\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/)
     expect(appCss).toMatch(/\.home-today-learning button\s*\{[^}]*min-width:\s*0/)
     expect(appCss).toMatch(/\.home-learning-label\s*\{[^}]*min-width:\s*0/)
-    expect(appCss).toMatch(/\.home-learning-label[\s\S]*?-webkit-line-clamp:\s*2/)
+    expect(appCss).toMatch(/\.home-learning-label-text\s*\{[^}]*-webkit-line-clamp:\s*2/)
+    expect(appCss).toMatch(/\.home-learning-label\s*\{[^}]*grid-template-columns:\s*16px\s+minmax\(0,\s*1fr\)/)
+    expect(appCss).toMatch(/\.home-icon\s*\{[^}]*flex:\s*0\s+0\s+auto/)
+    expect(appCss).toMatch(/\.home-routine-line-content\s*\{[^}]*grid-template-columns:\s*18px\s+minmax\(0,\s*1fr\)/)
     expect(appCss).toMatch(/\.home-learning-progress\s*\{[^}]*overflow:\s*hidden/)
     expect(appCss).toMatch(/@media \(max-width:\s*359px\)[\s\S]*?\.home-today-learning[\s\S]*?repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
     expect(healthCss).toMatch(/\.health-task-row\s*\{[^}]*minmax\(0,\s*1fr\)/)
@@ -31,5 +34,11 @@ describe('мобильные сводки Главной, здоровья и д
     expect(financeCss).toMatch(/\.finance-planning-summary\s*\{[^}]*min-width:\s*0/)
     expect(financeCss).toMatch(/\.finance-planning-summary b\s*\{[^}]*overflow-wrap:\s*anywhere/)
     expect(financeCss).toMatch(/\.finance-planning-summary span\s*\{[^}]*overflow-wrap:\s*anywhere/)
+  })
+
+  it('использует тематические цвета иконок без отдельной схемы для фиксированной ширины', () => {
+    expect(appCss).toMatch(/\.home-card-heading\s*\{[^}]*align-items:\s*center/)
+    expect(appCss).toMatch(/\.home-card-heading \.home-icon\s*\{[^}]*color:\s*var\(--accent\)/)
+    expect(appCss).toMatch(/\.home-goals-card \.home-card-heading \.home-icon\s*\{[^}]*color:\s*var\(--progress-blue-fill\)/)
   })
 })
