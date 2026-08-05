@@ -223,14 +223,20 @@ export function HealthScreen({
   useEffect(() => onSettingsChange?.(settings), [onSettingsChange, settings])
   useEffect(() => {
     if (learningFocusRequest === 0 || activeTab !== 'today') return
-    document.getElementById('health-learning')?.scrollIntoView({ block: 'start', behavior: 'auto' })
+    const section = document.getElementById('health-learning')
+    if (typeof section?.scrollIntoView === 'function') {
+      section.scrollIntoView({ block: 'start', behavior: 'auto' })
+    }
   }, [activeTab, learningFocusRequest])
   useEffect(() => {
     if (faceTimerFocusRequest === 0 || timerController?.timer?.kind !== 'face') return
     setActiveTab('today')
     setSelectedDate(timerController.timer.dateId)
     window.requestAnimationFrame(() => {
-      document.getElementById('health-face-cool-water')?.scrollIntoView({ block: 'start', behavior: 'auto' })
+      const procedure = document.getElementById('health-face-cool-water')
+      if (typeof procedure?.scrollIntoView === 'function') {
+        procedure.scrollIntoView({ block: 'start', behavior: 'auto' })
+      }
     })
   }, [faceTimerFocusRequest, timerController?.timer?.dateId, timerController?.timer?.kind])
   const transferAppleHealthWater = useCallback(
