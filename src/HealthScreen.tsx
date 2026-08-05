@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { getVisibleHealthView, HEALTH_TABS } from './appNavigation'
 import type { HealthView, VisibleHealthView } from './appNavigation'
 import { HealthAttachmentsSection } from './HealthAttachmentsSection'
+import { HealthIcon, type HealthIconName } from './HealthIcon'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
 import {
@@ -29,7 +30,7 @@ import {
 import { createHealthHistoryNavigationState } from './healthHistory'
 import type { HealthHistoryNavigationState } from './healthHistory'
 import type { HealthAttachment } from './healthAttachments'
-import { GYM_TIMER_STAGES, getTimerDisplayRemaining, getTimerTotalRemaining, getTimerTitle } from './healthTimer'
+import { getTimerDisplayRemaining, getTimerTitle } from './healthTimer'
 import type { HealthTimerController } from './useHealthTimer'
 import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
 import { shareHealthReport } from './healthShare'
@@ -138,6 +139,12 @@ const ALCOHOL_REASONS: Array<{ id: AlcoholReason; label: string }> = [
   { id: 'other', label: 'Другое' },
 ]
 
+const HEALTH_TAB_ICONS: Record<VisibleHealthView, HealthIconName> = {
+  today: 'calendar',
+  history: 'history',
+  settings: 'settings',
+}
+
 function formatMinutes(minutes: number): string {
   const lastTwo = minutes % 100
   const last = minutes % 10
@@ -170,8 +177,8 @@ export function HealthScreen({
   initialTab = 'today',
   onSettingsDirtyChange,
   learningFocusRequest = 0,
+  faceTimerFocusRequest = 0,
   timerController,
-  timerOpenRequest = 0,
   onStateChange,
   onSettingsChange,
   openAppleHealthShortcut = (url) => window.location.assign(url),
@@ -179,8 +186,8 @@ export function HealthScreen({
   initialTab?: HealthView
   onSettingsDirtyChange?: (dirty: boolean) => void
   learningFocusRequest?: number
+  faceTimerFocusRequest?: number
   timerController?: HealthTimerController
-  timerOpenRequest?: number
   onStateChange?: (state: HealthState) => void
   onSettingsChange?: (settings: HealthSettings) => void
   openAppleHealthShortcut?: (url: string) => void
@@ -199,7 +206,6 @@ export function HealthScreen({
     createHealthHistoryNavigationState,
   )
   const [canReturnToHistory, setCanReturnToHistory] = useState(false)
-  const [timerScreen, setTimerScreen] = useState(false)
   const [appleHealthImportNotice, setAppleHealthImportNotice] =
     useState<AppleHealthImportNotice>(null)
   const [pendingAppleHealthTransfer, setPendingAppleHealthTransfer] =
@@ -220,9 +226,13 @@ export function HealthScreen({
     document.getElementById('health-learning')?.scrollIntoView({ block: 'start', behavior: 'auto' })
   }, [activeTab, learningFocusRequest])
   useEffect(() => {
-    if (timerOpenRequest > 0) setTimerScreen(true)
-  }, [timerOpenRequest])
-
+    if (faceTimerFocusRequest === 0 || timerController?.timer?.kind !== 'face') return
+    setActiveTab('today')
+    setSelectedDate(timerController.timer.dateId)
+    window.requestAnimationFrame(() => {
+      document.getElementById('health-face-cool-water')?.scrollIntoView({ block: 'start', behavior: 'auto' })
+    })
+  }, [faceTimerFocusRequest, timerController?.timer?.dateId, timerController?.timer?.kind])
   const transferAppleHealthWater = useCallback(
     async (payload: AppleHealthWaterSyncPayload) => {
       setPendingAppleHealthTransfer(payload)
@@ -533,8 +543,7 @@ export function HealthScreen({
 
   return (
     <section className="health-screen">
-      {timerScreen && timerController ? <HealthTimers timer={timerController} onBack={() => setTimerScreen(false)} /> : <>
-      <HealthTabs activeTab={activeTab} onChange={changeHealthTab} onOpenTimers={() => setTimerScreen(true)} />
+      <HealthTabs activeTab={activeTab} onChange={changeHealthTab} />
 
       {appleHealthImportNotice && (
         <div className={`health-import-notice ${appleHealthImportNotice.kind}`} role="status">
@@ -568,7 +577,7 @@ export function HealthScreen({
           onActivateDebt={activateDebt}
           onSkipDebt={skipDebt}
           onCompleteTaskDebt={completeTaskDebt}
-          onOpenTimers={() => setTimerScreen(true)}
+          timerController={timerController}
           onRequestAppleHealthSync={requestAppleHealthRefresh}
           onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
         />
@@ -597,7 +606,7 @@ export function HealthScreen({
           onSave={saveSettings}
           onDirtyChange={setSettingsDirty}
         />
-      )}</>}
+      )}
 
       {pendingHealthTab && (
         <div className="dialog-backdrop" role="presentation">
@@ -621,15 +630,11 @@ export function HealthScreen({
 function HealthTabs({
   activeTab,
   onChange,
-  onOpenTimers,
 }: {
   activeTab: VisibleHealthView
   onChange: (tab: HealthView) => void
-  onOpenTimers: () => void
 }) {
   return (
-    <>
-    <div className="health-screen-heading"><strong>Здоровье</strong><button type="button" onClick={onOpenTimers}>Таймеры</button></div>
     <div className="section-tabs section-tabs-3" role="tablist" aria-label="Раздел здоровья">
       {HEALTH_TABS.map((tab) => (
         <button
@@ -640,10 +645,11 @@ function HealthTabs({
           className={tab.id === activeTab ? 'active' : ''}
           onClick={() => onChange(tab.id)}
         >
+          <HealthIcon name={HEALTH_TAB_ICONS[tab.id]} />
           {tab.label}
         </button>
       ))}
-    </div></>
+    </div>
   )
 }
 
@@ -663,7 +669,7 @@ function HealthToday({
   onActivateDebt,
   onSkipDebt,
   onCompleteTaskDebt,
-  onOpenTimers,
+  timerController,
   onRequestAppleHealthSync,
   onBackToHistory,
 }: {
@@ -682,7 +688,7 @@ function HealthToday({
   onActivateDebt: (debtId: string) => void
   onSkipDebt: (debtId: string) => void
   onCompleteTaskDebt: (debtId: string) => void
-  onOpenTimers: () => void
+  timerController?: HealthTimerController
   onRequestAppleHealthSync: () => void
   onBackToHistory?: () => void
 }) {
@@ -783,7 +789,7 @@ function HealthToday({
               : 'Сохранено'}
         </span>
         <label>
-          Выбрать дату
+          <span className="health-date-label"><HealthIcon name="calendar" />Выбрать дату</span>
           <input
             type="date"
             value={selectedDate}
@@ -795,7 +801,7 @@ function HealthToday({
       {storageIssue && <p className="health-storage-issue">{storageIssue}</p>}
 
       <div className="health-water-coffee" aria-label="Вода и кофе">
-        <HealthBlock title={appleHealthWaterActive
+        <HealthBlock icon="droplet" title={appleHealthWaterActive
           ? `Вода — ${formatWaterMl(waterMl)} из ${formatWaterMl(waterGoalMl)} мл`
           : `Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
           {appleHealthWaterActive ? (
@@ -851,14 +857,14 @@ function HealthToday({
             </>
           )}
         </HealthBlock>
-        <HealthBlock title="Кофе">
+        <HealthBlock icon="coffee" title="Кофе">
           <NumberChoices values={coffeeValues} selected={entry.coffeeCups} label="Количество кружек кофе" onSelect={(coffeeCups) => onChange((current) => ({ ...current, coffeeCups }))} />
           <p className="health-muted">Цель — не больше {settings.coffee.maxPerDay}</p>
           {isCoffeeOverGoal(entry.coffeeCups, settings.coffee.maxPerDay) && <p className="health-amber-note">Сегодня кофе больше выбранной цели</p>}
         </HealthBlock>
       </div>
 
-      <HealthBlock title="Быстрые пункты">
+      <HealthBlock icon="checklist" title="Быстрые пункты">
         <div className="health-toggle-list">
           {(settings.quickItems.psyllium || entry.psyllium) && <ToggleButton
             label="Псиллиум"
@@ -890,7 +896,7 @@ function HealthToday({
         </div>
       </HealthBlock>
 
-      <HealthBlock title="Тренировки">
+      <HealthBlock icon="dumbbell" title="Тренировки">
         <div className="workout-list">
           {visibleWorkouts.map((workout) => {
             const selected = entry.selectedWorkouts.some(
@@ -933,7 +939,7 @@ function HealthToday({
         onAttachmentsChange={handleAttachmentsChange}
       />
 
-      <HealthBlock title={`Расслабление — ${formatMinutes(getRelaxationMinutes(settings))}`}>
+      <HealthBlock icon="wind" title={`Расслабление — ${formatMinutes(getRelaxationMinutes(settings))}`}>
         <div className="health-toggle-list">
           {visibleRelaxation.map((item) => (
             <ToggleButton
@@ -959,7 +965,7 @@ function HealthToday({
         </button>
       </HealthBlock>
 
-      <HealthBlock title="Симптомы">
+      <HealthBlock icon="pulse" title="Симптомы">
         <ScaleField
           title="Распирание"
           values={SCALE_0_TO_5}
@@ -975,7 +981,7 @@ function HealthToday({
         />
       </HealthBlock>
 
-      <HealthBlock title="Бристольская шкала">
+      <HealthBlock icon="chart" title="Бристольская шкала">
         <div className="bristol-grid" role="group" aria-label="Тип по Бристольской шкале">
           {BRISTOL_TYPES.map((type) => (
             <button
@@ -998,7 +1004,7 @@ function HealthToday({
         <p className="health-muted">Информационный ориентир, а не диагноз</p>
       </HealthBlock>
 
-      <HealthBlock title="Волосы">
+      <HealthBlock icon="bottle" title="Волосы">
         <div className="hair-schedule">
           <ToggleButton
             label="Шампунь"
@@ -1046,7 +1052,7 @@ function HealthToday({
         )}
       </HealthBlock>
 
-      <HealthBlock title="Алкоголь">
+      <HealthBlock icon="wine" title="Алкоголь">
         <p className="health-muted">Не больше {settings.alcoholMaxEvenings} {settings.alcoholMaxEvenings === 1 ? 'вечера' : 'вечеров'} из 7</p>
         <div className="health-chip-grid alcohol-choices" role="group" aria-label="Что пил">
           {ALCOHOL_CHOICES.map((choice) => (
@@ -1232,7 +1238,7 @@ function HealthToday({
         )}
       </HealthBlock>
 
-      <HealthBlock title="Обучение" id="health-learning">
+      <HealthBlock icon="book" title="Обучение" id="health-learning">
         <div className="health-learning-list">
           <LearningDirectionField
             title="Речь и дикция"
@@ -1267,7 +1273,7 @@ function HealthToday({
         </div>
       </HealthBlock>
 
-      <HealthBlock title="Задачи" className="health-tasks-block">
+      <HealthBlock icon="clipboard" title="Задачи" className="health-tasks-block">
         {selectedDate === getLocalDateId() && overdueTasks.length > 0 && (
           <div className="health-task-list" aria-label="Просроченные задачи">
             {overdueTasks.map((debt) => (
@@ -1301,7 +1307,7 @@ function HealthToday({
         {overdueTasks.length === 0 && scheduledTasks.length === 0 && <p className="health-muted">На этот день регулярных задач нет</p>}
       </HealthBlock>
 
-      <HealthBlock title="Косметология">
+      <HealthBlock icon="sparkles" title="Косметология">
         {selectedDate === getLocalDateId() && overdueDebts.length > 0 && (
           <section className="health-cosmetology-overdue" aria-label="Не выполнено">
             <h3>Не выполнено</h3>
@@ -1323,14 +1329,16 @@ function HealthToday({
           <div className="health-cosmetology-list">
             {cosmeticProcedures.map((procedure) => {
               const checked = entry.cosmetology[procedure.id] === true
-              return <label className="health-cosmetology-row" key={procedure.id}>
-                <input type="checkbox" checked={checked} onChange={() => {
-                  onChange((current) => toggleCosmetologyCompletion(current, procedure.id))
-                  onIntervalCompletion(procedure.id, !checked)
-                }} />
-                <span><strong>{procedure.durationLabel ? `${procedure.title} — ${procedure.durationLabel}` : procedure.title}</strong></span>
-                {procedure.id === FACE_COOL_WATER_PROCEDURE_ID && <button type="button" onClick={(event) => { event.preventDefault(); onOpenTimers() }}>Запустить таймер</button>}
-              </label>
+              return <div className="health-cosmetology-procedure" key={procedure.id}>
+                <label className="health-cosmetology-row">
+                  <input type="checkbox" checked={checked} onChange={() => {
+                    onChange((current) => toggleCosmetologyCompletion(current, procedure.id))
+                    onIntervalCompletion(procedure.id, !checked)
+                  }} />
+                  <span><strong>{procedure.durationLabel ? `${procedure.title} — ${procedure.durationLabel}` : procedure.title}</strong></span>
+                </label>
+                {procedure.id === FACE_COOL_WATER_PROCEDURE_ID && timerController && <FaceCoolWaterTimer timer={timerController} />}
+              </div>
             })}
           </div>
         )}
@@ -1418,49 +1426,19 @@ function HealthChecklistDownload({ file }: { file: File }) {
   )
 }
 
-function HealthTimers({ timer, onBack }: { timer: HealthTimerController; onBack: () => void }) {
+function FaceCoolWaterTimer({ timer }: { timer: HealthTimerController }) {
   const [stopConfirmation, setStopConfirmation] = useState(false)
-  const active = timer.timer
-  const faceTimer = active?.kind === 'face' ? active : null
-  const gymTimer = active?.kind === 'gym' ? active : null
+  const active = timer.timer?.kind === 'face' ? timer.timer : null
+  const faceTimer = active
   const faceStep = faceTimer?.completedStages ?? 0
-  const gymStage = gymTimer?.stageIndex ?? 0
-  const currentGymStage = GYM_TIMER_STAGES[gymStage]
-  const gymProgress = gymTimer ? 840 - getTimerTotalRemaining(gymTimer, timer.now) : 0
-
-  return <div className="health-timers">
-    <div className="health-screen-heading"><strong>Таймеры</strong><button type="button" onClick={onBack}>Назад</button></div>
-    <div className="health-timer-settings" aria-label="Настройки сигналов таймера">
-      <button type="button" onClick={() => void timer.testSound()}>Проверить звук</button>
-      <label><input type="checkbox" checked={timer.preferences.soundEnabled} onChange={(event) => timer.setPreference('soundEnabled', event.currentTarget.checked)} /> Звуковые сигналы</label>
-      <label><input type="checkbox" checked={timer.preferences.vibrationEnabled} onChange={(event) => timer.setPreference('vibrationEnabled', event.currentTarget.checked)} /> Вибрация</label>
-    </div>
-    {!timer.audioReady && <p className="health-timer-audio-hint">Нажмите «Проверить звук», чтобы iPhone разрешил звуковые сигналы таймера.</p>}
+  return <div id="health-face-cool-water" className={`health-inline-timer ${faceTimer ? 'is-active' : ''}`}>
+    <div className="health-inline-timer-heading"><HealthIcon name="timer" /><span>Таймер холодной воды</span></div>
+    <strong>Подход {faceTimer?.status === 'completed' ? 3 : Math.min(faceStep + 1, 3)} из 3</strong>
+    {faceTimer?.status === 'running' && <output className="health-timer-remaining">{formatTimer(getTimerDisplayRemaining(faceTimer, timer.now))}</output>}
+    {faceTimer?.status === 'completed' ? <><p>Все 3 подхода завершены</p><button type="button" onClick={() => timer.restart('face')}>Начать заново</button></> : faceTimer?.status === 'paused' ? <div className="health-timer-actions"><button type="button" onClick={timer.nextFaceApproach}>Следующий подход</button><button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button></div> : faceTimer?.status === 'running' ? <button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button> : <button type="button" onClick={() => timer.requestStart('face')}>Начать 20 секунд</button>}
     {timer.notice && <div className="health-timer-notice" role="status"><span>{timer.notice}</span><button type="button" aria-label="Закрыть сообщение таймера" onClick={timer.dismissNotice}>Закрыть</button></div>}
     {timer.audioWarning && <div className="health-timer-audio-warning" role="alert"><span>{timer.audioWarning}</span><button type="button" aria-label="Закрыть предупреждение о звуке" onClick={timer.dismissAudioWarning}>Закрыть</button></div>}
-
-    <section className={`health-timer-card ${faceTimer ? 'is-active' : ''}`}>
-      <h2>Лицо — 20 секунд × 3</h2>
-      <p>Лицо в холодную воду</p>
-      <strong>Подход {faceTimer?.status === 'completed' ? 3 : Math.min(faceStep + 1, 3)} из 3</strong>
-      {faceTimer?.status === 'running' && <output className="health-timer-remaining">{formatTimer(getTimerDisplayRemaining(faceTimer, timer.now))}</output>}
-      {faceTimer?.status === 'completed' ? <><p>Все 3 подхода завершены</p><button type="button" onClick={() => timer.restart('face')}>Начать заново</button></> : faceTimer?.status === 'paused' ? <div className="health-timer-actions"><button type="button" onClick={timer.nextFaceApproach}>Следующий подход</button><button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button></div> : faceTimer?.status === 'running' ? <button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button> : <button type="button" onClick={() => timer.requestStart('face')}>Начать 20 секунд</button>}
-    </section>
-
-    <section className={`health-timer-card ${gymTimer ? 'is-active' : ''}`}>
-      <h2>Вечерняя гимнастика — 14 минут</h2>
-      {gymTimer?.status === 'completed' ? <><strong>Вечерняя гимнастика завершена</strong><p>Завершено: {new Date(gymTimer.completedAt ?? timer.now).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p><button type="button" onClick={() => timer.restart('gym')}>Запустить снова</button></> : <>
-        <strong>{currentGymStage.title}</strong>
-        <p>Этап {gymStage + 1} из 5 · общий прогресс {formatTimer(gymProgress)} из 14:00</p>
-        {gymTimer && <><output className="health-timer-remaining">{formatTimer(getTimerDisplayRemaining(gymTimer, timer.now))}</output><p>Следующий этап: {GYM_TIMER_STAGES[gymStage + 1]?.title ?? 'завершение комплекса'}</p></>}
-        <div className="health-timer-actions">
-          {gymTimer?.status === 'running' ? <button type="button" onClick={timer.pause}>Пауза</button> : gymTimer?.status === 'paused' ? <button type="button" onClick={timer.resume}>Продолжить</button> : <button type="button" onClick={() => timer.requestStart('gym')}>Запустить</button>}
-          {gymTimer && <button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button>}
-        </div>
-      </>}
-    </section>
-
-    {timer.pendingStart && active && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="timer-start-title"><h2 id="timer-start-title">Сейчас уже работает таймер «{getTimerTitle(active.kind)}». Остановить его и запустить новый?</h2><div className="dialog-actions"><button type="button" className="primary-action" onClick={timer.confirmStart}>Остановить и запустить</button><button type="button" onClick={timer.cancelStart}>Отмена</button></div></section></div>}
+    {timer.pendingStart && timer.timer && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="timer-start-title"><h2 id="timer-start-title">Сейчас уже работает таймер «{getTimerTitle(timer.timer.kind)}». Остановить его и запустить новый?</h2><div className="dialog-actions"><button type="button" className="primary-action" onClick={timer.confirmStart}>Остановить и запустить</button><button type="button" onClick={timer.cancelStart}>Отмена</button></div></section></div>}
     {stopConfirmation && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="timer-stop-title"><h2 id="timer-stop-title">Остановить таймер? Текущий прогресс будет сброшен</h2><div className="dialog-actions"><button type="button" className="primary-action" onClick={() => { timer.stop(); setStopConfirmation(false) }}>Остановить</button><button type="button" onClick={() => setStopConfirmation(false)}>Отмена</button></div></section></div>}
   </div>
 }
@@ -1490,18 +1468,20 @@ function formatCosmetologyPlanDate(dateId: string): string {
 
 function HealthBlock({
   title,
+  icon,
   id,
   className,
   children,
 }: {
   title: string
+  icon?: HealthIconName
   id?: string
   className?: string
   children: ReactNode
 }) {
   return (
     <section id={id} className={`health-block${className ? ` ${className}` : ''}`}>
-      <h2>{title}</h2>
+      <h2 className="health-section-title">{icon && <HealthIcon name={icon} />}<span>{title}</span></h2>
       {children}
     </section>
   )

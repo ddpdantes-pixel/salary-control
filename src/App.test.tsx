@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -663,35 +663,33 @@ describe('оболочка приложения', () => {
     expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"waterCups":6')
   })
 
-  it('оставляет активный таймер видимым между разделами и открывает его по плавающей строке', async () => {
+  it('оставляет активный таймер холодной воды видимым между разделами и возвращает к здоровью', async () => {
     const user = userEvent.setup()
     await renderApp()
     await user.click(screen.getByRole('button', { name: 'Здоровье' }))
-    await user.click(screen.getByRole('button', { name: 'Таймеры' }))
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-07-21' } })
+    expect(screen.queryByRole('button', { name: 'Таймеры' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Начать 20 секунд' }))
 
     expect(window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)).toContain('"kind":"face"')
     expect(screen.getByRole('button', { name: 'Остановить' })).not.toBeNull()
     await user.click(screen.getByRole('button', { name: 'Главное' }))
-    const banner = screen.getByRole('button', { name: 'Открыть таймер: Лицо в холодную воду' })
+    const banner = screen.getByRole('button', { name: 'Открыть таймер процедуры: Лицо в холодную воду' })
     expect(banner.textContent).toContain('Лицо в холодную воду')
 
     await user.click(banner)
-    expect(screen.getByText('Таймеры')).not.toBeNull()
+    expect(screen.queryByText('Таймеры')).toBeNull()
+    expect(screen.getByText('Таймер холодной воды')).not.toBeNull()
     expect(screen.getByText('Подход 1 из 3')).not.toBeNull()
   })
 
-  it('запрашивает подтверждение перед заменой активного таймера', async () => {
-    const user = userEvent.setup()
+  it('не показывает отдельный таймер и не даёт запустить вечернюю гимнастику', async () => {
     await renderApp()
-    await user.click(screen.getByRole('button', { name: 'Здоровье' }))
-    await user.click(screen.getByRole('button', { name: 'Таймеры' }))
-    await user.click(screen.getByRole('button', { name: 'Начать 20 секунд' }))
-    await user.click(screen.getByRole('button', { name: 'Запустить' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Здоровье' }))
 
-    expect(screen.getByText('Сейчас уже работает таймер «Лицо в холодную воду». Остановить его и запустить новый?')).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Остановить и запустить' })).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Отмена' })).not.toBeNull()
+    expect(screen.queryByText(/Вечерняя гимнастика|Вечерняя растяжка/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Запустить' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Таймеры' })).toBeNull()
   })
 })
 

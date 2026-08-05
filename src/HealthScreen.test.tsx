@@ -11,6 +11,7 @@ import { createEmptyHealthState, createHealthEntry, getLocalDateId } from './hea
 import { HEALTH_STATE_KEY } from './healthStorage'
 import { HEALTH_SETTINGS_KEY, createDefaultHealthSettings } from './healthSettings'
 import { HEALTH_TIMER_COMPLETION_EVENT } from './healthTimerCompletion'
+import { useHealthTimer } from './useHealthTimer'
 
 vi.mock('./healthChecklistImage', () => ({
   createHealthChecklistImage: (entry: { date: string }) =>
@@ -642,6 +643,36 @@ describe('экран здоровья сегодня', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Не выполнено' })).toBeNull())
   })
 
+  it('оформляет Сегодня карточками с декоративными иконками, не меняя текстовые названия', () => {
+    const { container } = render(<HealthScreen />)
+
+    for (const icon of ['calendar', 'history', 'settings', 'droplet', 'coffee', 'checklist', 'dumbbell', 'image']) {
+      expect(container.querySelector(`[data-health-icon="${icon}"]`)?.getAttribute('aria-hidden')).toBe('true')
+    }
+    expect(container.querySelectorAll('.health-date-panel, .health-block, .health-attachments-block').length).toBeGreaterThan(4)
+    expect(screen.getByRole('tab', { name: 'Сегодня' })).not.toBeNull()
+    expect(screen.getByRole('tab', { name: 'История' })).not.toBeNull()
+    expect(screen.getByRole('tab', { name: 'Настройки' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Кофе' })).not.toBeNull()
+    expect(screen.queryByText('Здоровье')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Таймеры' })).toBeNull()
+  })
+
+  it('сохраняет встроенный таймер холодной воды без отдельного экрана', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreenWithTimer />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-07-21' } })
+
+    expect(screen.getByText('Таймер холодной воды')).not.toBeNull()
+    expect(screen.queryByText(/Вечерняя гимнастика|Вечерняя растяжка/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Начать 20 секунд' }))
+
+    expect(window.localStorage.getItem('moi-ritm.active-timer.v1')).toContain('"kind":"face"')
+    expect(screen.getByRole('button', { name: 'Остановить' })).not.toBeNull()
+    expect(screen.queryByText('Таймеры')).toBeNull()
+  })
+
   it('показывает просроченную регулярную задачу отдельно и закрывает её одной галочкой', async () => {
     const user = userEvent.setup()
     const today = getLocalDateId()
@@ -685,7 +716,7 @@ describe('экран здоровья сегодня', () => {
 
     await user.click(globalTile)
 
-    expect(screen.getByText('Здоровье')).not.toBeNull()
+    expect(screen.getByRole('tablist', { name: 'Раздел здоровья' })).not.toBeNull()
     expect((globalTile as HTMLInputElement).checked).toBe(true)
     expect((within(tasks).getByRole('checkbox', { name: /робота-пылесоса/ }) as HTMLInputElement).checked).toBe(false)
     await waitFor(() => {
@@ -907,3 +938,8 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByRole('button', { name: 'Сохранить настройки' })).not.toBeNull()
   })
 })
+
+function HealthScreenWithTimer() {
+  const timerController = useHealthTimer()
+  return <HealthScreen timerController={timerController} />
+}

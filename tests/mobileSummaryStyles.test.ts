@@ -41,4 +41,14 @@ describe('мобильные сводки Главной, здоровья и д
     expect(appCss).toMatch(/\.home-card-heading \.home-icon\s*\{[^}]*color:\s*var\(--accent\)/)
     expect(appCss).toMatch(/\.home-goals-card \.home-card-heading \.home-icon\s*\{[^}]*color:\s*var\(--progress-blue-fill\)/)
   })
+
+  it('сохраняет карточную иконографику здоровья и читаемую раскладку на телефоне', () => {
+    expect(healthCss).toMatch(/\.health-icon\s*\{[^}]*flex:\s*0\s+0\s+auto/)
+    expect(healthCss).toMatch(/\.health-section-title\s*\{[^}]*align-items:\s*center/)
+    expect(healthCss).toMatch(/\.health-date-label\s*\{[^}]*align-items:\s*center/)
+    expect(healthCss).toMatch(/\.health-screen \.section-tabs button\s*\{[^}]*display:\s*inline-flex/)
+    expect(healthCss).toMatch(/\.health-inline-timer\s*\{[^}]*min-width:\s*0/)
+    expect(healthCss).toMatch(/@media \(max-width:\s*340px\)[\s\S]*?\.health-water-coffee\s*\{[^}]*grid-template-columns:\s*1fr/)
+    expect(healthCss).toMatch(/\.health-screen\s*\{[^}]*safe-area-inset-bottom/)
+  })
 })

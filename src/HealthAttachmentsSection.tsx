@@ -12,6 +12,7 @@ import {
   listHealthAttachments,
   saveHealthAttachment,
 } from './healthAttachmentStorage'
+import { HealthIcon } from './HealthIcon'
 import './HealthAttachmentsSection.css'
 
 const IMAGE_ACCEPT = 'image/png,image/jpeg,image/heic,image/heif,.png,.jpg,.jpeg,.heic,.heif'
@@ -142,7 +143,7 @@ export function HealthAttachmentsSection({
     <section className="health-attachments-block">
       <div className="health-attachments-heading">
         <div>
-          <h2>Скриншоты тренировки и пульса</h2>
+          <h2 className="health-section-title"><HealthIcon name="image" /><span>Скриншоты тренировки и пульса</span></h2>
           <p>
             Можно добавить до 4 изображений. После успешной подготовки они автоматически удалятся
           </p>

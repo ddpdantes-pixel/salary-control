@@ -177,6 +177,12 @@ button:active {
   overflow-wrap: anywhere;
 }
 
+.active-timer-banner .health-icon {
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+}
+
 .active-timer-banner span:last-child {
   margin-left: auto;
   flex: 0 0 auto;

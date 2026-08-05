@@ -118,6 +118,7 @@ import {
 } from './financeGoalImages'
 import { clearRetiredPlansStorage } from './retiredPlansCleanup'
 import { getTimerTitle, getTimerTotalRemaining } from './healthTimer'
+import { HealthIcon } from './HealthIcon'
 import { useHealthTimer } from './useHealthTimer'
 import {
   APPLE_HEALTH_SHORTCUT_REFRESH_EVENT,
@@ -205,9 +206,9 @@ function App() {
   )
   const [healthSettingsDirty, setHealthSettingsDirty] = useState(false)
   const [learningFocusRequest, setLearningFocusRequest] = useState(0)
+  const [faceTimerFocusRequest, setFaceTimerFocusRequest] = useState(0)
   const [pendingAppTab, setPendingAppTab] = useState<TabId | null>(null)
   const [passwordVaultOpen, setPasswordVaultOpen] = useState(false)
-  const [timerOpenRequest, setTimerOpenRequest] = useState(0)
   const healthTimer = useHealthTimer()
   const healthStateRef = useRef(healthState)
   const appleHealthSyncAbortRef = useRef<AbortController | null>(null)
@@ -1051,10 +1052,10 @@ function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
-  function openHealthTimers(): void {
+  function openActiveFaceTimer(): void {
     setPasswordVaultOpen(false)
     setActiveTab('health')
-    setTimerOpenRequest((current) => current + 1)
+    setFaceTimerFocusRequest((current) => current + 1)
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
@@ -1125,14 +1126,14 @@ function App() {
           onDismiss={() => setPwaMessage(null)}
         />
       )}
-      {healthTimer.timer && healthTimer.timer.status !== 'completed' && (
+      {healthTimer.timer?.kind === 'face' && healthTimer.timer.status !== 'completed' && (
         <button
           type="button"
           className="active-timer-banner"
-          onClick={openHealthTimers}
-          aria-label={`Открыть таймер: ${getTimerTitle(healthTimer.timer.kind)}`}
+          onClick={openActiveFaceTimer}
+          aria-label={`Открыть таймер процедуры: ${getTimerTitle(healthTimer.timer.kind)}`}
         >
-          <span aria-hidden="true">⏱</span>
+          <HealthIcon name="timer" />
           <strong>{getTimerTitle(healthTimer.timer.kind)}</strong>
           <span>{formatActiveTimer(getTimerTotalRemaining(healthTimer.timer, healthTimer.now))}</span>
         </button>
@@ -1255,8 +1256,8 @@ function App() {
         <HealthScreen
           onSettingsDirtyChange={setHealthSettingsDirty}
           learningFocusRequest={learningFocusRequest}
+          faceTimerFocusRequest={faceTimerFocusRequest}
           timerController={healthTimer}
-          timerOpenRequest={timerOpenRequest}
           onStateChange={setHealthState}
           onSettingsChange={setHealthSettings}
         />

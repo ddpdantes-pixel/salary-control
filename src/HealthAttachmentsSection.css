@@ -1,6 +1,7 @@
 .health-attachments-block {
   display: grid;
   gap: 12px;
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   padding: 16px;
   background: var(--surface);
