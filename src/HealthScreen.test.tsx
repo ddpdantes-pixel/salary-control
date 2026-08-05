@@ -188,46 +188,20 @@ describe('экран здоровья сегодня', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('называет действие обновлением и открывает настройки, если прямая синхронизация не завершена', async () => {
+  it('не показывает запуск Apple Health в карточке воды, сохраняя настройки интеграции', async () => {
     const user = userEvent.setup()
-    render(<HealthScreen />)
+    const { container } = render(<HealthScreen />)
 
     expect(screen.queryByRole('button', { name: 'Проверить Apple Health' })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Обновить из Apple Health' }))
+    expect(screen.queryByRole('button', { name: 'Обновить из Apple Health' })).toBeNull()
+    const waterCard = screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' }).closest('.health-block')
+    expect(waterCard?.querySelector('.number-choices')).not.toBeNull()
+    expect(waterCard?.querySelector('.health-water-manual')).toBeNull()
+    expect(container.querySelector('.health-water-coffee')?.textContent).not.toContain('Обновить из Apple Health')
+    await user.click(screen.getByRole('tab', { name: 'Настройки' }))
 
-    expect(screen.getByRole('heading', { name: 'Настройки здоровья' })).not.toBeNull()
-    expect(screen.getByText('Сначала завершите настройку Быстрой команды')).not.toBeNull()
-  })
-
-  it('запускает настроенную Быструю команду без token в URL и не сообщает ранний успех', async () => {
-    const user = userEvent.setup()
-    const settings = createDefaultHealthSettings()
-    const token = 'Q'.repeat(43)
-    settings.appleHealth = {
-      syncToken: token,
-      shortcutName: 'Вода & Ритм',
-      directSyncConfigured: true,
-    }
-    window.localStorage.setItem(HEALTH_SETTINGS_KEY, JSON.stringify(settings))
-    let refreshRegistered = false
-    window.addEventListener('moi-ritm:apple-health-shortcut-refresh', () => {
-      refreshRegistered = true
-    }, { once: true })
-    const openAppleHealthShortcut = vi.fn<(url: string) => void>(() => {
-      expect(refreshRegistered).toBe(true)
-    })
-    render(<HealthScreen openAppleHealthShortcut={openAppleHealthShortcut} />)
-
-    await user.click(screen.getByRole('button', { name: 'Обновить из Apple Health' }))
-
-    expect(openAppleHealthShortcut).toHaveBeenCalledOnce()
-    const shortcutUrl = openAppleHealthShortcut.mock.calls[0][0]
-    expect(shortcutUrl).toBe(
-      'shortcuts://run-shortcut?name=%D0%92%D0%BE%D0%B4%D0%B0%20%26%20%D0%A0%D0%B8%D1%82%D0%BC',
-    )
-    expect(shortcutUrl).not.toContain(token)
-    expect(screen.getByText('Запускаю Apple Health…')).not.toBeNull()
-    expect(screen.queryByText(/Вода обновлена:/)).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Apple Health — вода' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Прямая синхронизация' })).not.toBeNull()
   })
 
   it('показывает спокойную подсказку после второй кружки кофе', async () => {

@@ -36,15 +36,12 @@ import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
 import { shareHealthReport } from './healthShare'
 import type { HealthShareResult } from './healthShare'
 import {
-  APPLE_HEALTH_SHORTCUT_REFRESH_EVENT,
   APPLE_HEALTH_WATER_SYNC_EVENT,
   APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
   applyAppleHealthWaterImport,
   clearAppleHealthWaterFragment,
-  getAppleHealthShortcutRunUrl,
   getHealthEntryWaterMl,
   getWaterGoalMl,
-  isAppleHealthDirectSyncConfigured,
   isWaterGoalMet,
   parseAppleHealthWaterFragment,
   sendAppleHealthWaterToWorker,
@@ -181,7 +178,6 @@ export function HealthScreen({
   timerController,
   onStateChange,
   onSettingsChange,
-  openAppleHealthShortcut = (url) => window.location.assign(url),
 }: {
   initialTab?: HealthView
   onSettingsDirtyChange?: (dirty: boolean) => void
@@ -190,7 +186,6 @@ export function HealthScreen({
   timerController?: HealthTimerController
   onStateChange?: (state: HealthState) => void
   onSettingsChange?: (settings: HealthSettings) => void
-  openAppleHealthShortcut?: (url: string) => void
 } = {}) {
   const [loaded] = useState(loadStoredHealthState)
   const [state, setState] = useState(loaded.state)
@@ -491,49 +486,6 @@ export function HealthScreen({
     return true
   }
 
-  function requestAppleHealthRefresh(): void {
-    if (!isAppleHealthDirectSyncConfigured(settings)) {
-      setActiveTab('settings')
-      setAppleHealthImportNotice({
-        kind: 'warning',
-        message: 'Сначала завершите настройку Быстрой команды',
-      })
-      return
-    }
-
-    setAppleHealthSyncStatus('launching')
-    setAppleHealthImportNotice({
-      kind: 'warning',
-      message: 'Запускаю Apple Health…',
-    })
-    try {
-      const todayEntry = state.entries[getLocalDateId()]
-      const baseline = todayEntry?.waterManualMode
-        ? {
-            waterMl: todayEntry.appleHealthAvailableMl ?? null,
-            updatedAt: todayEntry.appleHealthAvailableAt ?? null,
-            startedAt: new Date().toISOString(),
-          }
-        : {
-            waterMl: todayEntry?.waterMl ?? null,
-            updatedAt: todayEntry?.waterSyncedAt ?? null,
-            startedAt: new Date().toISOString(),
-          }
-      window.dispatchEvent(new CustomEvent(APPLE_HEALTH_SHORTCUT_REFRESH_EVENT, {
-        detail: baseline,
-      }))
-      openAppleHealthShortcut(
-        getAppleHealthShortcutRunUrl(settings.appleHealth.shortcutName),
-      )
-    } catch {
-      setAppleHealthSyncStatus('error')
-      setAppleHealthImportNotice({
-        kind: 'error',
-        message: 'Не удалось запустить обновление. Проверьте интернет и настройку Команды.',
-      })
-    }
-  }
-
   function completeInterval(id: string, completed: boolean): void {
     if (!completed || !settings.cosmetology.intervals.some((item) => item.id === id)) return
     saveSettings({
@@ -584,7 +536,6 @@ export function HealthScreen({
           onSkipDebt={skipDebt}
           onCompleteTaskDebt={completeTaskDebt}
           timerController={timerController}
-          onRequestAppleHealthSync={requestAppleHealthRefresh}
           onBackToHistory={canReturnToHistory ? returnToHistory : undefined}
         />
       ) : activeTab === 'history' ? (
@@ -676,7 +627,6 @@ function HealthToday({
   onSkipDebt,
   onCompleteTaskDebt,
   timerController,
-  onRequestAppleHealthSync,
   onBackToHistory,
 }: {
   entry: HealthEntry
@@ -695,7 +645,6 @@ function HealthToday({
   onSkipDebt: (debtId: string) => void
   onCompleteTaskDebt: (debtId: string) => void
   timerController?: HealthTimerController
-  onRequestAppleHealthSync: () => void
   onBackToHistory?: () => void
 }) {
   const dateHeading = formatHealthDate(selectedDate)
@@ -828,13 +777,6 @@ function HealthToday({
               >
                 Использовать ручной учёт
               </button>
-              <button
-                type="button"
-                className="health-water-manual"
-                onClick={onRequestAppleHealthSync}
-              >
-                Обновить из Apple Health
-              </button>
             </div>
           ) : (
             <>
@@ -853,13 +795,6 @@ function HealthToday({
                   </button>
                 </div>
               )}
-              <button
-                type="button"
-                className="health-water-manual"
-                onClick={onRequestAppleHealthSync}
-              >
-                Обновить из Apple Health
-              </button>
             </>
           )}
         </HealthBlock>

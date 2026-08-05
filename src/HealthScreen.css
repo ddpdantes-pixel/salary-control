@@ -516,13 +516,18 @@
   line-height: 1.2;
 }
 
-.health-water-coffee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.health-water-coffee .health-block { min-width: 0; padding: 14px; }
+.health-water-coffee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.health-water-coffee .health-block { min-width: 0; gap: 6px; padding: 10px 11px; }
 .health-water-coffee .health-block:first-child { border-left-color: #77bddf; }
 .health-water-coffee .health-block:last-child { border-left-color: #d7ad72; }
-.health-water-coffee .health-block h2 { font-size: 17px; }
+.health-water-coffee .health-block h2 { font-size: 16px; }
 .health-water-coffee .health-section-title { gap: 6px; }
-.health-water-coffee .health-section-title .health-icon { width: 17px; height: 17px; }
+.health-water-coffee .health-section-title .health-icon { width: 16px; height: 16px; }
+.health-water-coffee .number-choices { gap: 4px; }
+.health-water-coffee .number-choices button { min-height: 40px; padding: 5px 4px; }
+.health-water-coffee .health-result { font-size: 15px; line-height: 1.25; }
+.health-water-coffee .health-muted { line-height: 1.25; }
+.health-water-coffee .health-amber-note { padding: 7px 8px; font-size: 12px; line-height: 1.3; }
 .health-import-notice { display: grid; gap: 6px; margin: 0; border-radius: 6px; padding: 9px 11px; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
 .health-import-notice p { margin: 0; font-weight: 750; }
 .health-import-notice span { font-size: 12px; }
