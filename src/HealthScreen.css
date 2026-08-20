@@ -1545,7 +1545,7 @@
   width: 16px;
   height: 16px;
 }
-.health-settings-heading, .health-settings-history-note, .health-settings-group, .health-settings-savebar { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.health-settings-heading, .health-settings-history-note, .health-settings-group, .health-checklist-transfer-card, .health-settings-savebar { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .health-settings-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 16px; }
 .health-settings-heading h2, .health-settings-heading p, .health-settings-history-note, .health-settings-savebar p, .health-settings-workout p { margin: 0; }
 .health-settings-heading h2 { font-size: 20px; }
@@ -1558,6 +1558,11 @@
 .health-settings-group summary { min-height: 48px; padding: 14px 16px; cursor: pointer; font-size: 15px; font-weight: 800; }
 .health-settings-group[open] summary { border-bottom: 1px solid var(--border); }
 .health-settings-group-body { display: grid; gap: 14px; padding: 16px; }
+.health-checklist-transfer-card { display: grid; min-width: 0; gap: 10px; padding: 16px; }
+.health-checklist-transfer-card h3, .health-checklist-transfer-card p { margin: 0; }
+.health-checklist-transfer-card h3 { font-size: 16px; }
+.health-checklist-transfer-card p { color: var(--text-secondary); font-size: 13px; line-height: 1.45; }
+.health-checklist-transfer-card button { justify-self: start; min-height: 44px; color: var(--accent); background: var(--accent-soft); box-shadow: none; }
 .health-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .health-settings-field { display: grid; min-width: 0; gap: 6px; color: var(--text-secondary); font-size: 13px; font-weight: 700; }
 .health-settings-field input, .health-settings-field select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 10px; color: var(--text-primary); background: var(--surface); font: inherit; font-size: 16px; }
@@ -1618,6 +1623,10 @@
 .health-settings-radio label { display: flex; min-height: 44px; gap: 8px; align-items: center; }
 .health-settings-savebar { position: sticky; bottom: calc(74px + env(safe-area-inset-bottom)); z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px; box-shadow: 0 8px 30px rgb(15 48 45 / 18%); }
 .health-settings-savebar p { min-height: 18px; color: var(--text-secondary); font-size: 12px; }
+.evening-checklist-transfer-dialog { min-width: 0; }
+.evening-checklist-transfer-protocol { min-width: 0; margin: 0; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; color: var(--text-primary); background: var(--surface-muted); font: inherit; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.evening-checklist-transfer-message { margin: 0; }
+.evening-checklist-transfer-message.error { color: var(--danger); }
 
 @media (max-width: 420px) {
   .health-settings-heading { display: grid; }

@@ -5,9 +5,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
 import { createHealthEntry } from './healthModel'
 import { createDefaultHealthSettings, type HealthSettings } from './healthSettings'
+import { EVENING_CHECKLIST_TRANSFER_PROTOCOL } from './eveningChecklistTransferProtocol'
 
 describe('экран настроек здоровья', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
   it('показывает прямую настройку Apple Health, маскирует и копирует ключ отдельно', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn<(value: string) => Promise<void>>(() => Promise.resolve())
@@ -202,6 +206,66 @@ describe('экран настроек здоровья', () => {
     expect(screen.getByText('Записи здоровья не будут удалены.')).not.toBeNull()
     await user.click(screen.getByRole('button', { name: 'Восстановить' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ water: { goalCups: 6, cupVolumeMl: 300 } }))
+  })
+
+  it('открывает полный регламент перед сохранением настроек и копирует его без изменения HealthState', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn<(value: string) => Promise<void>>(() => Promise.resolve())
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    vi.stubGlobal('scrollTo', vi.fn())
+    const settings = createDefaultHealthSettings()
+    const settingsSnapshot = structuredClone(settings)
+    const onSave = vi.fn<(value: HealthSettings) => boolean>(() => true)
+    render(<HealthSettingsScreen settings={settings} entries={{}} onSave={onSave} onDirtyChange={() => {}} />)
+
+    const transferCard = screen.getByRole('heading', { name: 'Перенос вечернего чек-листа в новый чат' }).closest('section')
+    const saveButton = screen.getByRole('button', { name: 'Сохранить настройки' })
+    expect(transferCard).not.toBeNull()
+    expect(transferCard!.compareDocumentPosition(saveButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    const openButton = screen.getByRole('button', { name: 'Открыть регламент' })
+    await user.click(openButton)
+    const dialog = screen.getByRole('dialog', { name: 'Вечерний чек-лист — перенос в новый чат' })
+    expect(dialog.className).toContain('restore-dialog-scrollable')
+    expect(screen.getByRole('region', { name: 'Регламент вечернего чек-листа' }).textContent).toContain('последние 7 календарных дней')
+    expect(document.body.style.position).toBe('fixed')
+
+    await user.click(screen.getByRole('button', { name: 'Скопировать текст для нового чата' }))
+    expect(writeText).toHaveBeenCalledWith(EVENING_CHECKLIST_TRANSFER_PROTOCOL)
+    expect(screen.getByRole('button', { name: 'Скопировано ✓' })).not.toBeNull()
+    expect(onSave).not.toHaveBeenCalled()
+    expect(settings).toEqual(settingsSnapshot)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.body.style.position).toBe('')
+    expect(document.activeElement).toBe(openButton)
+  })
+
+  it('оставляет регламент доступным при ошибке Clipboard API', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn(() => Promise.reject(new Error('clipboard denied'))) },
+    })
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => false),
+    })
+    vi.stubGlobal('scrollTo', vi.fn())
+    render(<HealthSettingsScreen settings={createDefaultHealthSettings()} entries={{}} onSave={() => true} onDirtyChange={() => {}} />)
+
+    await user.click(screen.getByRole('button', { name: 'Открыть регламент' }))
+    await user.click(screen.getByRole('button', { name: 'Скопировать текст для нового чата' }))
+
+    expect(screen.getByRole('alert').textContent).toContain('Выделите регламент вручную')
+    expect(screen.getByRole('region', { name: 'Регламент вечернего чек-листа' }).textContent).toContain('Назначение')
+    expect(screen.getByRole('dialog')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('сохраняет изменённый день обучения в существующих настройках', async () => {

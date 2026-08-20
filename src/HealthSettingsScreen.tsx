@@ -19,6 +19,7 @@ import {
   getAppleHealthWaterSyncLinkBase,
   maskAppleHealthSyncToken,
 } from './appleHealthWater'
+import { EveningChecklistTransferDialog } from './EveningChecklistTransferDialog'
 
 interface HealthSettingsScreenProps {
   settings: HealthSettings
@@ -58,6 +59,7 @@ export function HealthSettingsScreen({
   const [workoutFilter, setWorkoutFilter] = useState<'active' | 'archived'>('active')
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
   const [appleSetupOpen, setAppleSetupOpen] = useState(false)
+  const [transferProtocolOpen, setTransferProtocolOpen] = useState(false)
   const [appleLinkState, setAppleLinkState] = useState<
     'idle' | 'worker-copied' | 'token-copied' | 'safari-copied' | 'error'
   >('idle')
@@ -655,6 +657,12 @@ export function HealthSettingsScreen({
         <button type="button" className="health-settings-restore" onClick={() => setConfirmation({ kind: 'restore' })}>Восстановить стандартные настройки</button>
       </SettingsGroup>
 
+      <section className="health-checklist-transfer-card" aria-labelledby="health-checklist-transfer-title">
+        <h3 id="health-checklist-transfer-title">Перенос вечернего чек-листа в новый чат</h3>
+        <p>Используйте этот текст, если текущий чат вечернего чек-листа ChatGPT закончился. Скопируйте его и вставьте первым сообщением в новый чат проекта «Здоровье».</p>
+        <button type="button" onClick={() => setTransferProtocolOpen(true)}>Открыть регламент</button>
+      </section>
+
       <div className="health-settings-savebar">
         <p aria-live="polite">{message}</p>
         <button type="button" onClick={save}>Сохранить настройки</button>
@@ -671,6 +679,9 @@ export function HealthSettingsScreen({
             </div>
           </section>
         </div>
+      )}
+      {transferProtocolOpen && (
+        <EveningChecklistTransferDialog onClose={() => setTransferProtocolOpen(false)} />
       )}
     </div>
   )

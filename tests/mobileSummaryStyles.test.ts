@@ -61,5 +61,6 @@ describe('мобильные сводки Главной, здоровья и д
     expect(appCss).toMatch(/\.restore-dialog-scrollable\s*\{[^}]*grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)\s+auto[^}]*overflow:\s*hidden/)
     expect(appCss).toMatch(/\.restore-dialog-body\s*\{[^}]*min-height:\s*0[^}]*overflow-y:\s*auto[^}]*overscroll-behavior:\s*contain/)
     expect(appCss).toMatch(/\.restore-dialog-footer\s*\{[^}]*position:\s*sticky[^}]*safe-area-inset-bottom/)
+    expect(healthCss).toMatch(/\.evening-checklist-transfer-protocol\s*\{[^}]*min-width:\s*0[^}]*white-space:\s*pre-wrap[^}]*overflow-wrap:\s*anywhere/)
   })
 })
