@@ -1,7 +1,7 @@
 import { buildHealthChecklistText } from './healthExport'
 import { createHealthChecklistImage } from './healthChecklistImage'
 import type { HealthAttachment } from './healthAttachments'
-import type { HealthEntry } from './healthTypes'
+import type { CosmetologyDebt, HealthEntry } from './healthTypes'
 import { DEFAULT_HEALTH_SETTINGS, type HealthSettings } from './healthSettings'
 
 export type HealthShareStatus = 'shared' | 'fallback' | 'cancelled' | 'error'
@@ -46,6 +46,7 @@ export function createHealthShareFiles(
 export function shareHealthReport({
   entry,
   settings = DEFAULT_HEALTH_SETTINGS,
+  cosmetologyDebts = {},
   attachments,
   deleteAttachments,
   navigatorLike = navigator,
@@ -55,13 +56,14 @@ export function shareHealthReport({
 }: {
   entry: HealthEntry
   settings?: HealthSettings
+  cosmetologyDebts?: Record<string, CosmetologyDebt>
   attachments: HealthAttachment[]
   deleteAttachments: () => Promise<void>
   navigatorLike?: ShareNavigator
   createChecklistImage?: (entry: HealthEntry) => File
   copyTextImmediately?: (text: string) => boolean | Promise<boolean>
 }): Promise<HealthShareResult> {
-  const checklistText = buildHealthChecklistText(entry, settings)
+  const checklistText = buildHealthChecklistText(entry, settings, cosmetologyDebts)
   const copyResult = copyTextImmediately(checklistText)
   if (copyResult === false) {
     return Promise.resolve({

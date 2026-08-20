@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildHealthChecklistText } from './healthExport'
 import { WORKOUTS, createHealthEntry } from './healthModel'
+import type { CosmetologyDebt } from './healthTypes'
 
 describe('копирование ежедневного чек-листа', () => {
   it('использует итоговую сумму Apple Health в вечернем чек-листе', () => {
@@ -66,6 +67,52 @@ describe('копирование ежедневного чек-листа', () =
     expect(text).toContain('Стул по Бристолю: 4 — гладкий, мягкий, оформленный; норма')
     expect(text).toContain('Чем заменил: чай')
     expect(text).toContain('Оценка вечера без алкоголя: 8/10')
+  })
+
+  it('включает сегодняшние и просроченные косметологические назначения в отчёт', () => {
+    const entry = createHealthEntry('2026-08-23')
+    const debt: CosmetologyDebt = {
+      id: 'body-scrub:2026-08-22',
+      procedureId: 'body-scrub',
+      title: 'Скраб для тела',
+      plannedDate: '2026-08-22',
+      procedureIds: ['body-scrub'],
+      activeDate: null,
+      completedDate: null,
+      skippedDate: null,
+    }
+
+    const text = buildHealthChecklistText(entry, undefined, { [debt.id]: debt })
+
+    expect(text).toContain('Просрочено: Скраб для тела (по плану 22.08.2026): нет')
+    expect(text).toContain('Крем для лица: нет')
+  })
+
+  it('после снятия галочки снова показывает назначение просроченным, а completed не считает pending', () => {
+    const completedEntry = {
+      ...createHealthEntry('2026-08-23'),
+      cosmetology: { 'body-scrub': true },
+    }
+    const completedDebt: CosmetologyDebt = {
+      id: 'body-scrub:2026-08-22',
+      procedureId: 'body-scrub',
+      title: 'Скраб для тела',
+      plannedDate: '2026-08-22',
+      procedureIds: ['body-scrub'],
+      activeDate: null,
+      completedDate: '2026-08-23',
+      skippedDate: null,
+    }
+    const completedText = buildHealthChecklistText(completedEntry, undefined, {
+      [completedDebt.id]: completedDebt,
+    })
+    expect(completedText).toContain('Скраб для тела: да')
+    expect(completedText).not.toContain('Просрочено: Скраб для тела')
+
+    const pendingText = buildHealthChecklistText(createHealthEntry('2026-08-23'), undefined, {
+      [completedDebt.id]: { ...completedDebt, completedDate: null, activeDate: '2026-08-23' },
+    })
+    expect(pendingText).toContain('Просрочено: Скраб для тела (по плану 22.08.2026): нет')
   })
 
   it('не включает скрытые алкогольные поля для безалкогольного выбора', () => {

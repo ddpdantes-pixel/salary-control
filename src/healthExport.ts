@@ -7,11 +7,12 @@ import {
 } from './healthSettings'
 import type {
   AlcoholReason,
+  CosmetologyDebt,
   HealthEntry,
   LearningDirection,
   ScalpNote,
 } from './healthTypes'
-import { getCosmetologyForDate } from './cosmetology'
+import { getCosmetologyForDate, getOverdueCosmetologyDebts } from './cosmetology'
 import {
   getHealthEntryWaterMl,
   getWaterGoalMl,
@@ -45,6 +46,7 @@ const REASON_LABELS: Record<AlcoholReason, string> = {
 export function buildHealthChecklistText(
   entry: HealthEntry,
   settings: HealthSettings = DEFAULT_HEALTH_SETTINGS,
+  cosmetologyDebts: Record<string, CosmetologyDebt> = {},
 ): string {
   const date = parseLocalDate(entry.date)
   const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'long' }).format(date)
@@ -78,8 +80,17 @@ export function buildHealthChecklistText(
   }
 
   const cosmetology = getCosmetologyForDate(settings, entry.date, entry)
-  if (cosmetology.length > 0) {
-    lines.push('', 'Косметология:', ...cosmetology.map((item) => `- ${item.title}: ${yesNo(entry.cosmetology[item.id] === true)}`))
+  const overdueCosmetology = getOverdueCosmetologyDebts({ cosmetologyDebts })
+    .filter((debt) => debt.plannedDate < entry.date)
+  if (cosmetology.length > 0 || overdueCosmetology.length > 0) {
+    lines.push(
+      '',
+      'Косметология:',
+      ...cosmetology.map((item) => `- ${item.title}: ${yesNo(entry.cosmetology[item.id] === true)}`),
+      ...overdueCosmetology.map((debt) =>
+        `- Просрочено: ${debt.title} (по плану ${formatChecklistDate(debt.plannedDate)}): нет`,
+      ),
+    )
   }
 
   const relaxationLines = getRelaxationSettings(settings)
@@ -238,6 +249,14 @@ function yesNo(value: boolean): 'да' | 'нет' {
 
 function formatNumber(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+}
+
+function formatChecklistDate(dateId: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(parseLocalDate(dateId))
 }
 
 function formatDays(days: HealthSettings['shampooDays']): string {

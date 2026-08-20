@@ -7,6 +7,7 @@ import {
   reconcileCosmetologyDebts,
   resolveActiveCosmetologyDebts,
   skipCosmetologyDebt,
+  syncCosmetologyDebtsForEntry,
   toggleCosmetologyCompletion,
 } from './cosmetology'
 import { createEmptyHealthState, createHealthEntry, upsertHealthEntry } from './healthModel'
@@ -78,7 +79,7 @@ describe('косметология', () => {
     expect(entry.cosmetology['blood-peel-clean']).toBe(true)
   })
 
-  it('создаёт одну задолженность для пропущенного кровавого пилинга и не дублирует её в следующем цикле', () => {
+  it('создаёт отдельные задолженности для двух реальных дат кровавого пилинга', () => {
     const settings = createDefaultHealthSettings(new Date(2026, 6, 19, 12))
     const initial = { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: '2026-07-19' }
     const first = reconcileCosmetologyDebts(initial, settings, '2026-07-20')
@@ -91,8 +92,23 @@ describe('косметология', () => {
       plannedDate: '2026-07-19',
       procedureIds: ['blood-peel-timer', 'neutralizer-timer', 'vichy-filler', 'face-cream'],
     })
-    expect(getOverdueCosmetologyDebts(reconcileCosmetologyDebts(first, settings, '2026-07-27'))
-      .filter((item) => item.procedureId === 'blood-peel-timer')).toHaveLength(1)
+    const nextCycle = getOverdueCosmetologyDebts(
+      reconcileCosmetologyDebts(first, settings, '2026-07-27'),
+    ).filter((item) => item.procedureId === 'blood-peel-timer')
+    expect(nextCycle.map((item) => item.plannedDate)).toEqual(['2026-07-19', '2026-07-26'])
+  })
+
+  it('не клонирует старую процедуру в дни без нового события расписания', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 7, 20, 12))
+    const initial = { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: '2026-08-22' }
+    const reconciled = reconcileCosmetologyDebts(initial, settings, '2026-08-28')
+    const bodyScrub = getOverdueCosmetologyDebts(reconciled)
+      .filter((item) => item.procedureId === 'body-scrub')
+
+    expect(bodyScrub).toHaveLength(1)
+    expect(bodyScrub[0].id).toBe('body-scrub:2026-08-22')
+    expect(getOverdueCosmetologyDebts(reconciled)
+      .some((item) => item.id === 'body-butter:2026-08-22')).toBe(true)
   })
 
   it('закрывает задолженность только после полного выполнения связанного комплекта', () => {
@@ -113,6 +129,99 @@ describe('косметология', () => {
     const resolved = resolveActiveCosmetologyDebts(upsertHealthEntry(partial, fullEntry), fullEntry)
     expect(getOverdueCosmetologyDebts(resolved)).toHaveLength(0)
     expect(resolved.cosmetologyDebts[debt.id]?.completedDate).toBe('2026-07-20')
+  })
+
+  it('снятие галочки повторно открывает конкретное назначение без дубля и сохраняет planDate', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 7, 20, 12))
+    const initial = reconcileCosmetologyDebts(
+      { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: '2026-08-22' },
+      settings,
+      '2026-08-23',
+    )
+    const debt = getOverdueCosmetologyDebts(initial)
+      .find((item) => item.procedureId === 'body-scrub')!
+    const active = activateCosmetologyDebt(initial, debt.id, '2026-08-23')
+    const completedEntry = {
+      ...createHealthEntry('2026-08-23'),
+      cosmetology: { 'body-scrub': true },
+    }
+    const completed = syncCosmetologyDebtsForEntry(
+      upsertHealthEntry(active, completedEntry),
+      settings,
+      completedEntry,
+      '2026-08-23',
+    )
+    expect(completed.cosmetologyDebts[debt.id]).toMatchObject({
+      plannedDate: '2026-08-22',
+      completedDate: '2026-08-23',
+      activeDate: null,
+    })
+
+    const undoneEntry = toggleCosmetologyCompletion(completedEntry, 'body-scrub')
+    const undone = syncCosmetologyDebtsForEntry(
+      upsertHealthEntry(completed, undoneEntry),
+      settings,
+      undoneEntry,
+      '2026-08-23',
+    )
+    expect(getOverdueCosmetologyDebts(undone).filter((item) => item.id === debt.id)).toHaveLength(1)
+    expect(undone.cosmetologyDebts[debt.id]).toMatchObject({
+      plannedDate: '2026-08-22',
+      completedDate: null,
+      activeDate: '2026-08-23',
+    })
+    expect(Object.keys(undone.cosmetologyDebts).filter((id) => id === debt.id)).toHaveLength(1)
+  })
+
+  it('возвращает старое отредактированное назначение после уже пройденной сверки', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 7, 20, 12))
+    const completedEntry = {
+      ...createHealthEntry('2026-08-22'),
+      cosmetology: { 'body-scrub': true },
+    }
+    const checked = {
+      ...upsertHealthEntry(createEmptyHealthState(), completedEntry),
+      cosmetologyDebtCheckedThrough: '2026-08-24',
+    }
+    const undoneEntry = toggleCosmetologyCompletion(completedEntry, 'body-scrub')
+    const reopened = syncCosmetologyDebtsForEntry(
+      upsertHealthEntry(checked, undoneEntry),
+      settings,
+      undoneEntry,
+      '2026-08-24',
+    )
+
+    expect(reopened.cosmetologyDebts['body-scrub:2026-08-22']).toMatchObject({
+      plannedDate: '2026-08-22',
+      completedDate: null,
+      skippedDate: null,
+    })
+  })
+
+  it('сохраняет невыполненное назначение просроченным на последующие дни', () => {
+    const settings = createDefaultHealthSettings(new Date(2026, 7, 20, 12))
+    const initial = { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: '2026-08-22' }
+    const onSunday = reconcileCosmetologyDebts(initial, settings, '2026-08-23')
+    const onMonday = reconcileCosmetologyDebts(onSunday, settings, '2026-08-24')
+    const bodyScrub = getOverdueCosmetologyDebts(onMonday)
+      .filter((item) => item.procedureId === 'body-scrub')
+
+    expect(bodyScrub).toHaveLength(1)
+    expect(bodyScrub[0].plannedDate).toBe('2026-08-22')
+  })
+
+  it.each([
+    ['2026-08-31', '2026-09-02', 'toplash:2026-09-01'],
+    ['2026-12-31', '2027-01-02', 'face-cool-water:2026-12-31'],
+  ])('сохраняет локальную planDate на календарной границе %s', (checkedThrough, today, expectedId) => {
+    const settings = createDefaultHealthSettings(new Date(2026, 7, 20, 12))
+    const state = reconcileCosmetologyDebts(
+      { ...createEmptyHealthState(), cosmetologyDebtCheckedThrough: checkedThrough },
+      settings,
+      today,
+    )
+
+    expect(state.cosmetologyDebts[expectedId]?.plannedDate).toBe(expectedId.split(':')[1])
   })
 
   it('сохраняет пропуск отдельно от выполнения и не меняет настройки ротации', () => {

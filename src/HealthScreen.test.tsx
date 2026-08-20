@@ -585,6 +585,10 @@ describe('экран здоровья сегодня', () => {
     }
 
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Не выполнено' })).toBeNull())
+    await user.click(screen.getByLabelText(/Кровавый пилинг ART&FACT/))
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Не выполнено' })).not.toBeNull())
+    expect(screen.getByText(/По плану: 17 июля/)).not.toBeNull()
+    expect(screen.getAllByText('Кровавый пилинг ART&FACT')).toHaveLength(1)
   })
 
   it('запрашивает подтверждение перед пропуском косметологической задолженности', async () => {

@@ -14,8 +14,8 @@ import {
   getOverdueCosmetologyDebts,
   nextIntervalDate,
   reconcileCosmetologyDebts,
-  resolveActiveCosmetologyDebts,
   skipCosmetologyDebt,
+  syncCosmetologyDebtsForEntry,
   toggleCosmetologyCompletion,
 } from './cosmetology'
 import { HEALTH_TIMER_COMPLETION_EVENT } from './healthTimerCompletion'
@@ -437,7 +437,12 @@ export function HealthScreen({
         currentState,
         updateHealthEntry(currentEntry, updater),
       )
-      return resolveActiveCosmetologyDebts(nextState, nextState.entries[selectedDate])
+      return syncCosmetologyDebtsForEntry(
+        nextState,
+        settings,
+        nextState.entries[selectedDate],
+        getLocalDateId(),
+      )
     })
   }
 
@@ -700,6 +705,7 @@ function HealthToday({
     const result = await shareHealthReport({
       entry,
       settings,
+      cosmetologyDebts,
       attachments,
       deleteAttachments: async () => {
         await deleteHealthAttachmentsForDate(selectedDate)
