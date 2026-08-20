@@ -120,6 +120,7 @@ import { clearRetiredPlansStorage } from './retiredPlansCleanup'
 import { getTimerTitle, getTimerTotalRemaining } from './healthTimer'
 import { HealthIcon } from './HealthIcon'
 import { useHealthTimer } from './useHealthTimer'
+import { useModalScrollLock } from './useModalScrollLock'
 import {
   APPLE_HEALTH_SHORTCUT_REFRESH_EVENT,
   APPLE_HEALTH_WATER_SYNC_EVENT,
@@ -2109,45 +2110,87 @@ function RestoreDialog({
   onConfirm: () => void | Promise<void>
   onCancel: () => void
 }) {
+  const dialogRef = useRef<HTMLElement>(null)
+  const cancelRef = useRef(onCancel)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
+  useModalScrollLock(true)
+
+  useEffect(() => {
+    cancelRef.current = onCancel
+  }, [onCancel])
+
+  useEffect(() => {
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    dialogRef.current?.focus()
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      cancelRef.current()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+      restoreFocusRef.current?.focus()
+    }
+  }, [])
+
   return (
     <div className="dialog-backdrop" role="presentation">
       <section
-        className="restore-dialog"
+        ref={dialogRef}
+        className="restore-dialog restore-dialog-scrollable"
         role="dialog"
         aria-modal="true"
         aria-labelledby="restore-title"
+        aria-describedby="restore-content"
+        tabIndex={-1}
       >
-        <h2 id="restore-title">Восстановить резервную копию?</h2>
-        <p>Файл: <strong>{preview.fileName}</strong></p>
-        <dl className="restore-preview-list">
-          <div><dt>Зарплатные месяцы</dt><dd>{preview.months.length}</dd></div>
-          <div><dt>Финансовые операции</dt><dd>{preview.financeState?.operations.length ?? 0}</dd></div>
-          <div><dt>Обязательства</dt><dd>{preview.financeState?.obligations.length ?? 0}</dd></div>
-          <div><dt>Фактические остатки</dt><dd>{preview.financeState?.anchors.length ?? 0}</dd></div>
-          <div><dt>Регулярные личные расходы</dt><dd>{preview.financeState?.personalExpenses.length ?? 0}</dd></div>
-          <div><dt>Накопительные цели</dt><dd>{preview.financeState?.goals.length ?? 0}</dd></div>
-          <div><dt>Изображения целей</dt><dd>{preview.goalImages.length}</dd></div>
-          <div><dt>Ежедневные продажи</dt><dd>{Object.keys(preview.dailySalesState?.entries ?? {}).length}</dd></div>
-          <div><dt>Дни здоровья</dt><dd>{Object.keys(preview.healthState?.entries ?? {}).length}</dd></div>
-          <div><dt>Настройки здоровья</dt><dd>{preview.healthSettings ? 'Включены' : 'Стандартные'}</dd></div>
-          <div><dt>Зашифрованное хранилище паролей включено</dt><dd>{preview.passwordVault ? 'Да' : 'Нет'}</dd></div>
-        </dl>
-        <p>
-          Зарплатные данные будут заменены данными из резервной копии.
-          {!preview.financeState && ' Финансовый раздел в этом файле отсутствует и изменён не будет.'}
-          {!preview.dailySalesState && ' Ежедневные продажи в этом файле отсутствуют и изменены не будут.'}
-          {!preview.healthState && ' Данные здоровья в этом файле отсутствуют и изменены не будут.'}
-          {!preview.healthSettings && ' Настройки здоровья будут восстановлены стандартными.'}
-          {preview.passwordVault && ' Текущая локальная зашифрованная версия паролей будет заменена; после восстановления хранилище останется заблокированным.'}
-        </p>
-        <div className="dialog-actions">
-          <button type="button" className="primary-action" onClick={() => { void onConfirm() }}>
-            Восстановить
-          </button>
-          <button type="button" onClick={onCancel}>
-            Отмена
-          </button>
+        <header className="restore-dialog-header">
+          <h2 id="restore-title">Восстановить резервную копию?</h2>
+        </header>
+        <div
+          id="restore-content"
+          className="restore-dialog-body"
+          role="region"
+          aria-label="Содержимое резервной копии"
+          tabIndex={0}
+        >
+          <p>Файл: <strong>{preview.fileName}</strong></p>
+          <dl className="restore-preview-list">
+            <div><dt>Зарплатные месяцы</dt><dd>{preview.months.length}</dd></div>
+            <div><dt>Финансовые операции</dt><dd>{preview.financeState?.operations.length ?? 0}</dd></div>
+            <div><dt>Обязательства</dt><dd>{preview.financeState?.obligations.length ?? 0}</dd></div>
+            <div><dt>Фактические остатки</dt><dd>{preview.financeState?.anchors.length ?? 0}</dd></div>
+            <div><dt>Регулярные личные расходы</dt><dd>{preview.financeState?.personalExpenses.length ?? 0}</dd></div>
+            <div><dt>Накопительные цели</dt><dd>{preview.financeState?.goals.length ?? 0}</dd></div>
+            <div><dt>Изображения целей</dt><dd>{preview.goalImages.length}</dd></div>
+            <div><dt>Ежедневные продажи</dt><dd>{Object.keys(preview.dailySalesState?.entries ?? {}).length}</dd></div>
+            <div><dt>Дни здоровья</dt><dd>{Object.keys(preview.healthState?.entries ?? {}).length}</dd></div>
+            <div><dt>Настройки здоровья</dt><dd>{preview.healthSettings ? 'Включены' : 'Стандартные'}</dd></div>
+            <div><dt>Зашифрованное хранилище паролей включено</dt><dd>{preview.passwordVault ? 'Да' : 'Нет'}</dd></div>
+          </dl>
+          <p>
+            Зарплатные данные будут заменены данными из резервной копии.
+            {!preview.financeState && ' Финансовый раздел в этом файле отсутствует и изменён не будет.'}
+            {!preview.dailySalesState && ' Ежедневные продажи в этом файле отсутствуют и изменены не будут.'}
+            {!preview.healthState && ' Данные здоровья в этом файле отсутствуют и изменены не будут.'}
+            {!preview.healthSettings && ' Настройки здоровья будут восстановлены стандартными.'}
+            {preview.passwordVault && ' Текущая локальная зашифрованная версия паролей будет заменена; после восстановления хранилище останется заблокированным.'}
+          </p>
         </div>
+        <footer className="restore-dialog-footer">
+          <div className="dialog-actions">
+            <button type="button" className="primary-action" onClick={() => { void onConfirm() }}>
+              Восстановить
+            </button>
+            <button type="button" onClick={onCancel}>
+              Отмена
+            </button>
+          </div>
+        </footer>
       </section>
     </div>
   )

@@ -663,6 +663,43 @@ describe('оболочка приложения', () => {
     expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"waterCups":6')
   })
 
+  it('прокручивает сводку восстановления внутри modal и снимает блокировку фона после отмены', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    fileInput.focus()
+    const backup = createBackupData(
+      [createSalaryMonth('2026-07', '2026-07-01T00:00:00.000Z')],
+      '2026-07',
+      createDefaultFinanceState('2026-07-18T10:00:00.000Z'),
+      createDefaultDailySalesState(),
+      createEmptyHealthState(),
+    )
+
+    await user.upload(fileInput, new File([JSON.stringify(backup)], 'long-backup.json', {
+      type: 'application/json',
+    }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Восстановить резервную копию?',
+    })
+    const scrollBody = screen.getByRole('region', { name: 'Содержимое резервной копии' })
+    expect(dialog.className).toContain('restore-dialog-scrollable')
+    expect(scrollBody.className).toContain('restore-dialog-body')
+    expect(within(scrollBody).getByText('Зашифрованное хранилище паролей включено')).not.toBeNull()
+    expect(dialog.querySelector('.restore-dialog-footer')?.contains(scrollBody)).toBe(false)
+    expect(document.body.style.position).toBe('fixed')
+    expect(document.documentElement.style.overscrollBehavior).toBe('none')
+    expect(document.activeElement).toBe(dialog)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(document.body.style.position).toBe('')
+    expect(document.documentElement.style.overscrollBehavior).toBe('')
+    expect(document.activeElement).toBe(fileInput)
+    expect(window.scrollTo).toHaveBeenCalledWith({ left: 0, top: 0, behavior: 'auto' })
+  })
+
   it('оставляет активный таймер холодной воды видимым между разделами и возвращает к здоровью', async () => {
     const user = userEvent.setup()
     await renderApp()
