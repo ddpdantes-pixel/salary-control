@@ -7,7 +7,6 @@ import {
 } from './healthAttachments'
 import type { HealthAttachment } from './healthAttachments'
 import {
-  cleanupExpiredHealthAttachments,
   deleteHealthAttachment,
   listHealthAttachments,
   saveHealthAttachment,
@@ -30,32 +29,12 @@ export function HealthAttachmentsSection({
 }) {
   const [attachments, setAttachments] = useState<HealthAttachment[]>([])
   const [message, setMessage] = useState('')
-  const [cleanupMessage, setCleanupMessage] = useState('')
-  const [storageReady, setStorageReady] = useState(false)
   const [preview, setPreview] = useState<HealthAttachment | null>(null)
   const [replacementId, setReplacementId] = useState<string | null>(null)
   const addInputRef = useRef<HTMLInputElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    let active = true
-    cleanupExpiredHealthAttachments()
-      .then((deleted) => {
-        if (active && deleted > 0) setCleanupMessage('Старые временные скриншоты удалены')
-      })
-      .catch(() => {
-        if (active) setMessage('Временное хранилище изображений недоступно')
-      })
-      .finally(() => {
-        if (active) setStorageReady(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!storageReady) return
     let active = true
     listHealthAttachments(date)
       .then((stored) => {
@@ -64,12 +43,12 @@ export function HealthAttachmentsSection({
         onAttachmentsChange(stored)
       })
       .catch(() => {
-        if (active) setMessage('Не удалось загрузить временные скриншоты')
+        if (active) setMessage('Не удалось загрузить сохранённые скриншоты')
       })
     return () => {
       active = false
     }
-  }, [date, onAttachmentsChange, refreshToken, storageReady])
+  }, [date, onAttachmentsChange, refreshToken])
 
   async function addFiles(files: File[]): Promise<void> {
     const selection = selectAttachmentFiles(files, attachments.length)
@@ -145,7 +124,7 @@ export function HealthAttachmentsSection({
         <div>
           <h2 className="health-section-title"><HealthIcon name="image" /><span>Скриншоты тренировки и пульса</span></h2>
           <p>
-            Можно добавить до 4 изображений. После успешной подготовки они автоматически удалятся
+            Можно добавить до 4 изображений. Они сохранятся на этом устройстве до явного удаления
           </p>
         </div>
         <strong>Добавлено: {attachments.length} из {MAX_HEALTH_ATTACHMENTS}</strong>
@@ -202,9 +181,9 @@ export function HealthAttachmentsSection({
         </div>
       )}
 
-      {(message || cleanupMessage) && (
+      {message && (
         <p className="health-attachment-message" role="status">
-          {message || cleanupMessage}
+          {message}
         </p>
       )}
 

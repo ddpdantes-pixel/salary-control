@@ -13,126 +13,165 @@ import type { HealthAttachment } from './healthAttachments'
 import type { HealthEntry } from './healthTypes'
 
 describe('подготовка вечернего отчёта здоровья', () => {
-  it('без скриншотов создаёт только один PNG чек-листа', () => {
+  it.each([
+    { count: 0, expected: 1 },
+    { count: 1, expected: 2 },
+    { count: 2, expected: 3 },
+    { count: 3, expected: 4 },
+    { count: 4, expected: 5 },
+  ])('создаёт checklist и все attachments: $count -> $expected файлов', ({ count, expected }) => {
+    const attachments = makeAttachments(count)
     const files = createHealthShareFiles(
-      createHealthEntry('2026-07-12'),
-      [],
-      createChecklistImage,
-    )
-
-    expect(files).toHaveLength(1)
-    expect(files[0].name).toBe('health-checklist-2026-07-12.png')
-    expect(files[0].type).toBe('image/png')
-    expect(files.some((file) => /\.(txt|pdf|zip)$/i.test(file.name))).toBe(false)
-  })
-
-  it('с двумя скриншотами создаёт три изображения в исходном порядке', () => {
-    const files = createHealthShareFiles(
-      createHealthEntry('2026-07-12'),
-      [makeAttachment('first', 'first.png'), makeAttachment('second', 'second.jpg')],
-      createChecklistImage,
-    )
-
-    expect(files.map((file) => file.name)).toEqual([
-      'health-checklist-2026-07-12.png',
-      'first.png',
-      'second.jpg',
-    ])
-    expect(files.every((file) => file.type.startsWith('image/'))).toBe(true)
-  })
-
-  it('с четырьмя скриншотами создаёт пять изображений, начиная с PNG чек-листа', () => {
-    const attachments = makeFourAttachments()
-    const files = createHealthShareFiles(
-      createHealthEntry('2026-07-12'),
+      createHealthEntry('2026-08-27'),
       attachments,
       createChecklistImage,
     )
 
-    expect(files).toHaveLength(5)
-    expect(files.map((file) => file.name)).toEqual([
-      'health-checklist-2026-07-12.png',
-      'first.png',
-      'second.jpg',
-      'third.png',
-      'fourth.jpg',
-    ])
-    expect(files.every((file) => file.type.startsWith('image/'))).toBe(true)
+    expect(files).toHaveLength(expected)
+    expect(files.every((file) => file instanceof File)).toBe(true)
+    expect(files[0]).toMatchObject({
+      name: 'health-checklist-2026-08-27.png',
+      type: 'image/png',
+    })
+    expect(files.slice(1).map((file) => file.name)).toEqual(
+      attachments.map((attachment, index) =>
+        `training-${index + 1}-2026-08-27.${attachment.mimeType === 'image/png' ? 'png' : 'jpg'}`,
+      ),
+    )
   })
 
-  it('передаёт navigator.share только пять изображений и удаляет все четыре временных файла после успеха', async () => {
-    let storedAttachments = makeFourAttachments()
-    const share = vi.fn(async (_data?: ShareData) => undefined)
-    const deleteAttachments = vi.fn(async () => {
-      storedAttachments = []
+  it('сохраняет порядок checklist, JPEG и PNG и согласует расширения с MIME', () => {
+    const files = createHealthShareFiles(
+      createHealthEntry('2026-08-27'),
+      [
+        makeAttachment('first', 'original.jpeg', 'image/jpeg'),
+        makeAttachment('second', 'original.png', 'image/png'),
+        makeAttachment('third', 'another.jpg', 'image/jpeg'),
+      ],
+      createChecklistImage,
+    )
+
+    expect(files.map(({ name, type }) => ({ name, type }))).toEqual([
+      { name: 'health-checklist-2026-08-27.png', type: 'image/png' },
+      { name: 'training-1-2026-08-27.jpg', type: 'image/jpeg' },
+      { name: 'training-2-2026-08-27.png', type: 'image/png' },
+      { name: 'training-3-2026-08-27.jpg', type: 'image/jpeg' },
+    ])
+  })
+
+  it('передаёт полный и тот же массив в navigator.canShare и navigator.share', async () => {
+    const attachments = makeAttachments(3)
+    let checkedFiles: readonly File[] | undefined
+    let sharedFiles: readonly File[] | undefined
+    const canShare = vi.fn((data?: ShareData) => {
+      checkedFiles = data?.files
+      return true
+    })
+    const share = vi.fn(async (data?: ShareData) => {
+      sharedFiles = data?.files
     })
 
     const result = await shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
-      attachments: storedAttachments,
-      deleteAttachments,
-      navigatorLike: { canShare: () => true, share },
+      entry: createHealthEntry('2026-08-27'),
+      attachments,
+      navigatorLike: { canShare, share },
       copyTextImmediately: () => true,
       createChecklistImage,
     })
 
-    const shareData = share.mock.calls[0][0]
-    expect(result.status).toBe('shared')
-    expect(Object.keys(shareData ?? {})).toEqual(['files'])
-    expect(Array.from(shareData?.files ?? []).map((file) => file.name)).toEqual([
-      'health-checklist-2026-07-12.png',
-      'first.png',
-      'second.jpg',
-      'third.png',
-      'fourth.jpg',
+    expect(result).toEqual({
+      status: 'shared',
+      message: 'Готово: текст скопирован, все изображения переданы',
+    })
+    expect(canShare).toHaveBeenCalledOnce()
+    expect(share).toHaveBeenCalledOnce()
+    expect(checkedFiles).toHaveLength(4)
+    expect(sharedFiles).toBe(checkedFiles)
+    expect(Array.from(sharedFiles ?? []).map((file) => file.name)).toEqual([
+      'health-checklist-2026-08-27.png',
+      'training-1-2026-08-27.png',
+      'training-2-2026-08-27.jpg',
+      'training-3-2026-08-27.png',
     ])
-    expect(storedAttachments).toEqual([])
-    expect(deleteAttachments).toHaveBeenCalledOnce()
+    expect(attachments).toHaveLength(3)
   })
 
-  it('после отмены или ошибки сохраняет все четыре временных скриншота', async () => {
-    const attachments = makeFourAttachments()
-    const cancelledDelete = vi.fn(async () => undefined)
-    const failedDelete = vi.fn(async () => undefined)
-
-    const cancelled = await shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
-      attachments,
-      deleteAttachments: cancelledDelete,
-      navigatorLike: {
-        canShare: () => true,
-        share: async () => { throw new DOMException('cancelled', 'AbortError') },
-      },
-      copyTextImmediately: () => true,
-      createChecklistImage,
+  it('не делает silent single-file fallback, если полный массив не поддерживается', async () => {
+    const canShare = vi.fn((data?: ShareData) => {
+      expect(data?.files).toHaveLength(3)
+      return false
     })
-    const failed = await shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
+    const share = vi.fn(async (_data?: ShareData) => undefined)
+    const attachments = makeAttachments(2)
+
+    const result = await shareHealthReport({
+      entry: createHealthEntry('2026-08-27'),
       attachments,
-      deleteAttachments: failedDelete,
-      navigatorLike: {
-        canShare: () => true,
-        share: async () => { throw new Error('share failed') },
-      },
+      navigatorLike: { canShare, share },
       copyTextImmediately: () => true,
       createChecklistImage,
     })
 
-    expect(cancelled.status).toBe('cancelled')
-    expect(failed.status).toBe('error')
-    expect(cancelledDelete).not.toHaveBeenCalled()
-    expect(failedDelete).not.toHaveBeenCalled()
-    expect(attachments).toHaveLength(4)
+    expect(result.status).toBe('fallback')
+    expect(result.message).toContain('Не удалось передать все изображения одним действием')
+    expect(result.checklistImage?.name).toBe('health-checklist-2026-08-27.png')
+    expect(share).not.toHaveBeenCalled()
+    expect(attachments).toHaveLength(2)
   })
 
-  it('одним вызовом копирует полный healthExport и сразу открывает share с изображениями', async () => {
-    const entry = { ...createHealthEntry('2026-07-12'), waterCups: 6, coffeeCups: 2 }
+  it.each([
+    {
+      name: 'AbortError',
+      error: new DOMException('cancelled', 'AbortError'),
+      status: 'cancelled',
+      message: 'Передача изображений отменена',
+    },
+    {
+      name: 'другая ошибка',
+      error: new Error('share failed'),
+      status: 'error',
+      message: 'Не удалось передать изображения',
+    },
+  ])('сохраняет attachments при $name', async ({ error, status, message }) => {
+    const attachments = makeAttachments(3)
+    const result = await shareHealthReport({
+      entry: createHealthEntry('2026-08-27'),
+      attachments,
+      navigatorLike: {
+        canShare: () => true,
+        share: async () => { throw error },
+      },
+      copyTextImmediately: () => true,
+      createChecklistImage,
+    })
+
+    expect(result.status).toBe(status)
+    expect(result.message).toContain(message)
+    expect(result.message).toContain('скриншоты сохранены')
+    expect(attachments).toHaveLength(3)
+  })
+
+  it('сохраняет attachments после успешного вызова share', async () => {
+    const attachments = makeAttachments(3)
+    await shareHealthReport({
+      entry: createHealthEntry('2026-08-27'),
+      attachments,
+      navigatorLike: { canShare: () => true, share: async () => undefined },
+      copyTextImmediately: () => true,
+      createChecklistImage,
+    })
+
+    expect(attachments.map((attachment) => attachment.id)).toEqual([
+      'attachment-1',
+      'attachment-2',
+      'attachment-3',
+    ])
+  })
+
+  it('одним действием копирует полный healthExport и сразу открывает share', async () => {
+    const entry = { ...createHealthEntry('2026-08-27'), waterCups: 6, coffeeCups: 2 }
     const events: string[] = []
     const copiedTexts: string[] = []
-    const canShare = vi.fn((_data?: ShareData) => {
-      events.push('canShare')
-      return true
-    })
     const share = vi.fn((_data?: ShareData) => {
       events.push('share')
       return Promise.resolve()
@@ -140,9 +179,14 @@ describe('подготовка вечернего отчёта здоровья'
 
     const resultPromise = shareHealthReport({
       entry,
-      attachments: [makeAttachment('first', 'first.png')],
-      deleteAttachments: vi.fn(async () => undefined),
-      navigatorLike: { canShare, share },
+      attachments: makeAttachments(1),
+      navigatorLike: {
+        canShare: () => {
+          events.push('canShare')
+          return true
+        },
+        share,
+      },
       copyTextImmediately: (text) => {
         events.push('copy')
         copiedTexts.push(text)
@@ -156,24 +200,15 @@ describe('подготовка вечернего отчёта здоровья'
 
     expect(events).toEqual(['copy', 'png', 'canShare', 'share'])
     expect(copiedTexts).toEqual([buildHealthChecklistText(entry)])
-
-    const result = await resultPromise
-    const shareData = share.mock.calls[0][0]
-    expect(result.status).toBe('shared')
-    expect(Object.keys(shareData ?? {})).toEqual(['files'])
-    expect(shareData).not.toHaveProperty('text')
-    expect(shareData).not.toHaveProperty('title')
-    expect(Array.from(shareData?.files ?? []).every((file) => file.type.startsWith('image/')))
-      .toBe(true)
+    expect((await resultPromise).status).toBe('shared')
   })
 
   it('не ждёт асинхронный Clipboard API перед открытием системного меню', async () => {
     const events: string[] = []
     let finishCopy: ((copied: boolean) => void) | undefined
     const resultPromise = shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
+      entry: createHealthEntry('2026-08-27'),
       attachments: [],
-      deleteAttachments: vi.fn(async () => undefined),
       navigatorLike: {
         canShare: () => {
           events.push('canShare')
@@ -201,126 +236,41 @@ describe('подготовка вечернего отчёта здоровья'
     expect((await resultPromise).status).toBe('shared')
   })
 
-  it('после успешной передачи удаляет временные скриншоты', async () => {
-    const deleteAttachments = vi.fn(async () => undefined)
-    const result = await prepare({ deleteAttachments })
-
-    expect(result).toEqual({
-      status: 'shared',
-      message: 'Готово: текст скопирован, изображения подготовлены',
-    })
-    expect(deleteAttachments).toHaveBeenCalledOnce()
-  })
-
-  it('после отмены сохраняет скриншоты и сообщает, что текст уже скопирован', async () => {
-    const deleteAttachments = vi.fn(async () => undefined)
-    const result = await prepare({
-      deleteAttachments,
-      share: async () => {
-        throw new DOMException('cancelled', 'AbortError')
-      },
-    })
-
-    expect(result).toEqual({
-      status: 'cancelled',
-      message: 'Сохранение изображений отменено. Текст уже скопирован',
-    })
-    expect(deleteAttachments).not.toHaveBeenCalled()
-  })
-
-  it('после ошибки share сохраняет скриншоты', async () => {
-    const deleteAttachments = vi.fn(async () => undefined)
-    const result = await prepare({
-      deleteAttachments,
-      share: async () => {
-        throw new Error('share failed')
-      },
-    })
-
-    expect(result).toEqual({
-      status: 'error',
-      message: 'Не удалось подготовить изображения. Текст уже скопирован',
-    })
-    expect(deleteAttachments).not.toHaveBeenCalled()
-  })
-
   it('при ошибке копирования не создаёт PNG и не открывает share', async () => {
     const createImage = vi.fn(createChecklistImage)
     const share = vi.fn(async () => undefined)
-    const deleteAttachments = vi.fn(async () => undefined)
     const result = await shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
-      attachments: [makeAttachment('first', 'first.png')],
-      deleteAttachments,
+      entry: createHealthEntry('2026-08-27'),
+      attachments: makeAttachments(1),
       navigatorLike: { canShare: () => true, share },
       copyTextImmediately: () => false,
       createChecklistImage: createImage,
     })
 
-    expect(result).toEqual({
-      status: 'error',
-      message: 'Не удалось скопировать текст. Повторите подготовку отчёта',
-    })
+    expect(result.status).toBe('error')
     expect(createImage).not.toHaveBeenCalled()
     expect(share).not.toHaveBeenCalled()
-    expect(deleteAttachments).not.toHaveBeenCalled()
   })
 
-  it('не удаляет скриншоты, если асинхронное копирование завершилось ошибкой', async () => {
+  it('использует безопасный fallback, если canShare выбрасывает ошибку', async () => {
     const share = vi.fn(async () => undefined)
-    const deleteAttachments = vi.fn(async () => undefined)
     const result = await shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
-      attachments: [makeAttachment('first', 'first.png')],
-      deleteAttachments,
-      navigatorLike: { canShare: () => true, share },
-      copyTextImmediately: () => Promise.resolve(false),
-      createChecklistImage,
-    })
-
-    expect(share).toHaveBeenCalledOnce()
-    expect(result.message).toBe('Не удалось скопировать текст. Повторите подготовку отчёта')
-    expect(deleteAttachments).not.toHaveBeenCalled()
-  })
-
-  it('при отсутствии file share оставляет текст скопированным и предлагает PNG для скачивания', async () => {
-    const deleteAttachments = vi.fn(async () => undefined)
-    const result = await shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
-      attachments: [makeAttachment('first', 'first.png')],
-      deleteAttachments,
-      navigatorLike: { canShare: () => false },
-      copyTextImmediately: () => true,
-      createChecklistImage,
-    })
-
-    expect(result.status).toBe('fallback')
-    expect(result.message).toContain('Текст скопирован')
-    expect(result.checklistImage?.name).toBe('health-checklist-2026-07-12.png')
-    expect(deleteAttachments).not.toHaveBeenCalled()
-  })
-
-  it('использует резервный сценарий, если canShare выбрасывает ошибку', async () => {
-    const result = await shareHealthReport({
-      entry: createHealthEntry('2026-07-12'),
-      attachments: [],
-      deleteAttachments: vi.fn(async () => undefined),
+      entry: createHealthEntry('2026-08-27'),
+      attachments: makeAttachments(2),
       navigatorLike: {
-        canShare: () => {
-          throw new Error('unsupported files')
-        },
-        share: async () => undefined,
+        canShare: () => { throw new Error('unsupported files') },
+        share,
       },
       copyTextImmediately: () => true,
       createChecklistImage,
     })
 
     expect(result.status).toBe('fallback')
-    expect(result.checklistImage?.type).toBe('image/png')
+    expect(share).not.toHaveBeenCalled()
   })
 
   it('синхронный clipboard helper копирует переданный обычный текст', () => {
-    const text = buildHealthChecklistText(createHealthEntry('2026-07-12'))
+    const text = buildHealthChecklistText(createHealthEntry('2026-08-27'))
     const execCommand = vi.fn(() => {
       expect((document.activeElement as HTMLTextAreaElement).value).toBe(text)
       return true
@@ -347,45 +297,29 @@ describe('подготовка вечернего отчёта здоровья'
   })
 })
 
-function prepare({
-  deleteAttachments,
-  share = async () => undefined,
-}: {
-  deleteAttachments: () => Promise<void>
-  share?: (data?: ShareData) => Promise<void>
-}) {
-  return shareHealthReport({
-    entry: createHealthEntry('2026-07-12'),
-    attachments: [makeAttachment('first', 'first.png')],
-    deleteAttachments,
-    navigatorLike: { canShare: () => true, share },
-    copyTextImmediately: () => true,
-    createChecklistImage,
-  })
-}
-
 function createChecklistImage(entry: HealthEntry): File {
   return new File(['png'], `health-checklist-${entry.date}.png`, { type: 'image/png' })
 }
 
-function makeAttachment(id: string, fileName: string): HealthAttachment {
-  const blob = new Blob([id], { type: fileName.endsWith('.png') ? 'image/png' : 'image/jpeg' })
-  return {
-    id,
-    date: '2026-07-12',
-    blob,
-    fileName,
-    mimeType: blob.type,
-    size: blob.size,
-    addedAt: '2026-07-12T12:00:00.000Z',
-  }
+function makeAttachments(count: number): HealthAttachment[] {
+  return Array.from({ length: count }, (_, index) =>
+    makeAttachment(
+      `attachment-${index + 1}`,
+      `original-${index + 1}.${index % 2 === 0 ? 'png' : 'jpg'}`,
+      index % 2 === 0 ? 'image/png' : 'image/jpeg',
+    ),
+  )
 }
 
-function makeFourAttachments(): HealthAttachment[] {
-  return [
-    makeAttachment('first', 'first.png'),
-    makeAttachment('second', 'second.jpg'),
-    makeAttachment('third', 'third.png'),
-    makeAttachment('fourth', 'fourth.jpg'),
-  ]
+function makeAttachment(id: string, fileName: string, mimeType: string): HealthAttachment {
+  const blob = new Blob([id], { type: mimeType })
+  return {
+    id,
+    date: '2026-08-27',
+    blob,
+    fileName,
+    mimeType,
+    size: blob.size,
+    addedAt: '2026-08-27T12:00:00.000Z',
+  }
 }

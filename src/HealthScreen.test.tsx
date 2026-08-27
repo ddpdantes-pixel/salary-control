@@ -381,14 +381,14 @@ describe('экран здоровья сегодня', () => {
     )
 
     const message = await screen.findByText(
-      'Готово: текст скопирован, изображения подготовлены',
+      'Готово: текст скопирован, все изображения переданы',
     )
     expect(document.execCommand).toHaveBeenCalledWith('copy')
     expect(message.classList.contains('success')).toBe(true)
     expect(message.classList.contains('warning')).toBe(false)
     expect(
       screen.getByText(
-        'Откройте нужный чат ChatGPT, выберите последние изображения и вставьте текст',
+        'Проверьте, что выбранное приложение получило чек-лист и все скриншоты',
       ),
     ).not.toBeNull()
   })
@@ -414,7 +414,7 @@ describe('экран здоровья сегодня', () => {
     )
 
     const message = await screen.findByText(
-      'Сохранение изображений отменено. Текст уже скопирован',
+      'Передача изображений отменена. Текст уже скопирован; скриншоты сохранены',
     )
     expect(message.classList.contains('warning')).toBe(true)
     expect(message.classList.contains('success')).toBe(false)

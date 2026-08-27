@@ -5,7 +5,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HealthAttachmentsSection } from './HealthAttachmentsSection'
-import { HEALTH_ATTACHMENT_DB_NAME, listHealthAttachments } from './healthAttachmentStorage'
+import {
+  HEALTH_ATTACHMENT_DB_NAME,
+  listHealthAttachments,
+  saveHealthAttachment,
+} from './healthAttachmentStorage'
 
 describe('блок временных скриншотов', () => {
   beforeEach(async () => {
@@ -37,6 +41,7 @@ describe('блок временных скриншотов', () => {
 
     await user.click(screen.getByRole('button', { name: 'Открыть изображение 1' }))
     expect(screen.getByRole('dialog', { name: 'Просмотр скриншота' })).not.toBeNull()
+    expect(await listHealthAttachments('2026-07-12')).toHaveLength(1)
   })
 
   it('разрешает четыре изображения и отклоняет пятое', async () => {
@@ -142,6 +147,61 @@ describe('блок временных скриншотов', () => {
     renderSection()
     expect(await screen.findByText('persist-4.png')).not.toBeNull()
     expect(screen.getByText('Добавлено: 4 из 4')).not.toBeNull()
+  })
+
+  it('не удаляет старый скриншот при повторном открытии', async () => {
+    await saveHealthAttachment({
+      id: 'old-persistent',
+      date: '2026-07-12',
+      blob: new Blob(['old'], { type: 'image/png' }),
+      fileName: 'old-persistent.png',
+      mimeType: 'image/png',
+      size: 3,
+      addedAt: '2026-06-01T12:00:00.000Z',
+    })
+
+    renderSection()
+
+    expect(await screen.findByText('old-persistent.png')).not.toBeNull()
+    expect(await listHealthAttachments('2026-07-12')).toHaveLength(1)
+  })
+
+  it('сохраняет привязку к дате при переключении и возвращении', async () => {
+    const onAttachmentsChange = vi.fn()
+    const view = render(
+      <HealthAttachmentsSection
+        date="2026-07-12"
+        refreshToken={0}
+        showDownloadActions={false}
+        onAttachmentsChange={onAttachmentsChange}
+      />,
+    )
+    addFiles([imageFile('first-day.png', 'first')])
+    expect(await screen.findByText('first-day.png')).not.toBeNull()
+
+    view.rerender(
+      <HealthAttachmentsSection
+        date="2026-07-13"
+        refreshToken={0}
+        showDownloadActions={false}
+        onAttachmentsChange={onAttachmentsChange}
+      />,
+    )
+    await waitFor(() => expect(screen.queryByText('first-day.png')).toBeNull())
+    addFiles([imageFile('second-day.png', 'second')])
+    expect(await screen.findByText('second-day.png')).not.toBeNull()
+
+    view.rerender(
+      <HealthAttachmentsSection
+        date="2026-07-12"
+        refreshToken={0}
+        showDownloadActions={false}
+        onAttachmentsChange={onAttachmentsChange}
+      />,
+    )
+    expect(await screen.findByText('first-day.png')).not.toBeNull()
+    expect(screen.queryByText('second-day.png')).toBeNull()
+    expect(await listHealthAttachments('2026-07-13')).toHaveLength(1)
   })
 
   it('продолжает открывать старый набор из трёх изображений', async () => {

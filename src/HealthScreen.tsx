@@ -707,23 +707,18 @@ function HealthToday({
       settings,
       cosmetologyDebts,
       attachments,
-      deleteAttachments: async () => {
-        await deleteHealthAttachmentsForDate(selectedDate)
-        setAttachments([])
-        setAttachmentRefreshToken((current) => current + 1)
-      },
     })
     setShareResult(result)
     setShowDownloadActions(result.status === 'fallback')
   }
 
   async function deleteTemporaryAttachments(): Promise<void> {
-    if (!window.confirm('Удалить временные скриншоты выбранной даты?')) return
+    if (!window.confirm('Удалить все скриншоты выбранной даты?')) return
     await deleteHealthAttachmentsForDate(selectedDate)
     setAttachments([])
     setAttachmentRefreshToken((current) => current + 1)
     setShowDownloadActions(false)
-    setShareResult({ status: 'shared', message: 'Временные скриншоты удалены' })
+    setShareResult({ status: 'shared', message: 'Скриншоты выбранной даты удалены' })
   }
 
   return (
@@ -1334,7 +1329,7 @@ function HealthToday({
             className="health-delete-temporary"
             onClick={() => void deleteTemporaryAttachments()}
           >
-            Удалить временные скриншоты
+            Удалить все скриншоты
           </button>
         )}
         {shareResult && (
@@ -1346,9 +1341,9 @@ function HealthToday({
           </p>
         )}
         {shareResult?.status === 'shared' &&
-          shareResult.message === 'Готово: текст скопирован, изображения подготовлены' && (
+          shareResult.message === 'Готово: текст скопирован, все изображения переданы' && (
           <p className="health-share-instruction">
-            Откройте нужный чат ChatGPT, выберите последние изображения и вставьте текст
+            Проверьте, что выбранное приложение получило чек-лист и все скриншоты
           </p>
           )}
       </div>

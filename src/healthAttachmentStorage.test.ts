@@ -2,9 +2,10 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createBackupData } from './backup'
 import { createSalaryMonth } from './calculations'
+import { createHealthEntry } from './healthModel'
+import { shareHealthReport } from './healthShare'
 import {
   HEALTH_ATTACHMENT_DB_NAME,
-  cleanupExpiredHealthAttachments,
   deleteHealthAttachment,
   deleteHealthAttachmentsForDate,
   listHealthAttachments,
@@ -78,19 +79,18 @@ describe('IndexedDB временных скриншотов', () => {
     expect(await listHealthAttachments('2026-07-11')).toHaveLength(1)
   })
 
-  it('при запуске очищает только файлы старше 24 часов', async () => {
-    const now = Date.parse('2026-07-12T12:00:00.000Z')
+  it('не удаляет старые файлы автоматически при повторном открытии хранилища', async () => {
     await saveHealthAttachment({
       ...makeAttachment('old', '2026-07-11', 'old'),
-      addedAt: '2026-07-11T11:00:00.000Z',
+      addedAt: '2026-06-01T11:00:00.000Z',
     })
     await saveHealthAttachment({
       ...makeAttachment('fresh', '2026-07-12', 'fresh'),
       addedAt: '2026-07-11T13:00:00.000Z',
     })
 
-    expect(await cleanupExpiredHealthAttachments(now)).toBe(1)
-    expect(await listHealthAttachments('2026-07-11')).toEqual([])
+    expect(await listHealthAttachments('2026-07-11')).toHaveLength(1)
+    expect(await listHealthAttachments('2026-07-11')).toHaveLength(1)
     expect(await listHealthAttachments('2026-07-12')).toHaveLength(1)
   })
 
@@ -102,6 +102,35 @@ describe('IndexedDB временных скриншотов', () => {
     expect(backupJson).not.toContain('private-image')
     expect(backupJson).not.toContain('one.png')
     expect(backupJson).not.toContain('Blob')
+  })
+
+  it.each([
+    { name: 'успешного share', share: async () => undefined },
+    {
+      name: 'AbortError',
+      share: async () => { throw new DOMException('cancelled', 'AbortError') },
+    },
+    {
+      name: 'ошибки share',
+      share: async () => { throw new Error('share failed') },
+    },
+  ])('сохраняет IndexedDB attachments после $name', async ({ share }) => {
+    await saveHealthAttachment(makeAttachment('keep-after-share', '2026-07-12', 'binary'))
+    const attachments = await listHealthAttachments('2026-07-12')
+
+    await shareHealthReport({
+      entry: createHealthEntry('2026-07-12'),
+      attachments,
+      navigatorLike: { canShare: () => true, share },
+      copyTextImmediately: () => true,
+      createChecklistImage: (entry) => new File(
+        ['checklist'],
+        `health-checklist-${entry.date}.png`,
+        { type: 'image/png' },
+      ),
+    })
+
+    expect(await listHealthAttachments('2026-07-12')).toHaveLength(1)
   })
 })
 

@@ -3,7 +3,6 @@ import type { HealthAttachment } from './healthAttachments'
 export const HEALTH_ATTACHMENT_DB_NAME = 'moi-ritm-health-temporary'
 export const HEALTH_ATTACHMENT_STORE_NAME = 'attachments'
 export const HEALTH_ATTACHMENT_DB_VERSION = 1
-export const HEALTH_ATTACHMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 const DATE_INDEX = 'date'
 const ADDED_AT_INDEX = 'addedAt'
@@ -34,13 +33,6 @@ export async function deleteHealthAttachmentsForDate(date: string): Promise<void
     const keys = await requestToPromise(store.index(DATE_INDEX).getAllKeys(date))
     await Promise.all(keys.map((key) => requestToPromise(store.delete(key))))
   })
-}
-
-export async function cleanupExpiredHealthAttachments(
-  now = Date.now(),
-): Promise<number> {
-  const cutoffIso = new Date(now - HEALTH_ATTACHMENT_MAX_AGE_MS).toISOString()
-  return withStore('readwrite', (store) => deleteIndexRange(store, cutoffIso))
 }
 
 function openHealthAttachmentDb(): Promise<IDBDatabase> {
@@ -95,25 +87,5 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
     transaction.oncomplete = () => resolve()
     transaction.onerror = () => reject(transaction.error ?? new Error('Ошибка IndexedDB.'))
     transaction.onabort = () => reject(transaction.error ?? new Error('Операция IndexedDB отменена.'))
-  })
-}
-
-function deleteIndexRange(store: IDBObjectStore, cutoffIso: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    let deleted = 0
-    const request = store
-      .index(ADDED_AT_INDEX)
-      .openCursor(IDBKeyRange.upperBound(cutoffIso, true))
-    request.onsuccess = () => {
-      const cursor = request.result
-      if (!cursor) {
-        resolve(deleted)
-        return
-      }
-      cursor.delete()
-      deleted += 1
-      cursor.continue()
-    }
-    request.onerror = () => reject(request.error ?? new Error('Ошибка очистки IndexedDB.'))
   })
 }

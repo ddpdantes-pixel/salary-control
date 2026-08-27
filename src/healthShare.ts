@@ -18,6 +18,13 @@ interface ShareNavigator {
   clipboard?: Pick<Clipboard, 'writeText'>
 }
 
+const SHARE_EXTENSION_BY_MIME: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+}
+
 export function createHealthShareFiles(
   entry: HealthEntry,
   attachments: HealthAttachment[],
@@ -30,13 +37,16 @@ export function createHealthShareFiles(
   return [
     checklistImage,
     ...attachments.map(
-      (attachment) => {
+      (attachment, index) => {
         if (!attachment.mimeType.startsWith('image/')) {
           throw new Error('В отчёт можно передавать только изображения')
         }
-        return new File([attachment.blob], attachment.fileName, {
+        const extension = SHARE_EXTENSION_BY_MIME[attachment.mimeType]
+        if (!extension) throw new Error('Формат изображения не поддерживается')
+        const parsedAddedAt = Date.parse(attachment.addedAt)
+        return new File([attachment.blob], `training-${index + 1}-${entry.date}.${extension}`, {
           type: attachment.mimeType,
-          lastModified: new Date(attachment.addedAt).getTime(),
+          lastModified: Number.isFinite(parsedAddedAt) ? parsedAddedAt : 0,
         })
       },
     ),
@@ -48,7 +58,6 @@ export function shareHealthReport({
   settings = DEFAULT_HEALTH_SETTINGS,
   cosmetologyDebts = {},
   attachments,
-  deleteAttachments,
   navigatorLike = navigator,
   createChecklistImage = createHealthChecklistImage,
   copyTextImmediately = (text) =>
@@ -58,7 +67,6 @@ export function shareHealthReport({
   settings?: HealthSettings
   cosmetologyDebts?: Record<string, CosmetologyDebt>
   attachments: HealthAttachment[]
-  deleteAttachments: () => Promise<void>
   navigatorLike?: ShareNavigator
   createChecklistImage?: (entry: HealthEntry) => File
   copyTextImmediately?: (text: string) => boolean | Promise<boolean>
@@ -101,7 +109,7 @@ export function shareHealthReport({
       copied
         ? {
             status: 'fallback',
-            message: 'Передача файлов не поддерживается. Текст скопирован; сохраните изображения отдельно',
+            message: 'Не удалось передать все изображения одним действием на этом устройстве. Текст скопирован; скриншоты сохранены, скачайте изображения отдельно или повторите попытку',
             checklistImage: files[0],
           }
         : getCopyFailureResult(),
@@ -118,7 +126,7 @@ export function shareHealthReport({
   }
 
   return Promise.allSettled([resolveCopyResult(copyResult), sharePromise])
-    .then(async ([copyOutcome, shareOutcome]) => {
+    .then(([copyOutcome, shareOutcome]) => {
       if (copyOutcome.status === 'rejected' || !copyOutcome.value) {
         return getCopyFailureResult()
       }
@@ -126,10 +134,9 @@ export function shareHealthReport({
         return getShareFailureResult(shareOutcome.reason)
       }
 
-      await deleteAttachments()
       return {
         status: 'shared' as const,
-        message: 'Готово: текст скопирован, изображения подготовлены',
+        message: 'Готово: текст скопирован, все изображения переданы',
       }
     })
     .catch(() => ({
@@ -200,8 +207,8 @@ function getShareFailureResult(error: unknown): HealthShareResult {
   return {
     status: cancelled ? 'cancelled' : 'error',
     message: cancelled
-      ? 'Сохранение изображений отменено. Текст уже скопирован'
-      : 'Не удалось подготовить изображения. Текст уже скопирован',
+      ? 'Передача изображений отменена. Текст уже скопирован; скриншоты сохранены'
+      : 'Не удалось передать изображения. Текст уже скопирован; скриншоты сохранены',
   }
 }
 
