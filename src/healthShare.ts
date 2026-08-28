@@ -1,5 +1,6 @@
 import { buildHealthChecklistText } from './healthExport'
 import { createHealthChecklistImage } from './healthChecklistImage'
+import { createHealthChatGptCombinedFile } from './healthChatGptShare'
 import type { HealthAttachment } from './healthAttachments'
 import type { CosmetologyDebt, HealthEntry } from './healthTypes'
 import { DEFAULT_HEALTH_SETTINGS, type HealthSettings } from './healthSettings'
@@ -145,6 +146,84 @@ export function shareHealthReport({
     }))
 }
 
+export async function shareHealthReportForChatGpt({
+  entry,
+  settings = DEFAULT_HEALTH_SETTINGS,
+  cosmetologyDebts = {},
+  attachments,
+  navigatorLike = navigator,
+  createChecklistImage = createHealthChecklistImage,
+  createCombinedImage = createHealthChatGptCombinedFile,
+  copyTextImmediately = (text) =>
+    copyTextForPreparation(text, navigatorLike.clipboard),
+}: {
+  entry: HealthEntry
+  settings?: HealthSettings
+  cosmetologyDebts?: Record<string, CosmetologyDebt>
+  attachments: HealthAttachment[]
+  navigatorLike?: ShareNavigator
+  createChecklistImage?: (entry: HealthEntry) => File
+  createCombinedImage?: (files: File[], localDate: string) => Promise<File>
+  copyTextImmediately?: (text: string) => boolean | Promise<boolean>
+}): Promise<HealthShareResult> {
+  const checklistText = buildHealthChecklistText(entry, settings, cosmetologyDebts)
+  const copyResult = copyTextImmediately(checklistText)
+  if (copyResult === false) return getCopyFailureResult()
+
+  let sourceFiles: File[] = []
+  let combinedFile: File
+  try {
+    sourceFiles = createHealthShareFiles(entry, attachments, createChecklistImage, settings)
+    combinedFile = await createCombinedImage(sourceFiles, entry.date)
+  } catch {
+    const copied = await resolveCopyResult(copyResult)
+    return copied
+      ? {
+          status: 'fallback',
+          message: 'Все изображения не удалось объединить в один файл. Они сохранены — используйте обычное «Поделиться изображениями»',
+          checklistImage: sourceFiles?.[0],
+        }
+      : getCopyFailureResult()
+  }
+
+  const files = [combinedFile]
+  let canShareFiles = false
+  try {
+    canShareFiles =
+      typeof navigatorLike.share === 'function' &&
+      typeof navigatorLike.canShare === 'function' &&
+      navigatorLike.canShare({ files })
+  } catch {
+    canShareFiles = false
+  }
+
+  if (!canShareFiles) {
+    const copied = await resolveCopyResult(copyResult)
+    return copied
+      ? {
+          status: 'fallback',
+          message: 'Устройство не смогло передать общий файл. Текст скопирован; скриншоты сохранены',
+          checklistImage: sourceFiles[0],
+        }
+      : getCopyFailureResult()
+  }
+
+  try {
+    await navigatorLike.share!({ files })
+  } catch (error) {
+    const copied = await resolveCopyResult(copyResult)
+    return copied ? getChatGptShareFailureResult(error) : getCopyFailureResult()
+  }
+
+  const copied = await resolveCopyResult(copyResult)
+  return copied
+    ? {
+        status: 'shared',
+        message: 'Готово: текст скопирован, один файл для ChatGPT передан',
+      }
+    : getCopyFailureResult()
+}
+
 export function copyTextToClipboardSynchronously(text: string): boolean {
   if (typeof document === 'undefined' || typeof document.execCommand !== 'function') {
     return false
@@ -209,6 +288,16 @@ function getShareFailureResult(error: unknown): HealthShareResult {
     message: cancelled
       ? 'Передача изображений отменена. Текст уже скопирован; скриншоты сохранены'
       : 'Не удалось передать изображения. Текст уже скопирован; скриншоты сохранены',
+  }
+}
+
+function getChatGptShareFailureResult(error: unknown): HealthShareResult {
+  const cancelled = error instanceof DOMException && error.name === 'AbortError'
+  return {
+    status: cancelled ? 'cancelled' : 'error',
+    message: cancelled
+      ? 'Отправка в ChatGPT отменена. Текст уже скопирован; скриншоты сохранены'
+      : 'Не удалось передать общий файл. Текст уже скопирован; скриншоты сохранены',
   }
 }
 

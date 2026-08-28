@@ -18,6 +18,11 @@ vi.mock('./healthChecklistImage', () => ({
     new File(['png'], `health-checklist-${entry.date}.png`, { type: 'image/png' }),
 }))
 
+vi.mock('./healthChatGptShare', () => ({
+  createHealthChatGptCombinedFile: async (_files: File[], localDate: string) =>
+    new File(['combined'], `moi-ritm-chatgpt-${localDate}.jpg`, { type: 'image/jpeg' }),
+}))
+
 describe('экран здоровья сегодня', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -336,13 +341,19 @@ describe('экран здоровья сегодня', () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
-  it('показывает новый сценарий подготовки без отдельной кнопки копирования текста', () => {
+  it('показывает отдельные режимы ChatGPT и обычной отправки', () => {
     render(<HealthScreen />)
 
-    expect(screen.getByRole('button', { name: 'Подготовить отчёт здоровья для ChatGPT' }))
-      .not.toBeNull()
+    expect(screen.getByRole('button', {
+      name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
+    })).not.toBeNull()
+    expect(screen.getByRole('button', {
+      name: 'Поделиться отчётом здоровья отдельными изображениями',
+    })).not.toBeNull()
     expect(
-      screen.getByText('Текст скопируется, а изображения можно будет сохранить в Фото'),
+      screen.getByText(
+        'Для ChatGPT отправится один общий файл. Обычная отправка передаст изображения отдельно',
+      ),
     ).not.toBeNull()
     expect(screen.queryByRole('button', { name: 'Скопировать только текст' })).toBeNull()
   })
@@ -351,18 +362,23 @@ describe('экран здоровья сегодня', () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
     const sendButton = screen.getByRole('button', {
-      name: 'Подготовить отчёт здоровья для ChatGPT',
+      name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
+    }) as HTMLButtonElement
+    const regularShareButton = screen.getByRole('button', {
+      name: 'Поделиться отчётом здоровья отдельными изображениями',
     }) as HTMLButtonElement
 
     expect(sendButton.disabled).toBe(true)
+    expect(regularShareButton.disabled).toBe(true)
     const waterChoices = screen.getByRole('group', {
       name: 'Количество кружек воды',
     })
     await user.click(within(waterChoices).getByRole('button', { name: '1' }))
     expect(sendButton.disabled).toBe(false)
+    expect(regularShareButton.disabled).toBe(false)
   })
 
-  it('одним нажатием копирует текст, открывает share и показывает инструкцию', async () => {
+  it('одним нажатием создаёт совместимый файл, копирует текст и показывает инструкцию', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('navigator', {
       ...navigator,
@@ -376,21 +392,82 @@ describe('экран здоровья сегодня', () => {
     await user.click(within(waterChoices).getByRole('button', { name: '1' }))
     await user.click(
       screen.getByRole('button', {
-        name: 'Подготовить отчёт здоровья для ChatGPT',
+        name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
       }),
     )
 
     const message = await screen.findByText(
-      'Готово: текст скопирован, все изображения переданы',
+      'Готово: текст скопирован, один файл для ChatGPT передан',
     )
     expect(document.execCommand).toHaveBeenCalledWith('copy')
     expect(message.classList.contains('success')).toBe(true)
     expect(message.classList.contains('warning')).toBe(false)
     expect(
       screen.getByText(
-        'Проверьте, что выбранное приложение получило чек-лист и все скриншоты',
+        'Проверьте, что ChatGPT получил один файл с чек-листом и всеми скриншотами',
       ),
     ).not.toBeNull()
+  })
+
+  it('обычная отправка сохраняет checklist и attachment отдельными файлами', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    await saveHealthAttachment({
+      id: 'share-separately',
+      date: today,
+      blob: new Blob(['screenshot'], { type: 'image/png' }),
+      fileName: 'workout.png',
+      mimeType: 'image/png',
+      size: 10,
+      addedAt: `${today}T12:00:00.000Z`,
+    })
+    let sharedFiles: readonly File[] | undefined
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      canShare: () => true,
+      share: vi.fn(async (data?: ShareData) => { sharedFiles = data?.files }),
+    })
+
+    render(<HealthScreen />)
+    await screen.findByText('Добавлено: 1 из 4')
+    const waterChoices = screen.getByRole('group', { name: 'Количество кружек воды' })
+    await user.click(within(waterChoices).getByRole('button', { name: '1' }))
+    await user.click(screen.getByRole('button', {
+      name: 'Поделиться отчётом здоровья отдельными изображениями',
+    }))
+
+    await screen.findByText('Готово: текст скопирован, все изображения переданы')
+    expect(sharedFiles).toHaveLength(2)
+    expect(sharedFiles?.map((file) => file.name)).toEqual([
+      `health-checklist-${today}.png`,
+      `training-1-${today}.png`,
+    ])
+  })
+
+  it('не запускает два share одновременно во время подготовки', async () => {
+    const user = userEvent.setup()
+    let finishShare: (() => void) | undefined
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      canShare: () => true,
+      share: vi.fn(() => new Promise<void>((resolve) => { finishShare = resolve })),
+    })
+    render(<HealthScreen />)
+    const waterChoices = screen.getByRole('group', { name: 'Количество кружек воды' })
+    await user.click(within(waterChoices).getByRole('button', { name: '1' }))
+    const chatGptButton = screen.getByRole('button', {
+      name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
+    }) as HTMLButtonElement
+    const regularButton = screen.getByRole('button', {
+      name: 'Поделиться отчётом здоровья отдельными изображениями',
+    }) as HTMLButtonElement
+
+    await user.click(chatGptButton)
+    expect(chatGptButton.textContent).toBe('Подготавливаем…')
+    expect(chatGptButton.disabled).toBe(true)
+    expect(regularButton.disabled).toBe(true)
+    finishShare?.()
+    await screen.findByText('Готово: текст скопирован, один файл для ChatGPT передан')
   })
 
   it('показывает отмену мягким янтарным сообщением', async () => {
@@ -409,12 +486,12 @@ describe('экран здоровья сегодня', () => {
     await user.click(within(waterChoices).getByRole('button', { name: '1' }))
     await user.click(
       screen.getByRole('button', {
-        name: 'Подготовить отчёт здоровья для ChatGPT',
+        name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
       }),
     )
 
     const message = await screen.findByText(
-      'Передача изображений отменена. Текст уже скопирован; скриншоты сохранены',
+      'Отправка в ChatGPT отменена. Текст уже скопирован; скриншоты сохранены',
     )
     expect(message.classList.contains('warning')).toBe(true)
     expect(message.classList.contains('success')).toBe(false)

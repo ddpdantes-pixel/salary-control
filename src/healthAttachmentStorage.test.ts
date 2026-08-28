@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createBackupData } from './backup'
 import { createSalaryMonth } from './calculations'
 import { createHealthEntry } from './healthModel'
-import { shareHealthReport } from './healthShare'
+import { shareHealthReport, shareHealthReportForChatGpt } from './healthShare'
 import {
   HEALTH_ATTACHMENT_DB_NAME,
   deleteHealthAttachment,
@@ -127,6 +127,30 @@ describe('IndexedDB временных скриншотов', () => {
         ['checklist'],
         `health-checklist-${entry.date}.png`,
         { type: 'image/png' },
+      ),
+    })
+
+    expect(await listHealthAttachments('2026-07-12')).toHaveLength(1)
+  })
+
+  it('сохраняет IndexedDB attachments после создания и отправки файла для ChatGPT', async () => {
+    await saveHealthAttachment(makeAttachment('keep-after-chatgpt', '2026-07-12', 'binary'))
+    const attachments = await listHealthAttachments('2026-07-12')
+
+    await shareHealthReportForChatGpt({
+      entry: createHealthEntry('2026-07-12'),
+      attachments,
+      navigatorLike: { canShare: () => true, share: async () => undefined },
+      copyTextImmediately: () => true,
+      createChecklistImage: (entry) => new File(
+        ['checklist'],
+        `health-checklist-${entry.date}.png`,
+        { type: 'image/png' },
+      ),
+      createCombinedImage: async () => new File(
+        ['combined'],
+        'moi-ritm-chatgpt-2026-07-12.jpg',
+        { type: 'image/jpeg' },
       ),
     })
 

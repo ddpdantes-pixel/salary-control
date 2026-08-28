@@ -8,6 +8,7 @@ import {
   copyTextToClipboardSynchronously,
   createHealthShareFiles,
   shareHealthReport,
+  shareHealthReportForChatGpt,
 } from './healthShare'
 import type { HealthAttachment } from './healthAttachments'
 import type { HealthEntry } from './healthTypes'
@@ -94,6 +95,130 @@ describe('подготовка вечернего отчёта здоровья'
       'training-3-2026-08-27.png',
     ])
     expect(attachments).toHaveLength(3)
+  })
+
+  it('в ChatGPT-режиме передаёт один и тот же составной JPEG в canShare и share', async () => {
+    const attachments = makeAttachments(4)
+    const combined = new File(['combined'], 'moi-ritm-chatgpt-2026-08-27.jpg', {
+      type: 'image/jpeg',
+    })
+    const createCombinedImage = vi.fn(async (files: File[], localDate: string) => {
+      expect(files).toHaveLength(5)
+      expect(files[0].name).toBe('health-checklist-2026-08-27.png')
+      expect(localDate).toBe('2026-08-27')
+      return combined
+    })
+    let checkedFiles: readonly File[] | undefined
+    let sharedFiles: readonly File[] | undefined
+
+    const result = await shareHealthReportForChatGpt({
+      entry: createHealthEntry('2026-08-27'),
+      attachments,
+      navigatorLike: {
+        canShare: (data) => {
+          checkedFiles = data?.files
+          return true
+        },
+        share: async (data) => { sharedFiles = data?.files },
+      },
+      copyTextImmediately: () => true,
+      createChecklistImage,
+      createCombinedImage,
+    })
+
+    expect(result.status).toBe('shared')
+    expect(checkedFiles).toEqual([combined])
+    expect(sharedFiles).toBe(checkedFiles)
+    expect(sharedFiles?.[0]).toMatchObject({
+      name: 'moi-ritm-chatgpt-2026-08-27.jpg',
+      type: 'image/jpeg',
+    })
+    expect(attachments).toHaveLength(4)
+  })
+
+  it.each([
+    { name: 'успеха', shareError: undefined, expected: 'shared' },
+    { name: 'отмены', shareError: new DOMException('cancelled', 'AbortError'), expected: 'cancelled' },
+    { name: 'ошибки', shareError: new Error('failed'), expected: 'error' },
+  ])('ChatGPT-share сохраняет attachments после $name', async ({ shareError, expected }) => {
+    const attachments = makeAttachments(3)
+    const result = await shareHealthReportForChatGpt({
+      entry: createHealthEntry('2026-08-27'),
+      attachments,
+      navigatorLike: {
+        canShare: () => true,
+        share: async () => { if (shareError) throw shareError },
+      },
+      copyTextImmediately: () => true,
+      createChecklistImage,
+      createCombinedImage: async () => new File(['combined'], 'combined.jpg', {
+        type: 'image/jpeg',
+      }),
+    })
+
+    expect(result.status).toBe(expected)
+    expect(attachments.map(({ id }) => id)).toEqual([
+      'attachment-1',
+      'attachment-2',
+      'attachment-3',
+    ])
+  })
+
+  it('не передаёт частичный файл при ошибке объединения', async () => {
+    const share = vi.fn(async () => undefined)
+    const attachments = makeAttachments(2)
+    const result = await shareHealthReportForChatGpt({
+      entry: createHealthEntry('2026-08-27'),
+      attachments,
+      navigatorLike: { canShare: () => true, share },
+      copyTextImmediately: () => true,
+      createChecklistImage,
+      createCombinedImage: async () => { throw new Error('decode failed') },
+    })
+
+    expect(result.status).toBe('fallback')
+    expect(result.message).toContain('Все изображения не удалось объединить')
+    expect(share).not.toHaveBeenCalled()
+    expect(attachments).toHaveLength(2)
+  })
+
+  it('не вызывает ChatGPT-share, если canShare отклонил единый файл', async () => {
+    const share = vi.fn(async () => undefined)
+    const result = await shareHealthReportForChatGpt({
+      entry: createHealthEntry('2026-08-27'),
+      attachments: makeAttachments(1),
+      navigatorLike: { canShare: () => false, share },
+      copyTextImmediately: () => true,
+      createChecklistImage,
+      createCombinedImage: async () => new File(['combined'], 'combined.jpg', {
+        type: 'image/jpeg',
+      }),
+    })
+
+    expect(result.status).toBe('fallback')
+    expect(share).not.toHaveBeenCalled()
+  })
+
+  it('безопасно обрабатывает ошибку canShare в ChatGPT-режиме', async () => {
+    const attachments = makeAttachments(2)
+    const share = vi.fn(async () => undefined)
+    const result = await shareHealthReportForChatGpt({
+      entry: createHealthEntry('2026-08-27'),
+      attachments,
+      navigatorLike: {
+        canShare: () => { throw new Error('canShare failed') },
+        share,
+      },
+      copyTextImmediately: () => true,
+      createChecklistImage,
+      createCombinedImage: async () => new File(['combined'], 'combined.jpg', {
+        type: 'image/jpeg',
+      }),
+    })
+
+    expect(result.status).toBe('fallback')
+    expect(share).not.toHaveBeenCalled()
+    expect(attachments).toHaveLength(2)
   })
 
   it('не делает silent single-file fallback, если полный массив не поддерживается', async () => {

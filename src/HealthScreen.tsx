@@ -33,7 +33,7 @@ import type { HealthAttachment } from './healthAttachments'
 import { getTimerDisplayRemaining, getTimerTitle } from './healthTimer'
 import type { HealthTimerController } from './useHealthTimer'
 import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
-import { shareHealthReport } from './healthShare'
+import { shareHealthReport, shareHealthReportForChatGpt } from './healthShare'
 import type { HealthShareResult } from './healthShare'
 import {
   APPLE_HEALTH_WATER_SYNC_EVENT,
@@ -690,6 +690,8 @@ function HealthToday({
   const [attachments, setAttachments] = useState<HealthAttachment[]>([])
   const [attachmentRefreshToken, setAttachmentRefreshToken] = useState(0)
   const [shareResult, setShareResult] = useState<HealthShareResult | null>(null)
+  const [activeShareMode, setActiveShareMode] = useState<'chatgpt' | 'images' | null>(null)
+  const [lastShareMode, setLastShareMode] = useState<'chatgpt' | 'images' | null>(null)
   const [showDownloadActions, setShowDownloadActions] = useState(false)
   const handleAttachmentsChange = useCallback(
     (nextAttachments: HealthAttachment[]) => setAttachments(nextAttachments),
@@ -701,15 +703,19 @@ function HealthToday({
     setShowDownloadActions(false)
   }, [selectedDate])
 
-  async function prepareForChatGpt(): Promise<void> {
-    const result = await shareHealthReport({
-      entry,
-      settings,
-      cosmetologyDebts,
-      attachments,
-    })
-    setShareResult(result)
-    setShowDownloadActions(result.status === 'fallback')
+  async function shareReport(mode: 'chatgpt' | 'images'): Promise<void> {
+    if (activeShareMode) return
+    setActiveShareMode(mode)
+    setShareResult(null)
+    setLastShareMode(mode)
+    try {
+      const share = mode === 'chatgpt' ? shareHealthReportForChatGpt : shareHealthReport
+      const result = await share({ entry, settings, cosmetologyDebts, attachments })
+      setShareResult(result)
+      setShowDownloadActions(result.status === 'fallback')
+    } finally {
+      setActiveShareMode(null)
+    }
   }
 
   async function deleteTemporaryAttachments(): Promise<void> {
@@ -1308,17 +1314,28 @@ function HealthToday({
         >
           {entry.completed ? 'День завершён' : 'Завершить день'}
         </button>
-        <button
-          type="button"
-          className="health-share-action"
-          disabled={!hasSavedEntry}
-          aria-label="Подготовить отчёт здоровья для ChatGPT"
-          onClick={() => void prepareForChatGpt()}
-        >
-          Подготовить для ChatGPT
-        </button>
+        <div className="health-share-actions">
+          <button
+            type="button"
+            className="health-share-action"
+            disabled={!hasSavedEntry || activeShareMode !== null}
+            aria-label="Отправить отчёт здоровья в ChatGPT одним файлом"
+            onClick={() => void shareReport('chatgpt')}
+          >
+            {activeShareMode === 'chatgpt' ? 'Подготавливаем…' : 'Отправить в ChatGPT'}
+          </button>
+          <button
+            type="button"
+            className="health-secondary-action"
+            disabled={!hasSavedEntry || activeShareMode !== null}
+            aria-label="Поделиться отчётом здоровья отдельными изображениями"
+            onClick={() => void shareReport('images')}
+          >
+            {activeShareMode === 'images' ? 'Подготавливаем…' : 'Поделиться изображениями'}
+          </button>
+        </div>
         <p className="health-share-hint">
-          Текст скопируется, а изображения можно будет сохранить в Фото
+          Для ChatGPT отправится один общий файл. Обычная отправка передаст изображения отдельно
         </p>
         {shareResult?.checklistImage && (
           <HealthChecklistDownload file={shareResult.checklistImage} />
@@ -1340,12 +1357,13 @@ function HealthToday({
             {shareResult.message}
           </p>
         )}
-        {shareResult?.status === 'shared' &&
-          shareResult.message === 'Готово: текст скопирован, все изображения переданы' && (
+        {shareResult?.status === 'shared' && lastShareMode && (
           <p className="health-share-instruction">
-            Проверьте, что выбранное приложение получило чек-лист и все скриншоты
+            {lastShareMode === 'chatgpt'
+              ? 'Проверьте, что ChatGPT получил один файл с чек-листом и всеми скриншотами'
+              : 'Проверьте, что выбранное приложение получило чек-лист и все скриншоты'}
           </p>
-          )}
+        )}
       </div>
     </div>
   )
