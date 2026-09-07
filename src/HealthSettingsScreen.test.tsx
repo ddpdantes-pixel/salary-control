@@ -10,6 +10,7 @@ import { EVENING_CHECKLIST_TRANSFER_PROTOCOL } from './eveningChecklistTransferP
 describe('экран настроек здоровья', () => {
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
   it('показывает прямую настройку Apple Health, маскирует и копирует ключ отдельно', async () => {
@@ -64,6 +65,8 @@ describe('экран настроек здоровья', () => {
   })
 
   it('показывает последнюю синхронизацию и безопасную ошибку данных', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T12:00:00+03:00'))
     const entry = {
       ...createHealthEntry(new Date().toISOString().slice(0, 10)),
       waterMl: 1800,

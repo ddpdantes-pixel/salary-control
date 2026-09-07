@@ -12,7 +12,7 @@
 
 .health-today,
 .health-week {
-  animation: card-in 220ms ease both;
+  animation: card-in var(--motion-normal) var(--motion-ease) both;
 }
 
 .health-date-panel,
@@ -474,6 +474,10 @@
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+  transition:
+    color var(--motion-normal) var(--motion-ease),
+    background-color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease);
 }
 
 .health-save-status.saving {
@@ -563,6 +567,11 @@
   background: var(--surface-muted);
   box-shadow: none;
   font-weight: 750;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .number-choices button.selected,
@@ -572,6 +581,7 @@
   color: var(--accent);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 2px var(--accent);
+  animation: control-select-in var(--motion-normal) var(--motion-spring);
 }
 
 .health-result {
@@ -601,6 +611,11 @@
   text-align: left;
   background: var(--surface-muted);
   box-shadow: none;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .health-toggle.selected,
@@ -647,11 +662,27 @@
   background: var(--surface);
   font-size: 15px;
   font-weight: 800;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    border-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .health-toggle.selected .health-checkmark {
   border-color: var(--accent);
   background: var(--accent);
+  animation: control-select-in var(--motion-normal) var(--motion-spring);
+}
+
+.health-screen input[type='checkbox'] {
+  transition:
+    accent-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+.health-screen input[type='checkbox']:checked {
+  transform: scale(1.04);
 }
 
 .workout-option {
@@ -901,7 +932,7 @@
   min-width: 0;
   gap: 12px;
   padding-bottom: 18px;
-  animation: card-in 220ms ease both;
+  animation: card-in var(--motion-normal) var(--motion-ease) both;
 }
 
 .health-history-month,
@@ -1147,6 +1178,11 @@
   color: var(--text-primary);
   background: var(--surface-muted);
   box-shadow: none;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .health-history-calendar-grid > button.today {
@@ -1157,6 +1193,7 @@
   color: var(--accent);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 2px var(--accent);
+  animation: control-select-in var(--motion-normal) var(--motion-spring);
 }
 
 .health-history-calendar-grid > button.completed:not(.selected) {

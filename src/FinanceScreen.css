@@ -356,6 +356,7 @@
   height: 100%;
   border-radius: inherit;
   background: var(--finance-accent);
+  transition: width var(--motion-progress) var(--motion-ease);
 }
 
 .finance-goal-card.completed .finance-goal-progress span {
@@ -957,8 +958,8 @@
     linear-gradient(145deg, #e9f3ff 0%, #cfe4f8 54%, #f5f9ff 100%);
   box-shadow: 0 16px 34px rgba(32, 87, 143, 0.13);
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease);
 }
 
 .finance-balance-editor:focus-within {
@@ -1798,11 +1799,17 @@
 .obligation-calendar-grid button {
   min-width: 0;
   padding: 0;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .obligation-calendar-grid button.selected {
   color: white;
   background: var(--finance-accent, #2768ad);
+  animation: control-select-in var(--motion-normal) var(--motion-spring);
 }
 
 .obligation-calendar-grid i {
@@ -2346,6 +2353,13 @@
   min-height: 22px !important;
   flex: 0 0 auto;
   accent-color: var(--finance-accent);
+  transition:
+    accent-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+.finance-checkbox-row input:checked {
+  transform: scale(1.04);
 }
 
 .finance-expense-history {

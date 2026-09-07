@@ -221,7 +221,7 @@
   flex: 0 0 auto;
   color: var(--daily-sales-accent);
   font-size: 20px;
-  transition: transform 160ms ease;
+  transition: transform var(--motion-fast) var(--motion-spring);
 }
 
 .daily-sales-disclosure[open] > summary::after {

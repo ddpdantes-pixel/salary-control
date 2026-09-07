@@ -70,14 +70,31 @@ button {
   box-shadow: var(--shadow-soft);
   cursor: pointer;
   transition:
-    background-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
 }
 
-button:active {
-  transform: translateY(1px);
+button:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+button:disabled {
+  transform: none;
+  transition: none;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  transition: transform var(--motion-fast) var(--motion-spring);
+}
+
+input[type='checkbox']:checked,
+input[type='radio']:checked {
+  transform: scale(1.04);
 }
 
 .save-status {
@@ -91,8 +108,9 @@ button:active {
   font-weight: 650;
   white-space: nowrap;
   transition:
-    color 180ms ease,
-    background-color 180ms ease;
+    color var(--motion-normal) var(--motion-ease),
+    background-color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease);
 }
 
 .save-status.saving {
@@ -209,7 +227,7 @@ button:active {
 .screen {
   display: grid;
   gap: 12px;
-  animation: card-in 220ms ease both;
+  animation: card-in var(--motion-normal) var(--motion-ease) both;
 }
 
 .section-with-tabs {
@@ -250,6 +268,11 @@ button:active {
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .section-tabs button.active {
@@ -314,15 +337,30 @@ button:active {
 }
 
 .hero-total {
+  position: relative;
   display: grid;
   gap: 9px;
   border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   border-radius: var(--radius);
   padding: 18px;
   color: #083f3b;
+  overflow: hidden;
   background:
     linear-gradient(135deg, #dff5ef 0%, #bfe9df 52%, #edf9f5 100%);
   box-shadow: var(--shadow);
+}
+
+.hero-total::after {
+  position: absolute;
+  top: -45%;
+  bottom: -45%;
+  left: -38%;
+  width: 24%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0) rotate(12deg);
+  animation: salary-sheen 760ms var(--motion-ease) 120ms both;
 }
 
 .hero-topline {
@@ -505,6 +543,11 @@ button:active {
   border-radius: 8px;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    box-shadow var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .work-schedule-weekday {
@@ -534,6 +577,7 @@ button:active {
 .work-schedule-day.today {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+  transform: scale(1.025);
 }
 
 .work-schedule-day.empty {
@@ -733,6 +777,7 @@ button:active {
   height: 100%;
   border-radius: inherit;
   background: var(--accent);
+  transition: width var(--motion-progress) var(--motion-ease);
 }
 .home-today-learning li.complete {
   color: var(--success);
@@ -809,6 +854,7 @@ button:active {
   z-index: 0;
   border-radius: inherit;
   background: var(--compact-progress-fill);
+  transition: width var(--motion-progress) var(--motion-ease);
 }
 
 .compact-progress-bar-content {
@@ -1013,7 +1059,7 @@ button:active {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 62%, var(--success)));
-  transition: width 260ms ease;
+  transition: width var(--motion-progress) var(--motion-ease);
 }
 
 .progress-item.warning .progress-track span {
@@ -1206,6 +1252,10 @@ button.danger {
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    color var(--motion-normal) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
 }
 
 .bottom-nav svg {
@@ -1216,11 +1266,16 @@ button.danger {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+  transition: transform var(--motion-normal) var(--motion-spring);
 }
 
 .bottom-nav button.active {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.bottom-nav button.active svg {
+  transform: scale(1.05);
 }
 
 .bottom-nav button.money-tab.active {
@@ -1251,6 +1306,25 @@ button.danger {
   background: rgba(0, 0, 0, 0.36);
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+.dialog-backdrop,
+.finance-dialog-backdrop,
+.obligation-calendar-backdrop,
+.daily-sales-dialog-backdrop,
+.vault-dialog-backdrop,
+.health-image-backdrop {
+  animation: modal-backdrop-in var(--motion-slow) var(--motion-ease) both;
+}
+
+.dialog-backdrop > [role='dialog'],
+.finance-dialog-backdrop > [role='dialog'],
+.obligation-calendar-backdrop > [role='dialog'],
+.daily-sales-dialog-backdrop > [role='dialog'],
+.vault-dialog-backdrop > [role='dialog'],
+.health-image-backdrop > [role='dialog'] {
+  transform-origin: center bottom;
+  animation: modal-surface-in var(--motion-slow) var(--motion-spring) both;
 }
 
 @supports (height: 100dvh) {
@@ -1393,6 +1467,33 @@ button.danger {
   }
 }
 
+@keyframes control-select-in {
+  0% { transform: scale(0.98); }
+  60% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes salary-sheen {
+  from { transform: translateX(0) rotate(12deg); }
+  to { transform: translateX(620%) rotate(12deg); }
+}
+
 @media (max-width: 420px) {
   .app-shell {
     padding-right: 10px;
@@ -1529,5 +1630,52 @@ button.danger {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  .screen,
+  .health-screen,
+  .health-history,
+  .dialog-backdrop,
+  .finance-dialog-backdrop,
+  .obligation-calendar-backdrop,
+  .daily-sales-dialog-backdrop,
+  .vault-dialog-backdrop,
+  .health-image-backdrop,
+  .dialog-backdrop > [role='dialog'],
+  .finance-dialog-backdrop > [role='dialog'],
+  .obligation-calendar-backdrop > [role='dialog'],
+  .daily-sales-dialog-backdrop > [role='dialog'],
+  .vault-dialog-backdrop > [role='dialog'],
+  .health-image-backdrop > [role='dialog'],
+  .hero-total::after,
+  .number-choices button.selected,
+  .bristol-grid button.selected,
+  .health-chip-grid button.selected,
+  .binary-choice button.selected,
+  .health-toggle.selected .health-checkmark,
+  .health-history-calendar-grid > button.selected,
+  .obligation-calendar-grid button.selected {
+    animation: none !important;
+  }
+
+  button:not(:disabled):active,
+  .bottom-nav button.active svg,
+  .work-schedule-day.today,
+  .number-choices button.selected,
+  .bristol-grid button.selected,
+  .health-chip-grid button.selected,
+  .binary-choice button.selected,
+  .health-screen input[type='checkbox']:checked,
+  .finance-checkbox-row input:checked,
+  input[type='checkbox']:checked,
+  input[type='radio']:checked {
+    transform: none !important;
+  }
+
+  .compact-progress-bar-fill,
+  .home-learning-progress i,
+  .progress-track span,
+  .finance-goal-progress span {
+    transition: none !important;
   }
 }
