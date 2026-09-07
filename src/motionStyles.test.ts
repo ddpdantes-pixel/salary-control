@@ -26,6 +26,8 @@ describe('motion system', () => {
 
   it('animates navigation, tabs, checkboxes and selected controls', () => {
     expect(appCss).toMatch(/\.bottom-nav button\.active svg\s*{[^}]*scale\(1\.05\)/s)
+    expect(appCss).toMatch(/\.bottom-nav::before\s*{[^}]*transform 280ms/s)
+    expect(healthCss).toMatch(/\.health-section-tabs::before\s*{[^}]*transform 250ms/s)
     expect(appCss).toMatch(/\.section-tabs button\s*{[^}]*--motion-normal/s)
     expect(appCss).toMatch(/input\[type='checkbox'\]:checked[^}]*scale\(1\.04\)/s)
     expect(healthCss).toMatch(/\.number-choices button\.selected,[\s\S]*control-select-in/)
@@ -38,6 +40,13 @@ describe('motion system', () => {
     expect(appCss).toMatch(/\.home-learning-progress i\s*{[^}]*--motion-progress/s)
     expect(appCss).toMatch(/\.progress-track span\s*{[^}]*--motion-progress/s)
     expect(financeCss).toMatch(/\.finance-goal-progress span\s*{[^}]*--motion-progress/s)
+    expect(appCss).toMatch(/\.home-plan-track span\s*{[^}]*--motion-progress/s)
+  })
+
+  it('uses compact feedback for steppers and accordion reveals', () => {
+    expect(healthCss).toContain('@keyframes compact-stepper-pop')
+    expect(healthCss).toMatch(/\.compact-stepper-value-pop\s*{[^}]*210ms/s)
+    expect(healthCss).toMatch(/\.health-accordion-panel\s*{[^}]*220ms/s)
   })
 
   it('gives every existing dialog family the same entrance treatment', () => {

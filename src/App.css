@@ -418,6 +418,93 @@ input[type='radio']:checked {
   overflow-wrap: anywhere;
 }
 
+.home-plan-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+}
+
+.home-plan-mini-card {
+  display: grid;
+  min-width: 0;
+  align-content: space-between;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
+  border-radius: var(--radius);
+  padding: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 44%, var(--surface));
+  box-shadow: var(--shadow-soft);
+}
+
+.home-plan-mini-card h2,
+.home-plan-mini-card p,
+.home-plan-value {
+  min-width: 0;
+  margin: 0;
+}
+
+.home-plan-mini-card h2 {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.home-plan-mini-card p,
+.home-plan-value {
+  min-height: 34px;
+}
+
+.home-plan-mini-card p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.home-plan-value {
+  display: grid;
+  align-content: start;
+  gap: 1px;
+}
+
+.home-plan-value small {
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.home-plan-value strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.home-plan-mini-card.complete .home-plan-value strong {
+  color: var(--success);
+  font-size: 12px;
+}
+
+.home-plan-track {
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-muted));
+}
+
+.home-plan-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--motion-progress) var(--motion-ease);
+}
+
+.home-plan-mini-card.complete .home-plan-track span {
+  background: var(--success);
+}
+
 .month-meta-card {
   display: grid;
   grid-template-columns: 1fr;
@@ -1223,6 +1310,12 @@ button.danger {
 }
 
 .bottom-nav {
+  --bottom-nav-gap: 3px;
+  --bottom-nav-padding: 8px;
+  --bottom-nav-total-gap: 9px;
+  --bottom-nav-total-inset: 16px;
+  --bottom-nav-gap-2: 6px;
+  --bottom-nav-gap-3: 9px;
   position: fixed;
   right: 0;
   bottom: 0;
@@ -1230,16 +1323,39 @@ button.danger {
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3px;
+  gap: var(--bottom-nav-gap);
   max-width: 780px;
   margin: 0 auto;
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  padding: 8px var(--bottom-nav-padding) calc(8px + env(safe-area-inset-bottom));
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   box-shadow: 0 -10px 30px rgba(15, 35, 31, 0.1);
   backdrop-filter: blur(18px);
 }
 
+.bottom-nav::before {
+  position: absolute;
+  top: 8px;
+  left: var(--bottom-nav-padding);
+  width: calc((100% - var(--bottom-nav-total-inset) - var(--bottom-nav-total-gap)) / 4);
+  height: 54px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-soft);
+  content: '';
+  pointer-events: none;
+  transition:
+    transform 280ms var(--motion-ease),
+    background-color var(--motion-normal) var(--motion-ease);
+}
+
+.bottom-nav[data-active-index='1']::before { transform: translateX(calc(100% + var(--bottom-nav-gap))); }
+.bottom-nav[data-active-index='2']::before { transform: translateX(calc(200% + var(--bottom-nav-gap-2))); }
+.bottom-nav[data-active-index='3']::before { transform: translateX(calc(300% + var(--bottom-nav-gap-3))); }
+.bottom-nav[data-active-tab='money']::before { background: #e7f1fc; }
+
 .bottom-nav button {
+  position: relative;
+  z-index: 1;
   display: grid;
   min-width: 0;
   min-height: 54px;
@@ -1271,7 +1387,7 @@ button.danger {
 
 .bottom-nav button.active {
   color: var(--accent);
-  background: var(--accent-soft);
+  background: transparent;
 }
 
 .bottom-nav button.active svg {
@@ -1280,7 +1396,7 @@ button.danger {
 
 .bottom-nav button.money-tab.active {
   color: #2768ad;
-  background: #e7f1fc;
+  background: transparent;
 }
 
 .daily-sales-active .save-status.saving {
@@ -1547,9 +1663,12 @@ button.danger {
   }
 
   .bottom-nav {
-    gap: 1px;
-    padding-right: 5px;
-    padding-left: 5px;
+    --bottom-nav-gap: 1px;
+    --bottom-nav-padding: 5px;
+    --bottom-nav-total-gap: 3px;
+    --bottom-nav-total-inset: 10px;
+    --bottom-nav-gap-2: 2px;
+    --bottom-nav-gap-3: 3px;
   }
 
   .bottom-nav button {
@@ -1618,6 +1737,10 @@ button.danger {
   .bottom-nav button.money-tab.active,
   .finance-active .save-status.saving {
     color: #8bc1f3;
+    background: transparent;
+  }
+
+  .bottom-nav[data-active-tab='money']::before {
     background: #18334e;
   }
 }
@@ -1673,6 +1796,7 @@ button.danger {
   }
 
   .compact-progress-bar-fill,
+  .home-plan-track span,
   .home-learning-progress i,
   .progress-track span,
   .finance-goal-progress span {

@@ -10,6 +10,16 @@
   padding-bottom: calc(28px + env(safe-area-inset-bottom));
 }
 
+.health-tab-content {
+  min-width: 0;
+  animation: health-tab-content-in 240ms var(--motion-ease) both;
+}
+
+@keyframes health-tab-content-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .health-today,
 .health-week {
   animation: card-in var(--motion-normal) var(--motion-ease) both;
@@ -549,6 +559,24 @@
 .health-water-available { display: grid; gap: 7px; min-width: 0; }
 .health-water-available p { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 750; overflow-wrap: anywhere; }
 
+.health-compact-summary { display: flex; min-width: 0; flex-wrap: wrap; gap: 3px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.25; }
+.health-compact-summary strong { color: var(--text-primary); font-size: 13px; }
+.health-compact-caption { margin: -1px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.2; text-align: center; }
+.health-compact-progress { height: 3px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, #4ca7d2 16%, var(--surface-muted)); }
+.health-compact-progress span { display: block; height: 100%; border-radius: inherit; background: #4b9fc8; transition: width var(--motion-progress) var(--motion-ease); }
+
+.compact-stepper { display: grid; min-width: 0; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 6px; align-items: center; }
+.compact-stepper-button { display: grid; min-width: 44px; min-height: 44px; place-items: center; padding: 0; color: var(--accent); background: var(--accent-soft); box-shadow: none; font-size: 23px; line-height: 1; }
+.compact-stepper-button:disabled { color: var(--text-secondary); background: var(--surface-muted); opacity: 0.48; }
+.compact-stepper-value { display: grid; min-width: 0; min-height: 44px; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border)); border-radius: var(--radius); color: var(--text-primary); background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface)); font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center; }
+.compact-stepper-value-pop { min-width: 0; overflow-wrap: anywhere; animation: compact-stepper-pop 210ms var(--motion-spring) both; }
+
+@keyframes compact-stepper-pop {
+  0% { opacity: 0.78; transform: scale(0.94); }
+  58% { transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 .number-choices,
 .bristol-grid {
   display: grid;
@@ -776,6 +804,10 @@
   overflow-wrap: anywhere;
 }
 
+.compact-health-scale { display: grid; min-width: 0; grid-template-columns: minmax(92px, 1fr) minmax(170px, 1.4fr); gap: 4px 10px; align-items: center; }
+.compact-health-scale > span { color: var(--text-primary); font-size: 14px; font-weight: 750; }
+.compact-health-scale > small { grid-column: 2; color: var(--text-secondary); font-size: 11px; }
+
 .bristol-grid button.norm:not(.selected) {
   color: var(--success);
   background: var(--success-soft);
@@ -809,20 +841,26 @@
 
 .health-learning-direction {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
 }
 
-.health-learning-direction:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
+.health-learning-summary { display: grid; width: 100%; min-height: 48px; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; text-align: left; background: transparent; box-shadow: none; }
+.health-learning-summary > span:first-child { display: grid; min-width: 0; gap: 2px; }
+.health-learning-summary strong, .health-learning-summary small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.health-learning-summary strong { color: var(--text-primary); font-size: 14px; }
+.health-learning-summary small { color: var(--text-secondary); font-size: 11px; }
+.health-learning-chevron { color: var(--accent); font-size: 22px; transform: rotate(0deg); transition: transform 220ms var(--motion-ease); }
+.health-learning-summary[aria-expanded='true'] .health-learning-chevron { transform: rotate(90deg); }
+.health-accordion-panel { min-width: 0; animation: health-accordion-in 220ms var(--motion-ease) both; }
+.health-learning-direction > .health-accordion-panel { display: grid; gap: 8px; border-top: 1px solid var(--border); padding: 9px 10px 10px; background: var(--surface); }
 
-.health-learning-direction h3 {
-  margin: 0;
-  font-size: 15px;
+@keyframes health-accordion-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .health-learning-details {
@@ -1537,14 +1575,21 @@
 .health-cosmetology-row input { width: 18px; height: 18px; margin: 1px 0 0; }
 .health-cosmetology-row span { min-width: 0; line-height: 1.3; }
 .health-cosmetology-row strong { overflow-wrap: anywhere; font-size: 14px; }
-.health-cosmetology-overdue { display: grid; gap: 6px; margin-bottom: 10px; }
-.health-cosmetology-overdue h3 { margin: 0; font-size: 15px; }
-.health-cosmetology-overdue-list { display: grid; gap: 6px; }
-.health-cosmetology-overdue-item { display: grid; gap: 4px; padding: 8px; border: 1px solid #e5c57e; border-radius: 6px; background: #fff9e9; min-width: 0; }
-.health-cosmetology-overdue-item strong, .health-cosmetology-overdue-item span { overflow-wrap: anywhere; }
-.health-cosmetology-overdue-item span { font-size: 13px; line-height: 1.3; color: var(--muted); }
-.health-cosmetology-overdue-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
-.health-cosmetology-overdue-actions button { min-height: 34px; padding: 6px 9px; font-size: 13px; }
+.health-cosmetology-overdue { display: grid; gap: 7px; margin-bottom: 8px; }
+.health-cosmetology-overdue-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.health-cosmetology-overdue-heading h3 { margin: 0; font-size: 15px; }
+.health-cosmetology-overdue-heading span { flex: 0 0 auto; border-radius: 999px; padding: 4px 7px; color: var(--warning-text); background: var(--warning-soft); font-size: 11px; font-weight: 750; }
+.health-cosmetology-overdue-list { display: grid; gap: 5px; }
+.health-cosmetology-overdue-item { display: grid; min-width: 0; overflow: hidden; border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--border)); border-radius: var(--radius); background: color-mix(in srgb, var(--warning-soft) 26%, var(--surface)); }
+.health-cosmetology-overdue-row { display: grid; width: 100%; min-width: 0; min-height: 48px; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 9px; text-align: left; background: transparent; box-shadow: none; }
+.health-cosmetology-overdue-row > span { display: grid; min-width: 0; gap: 2px; }
+.health-cosmetology-overdue-row strong, .health-cosmetology-overdue-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.health-cosmetology-overdue-row strong { color: var(--text-primary); font-size: 13px; }
+.health-cosmetology-overdue-row small { color: var(--text-secondary); font-size: 11px; }
+.health-cosmetology-overdue-row b { border-radius: 999px; padding: 4px 6px; color: var(--warning-text); background: var(--warning-soft); font-size: 11px; white-space: nowrap; }
+.health-cosmetology-overdue-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; border-top: 1px solid color-mix(in srgb, var(--warning) 20%, var(--border)); padding: 8px; background: var(--surface); }
+.health-cosmetology-overdue-actions button { min-height: 44px; padding: 7px 8px; font-size: 12px; }
+.health-cosmetology-show-all { width: 100%; min-height: 44px; padding: 7px 10px; color: var(--accent); background: var(--accent-soft); box-shadow: none; font-size: 12px; }
 .health-tasks-block { border-color: color-mix(in srgb, var(--muted) 22%, var(--border)); background: color-mix(in srgb, var(--surface-muted) 54%, var(--surface)); }
 .health-task-list { display: grid; gap: 7px; min-width: 0; }
 .health-task-row { display: grid; grid-template-columns: auto minmax(0, 1fr); min-width: 0; gap: 9px; align-items: start; border-radius: 8px; padding: 10px; background: var(--surface); }
@@ -1578,6 +1623,13 @@
   gap: 5px;
 }
 
+.health-section-tabs { position: relative; }
+.health-section-tabs::before { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 16px) / 3); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-soft); content: ''; pointer-events: none; transition: transform 250ms var(--motion-ease); }
+.health-section-tabs[data-active-index='1']::before { transform: translateX(calc(100% + 4px)); }
+.health-section-tabs[data-active-index='2']::before { transform: translateX(calc(200% + 8px)); }
+.health-section-tabs button { position: relative; z-index: 1; }
+.health-section-tabs button.active { background: transparent; box-shadow: none; }
+
 .health-share-actions {
   display: grid;
   gap: 8px;
@@ -1596,6 +1648,24 @@
 .health-screen .section-tabs .health-icon {
   width: 16px;
   height: 16px;
+}
+
+@media (max-width: 420px) {
+  .compact-health-scale { grid-template-columns: 82px minmax(0, 1fr); }
+  .compact-health-scale .compact-stepper { grid-template-columns: 44px minmax(44px, 1fr) 44px; gap: 4px; }
+}
+
+@media (max-width: 360px) {
+  .health-water-coffee { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .health-tab-content,
+  .compact-stepper-value-pop,
+  .health-accordion-panel { animation: none !important; }
+  .health-section-tabs::before,
+  .health-learning-chevron,
+  .health-compact-progress span { transition: none !important; }
 }
 .health-settings-heading, .health-settings-history-note, .health-settings-group, .health-checklist-transfer-card, .health-settings-savebar { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .health-settings-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 16px; }

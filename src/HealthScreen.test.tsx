@@ -200,7 +200,7 @@ describe('экран здоровья сегодня', () => {
     expect(screen.queryByRole('button', { name: 'Проверить Apple Health' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Обновить из Apple Health' })).toBeNull()
     const waterCard = screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' }).closest('.health-block')
-    expect(waterCard?.querySelector('.number-choices')).not.toBeNull()
+    expect(waterCard?.querySelector('.compact-stepper')).not.toBeNull()
     expect(waterCard?.querySelector('.health-water-manual')).toBeNull()
     expect(container.querySelector('.health-water-coffee')?.textContent).not.toContain('Обновить из Apple Health')
     await user.click(screen.getByRole('tab', { name: 'Настройки' }))
@@ -212,13 +212,9 @@ describe('экран здоровья сегодня', () => {
   it('показывает спокойную подсказку после второй кружки кофе', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
-    const coffeeChoices = screen.getByRole('group', {
-      name: 'Количество кружек кофе',
-    })
+    await clickStepper(user, 'Количество кружек кофе', 'increase', 3)
 
-    await user.click(within(coffeeChoices).getByRole('button', { name: '3' }))
-
-    expect(screen.getByText('Сегодня кофе больше выбранной цели')).not.toBeNull()
+    expect(screen.getByText('Выше цели на 1')).not.toBeNull()
   })
 
   it('оставляет все разделы открытыми и объединяет воду с кофе в общую карточку', () => {
@@ -272,8 +268,10 @@ describe('экран здоровья сегодня', () => {
 
     render(<HealthScreen />)
     const water = screen.getByRole('group', { name: 'Количество кружек воды' })
-    expect(within(water).getByRole('button', { name: '6' })).not.toBeNull()
-    expect(screen.getByText('6 из 5 — 1,5 л')).not.toBeNull()
+    expect(within(water).getByRole('status').textContent).toBe('6')
+    expect(screen.getByText('6 кружек')).not.toBeNull()
+    expect(screen.getByText('· 1,5 л')).not.toBeNull()
+    expect(screen.getByText('6 из 5')).not.toBeNull()
   })
 
   it('предупреждает собственным окном при уходе с несохранённых настроек', async () => {
@@ -305,7 +303,7 @@ describe('экран здоровья сегодня', () => {
     await user.click(screen.getByRole('tab', { name: 'Сегодня' }))
 
     expect(screen.getByRole('heading', { name: 'Вода — кружки по 250 мл' })).not.toBeNull()
-    expect(within(screen.getByRole('group', { name: 'Количество кружек воды' })).getByRole('button', { name: '7' })).not.toBeNull()
+    expect((screen.getByRole('button', { name: 'Увеличить: Количество кружек воды' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('сохраняет следующую дату косметологии локально и восстанавливает её после повторного открытия', async () => {
@@ -370,10 +368,7 @@ describe('экран здоровья сегодня', () => {
 
     expect(sendButton.disabled).toBe(true)
     expect(regularShareButton.disabled).toBe(true)
-    const waterChoices = screen.getByRole('group', {
-      name: 'Количество кружек воды',
-    })
-    await user.click(within(waterChoices).getByRole('button', { name: '1' }))
+    await clickStepper(user, 'Количество кружек воды', 'increase')
     expect(sendButton.disabled).toBe(false)
     expect(regularShareButton.disabled).toBe(false)
   })
@@ -386,10 +381,7 @@ describe('экран здоровья сегодня', () => {
       share: vi.fn(async () => undefined),
     })
     render(<HealthScreen />)
-    const waterChoices = screen.getByRole('group', {
-      name: 'Количество кружек воды',
-    })
-    await user.click(within(waterChoices).getByRole('button', { name: '1' }))
+    await clickStepper(user, 'Количество кружек воды', 'increase')
     await user.click(
       screen.getByRole('button', {
         name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
@@ -430,8 +422,7 @@ describe('экран здоровья сегодня', () => {
 
     render(<HealthScreen />)
     await screen.findByText('Добавлено: 1 из 4')
-    const waterChoices = screen.getByRole('group', { name: 'Количество кружек воды' })
-    await user.click(within(waterChoices).getByRole('button', { name: '1' }))
+    await clickStepper(user, 'Количество кружек воды', 'increase')
     await user.click(screen.getByRole('button', {
       name: 'Поделиться отчётом здоровья отдельными изображениями',
     }))
@@ -453,8 +444,7 @@ describe('экран здоровья сегодня', () => {
       share: vi.fn(() => new Promise<void>((resolve) => { finishShare = resolve })),
     })
     render(<HealthScreen />)
-    const waterChoices = screen.getByRole('group', { name: 'Количество кружек воды' })
-    await user.click(within(waterChoices).getByRole('button', { name: '1' }))
+    await clickStepper(user, 'Количество кружек воды', 'increase')
     const chatGptButton = screen.getByRole('button', {
       name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
     }) as HTMLButtonElement
@@ -480,10 +470,7 @@ describe('экран здоровья сегодня', () => {
       }),
     })
     render(<HealthScreen />)
-    const waterChoices = screen.getByRole('group', {
-      name: 'Количество кружек воды',
-    })
-    await user.click(within(waterChoices).getByRole('button', { name: '1' }))
+    await clickStepper(user, 'Количество кружек воды', 'increase')
     await user.click(
       screen.getByRole('button', {
         name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
@@ -497,30 +484,34 @@ describe('экран здоровья сегодня', () => {
     expect(message.classList.contains('success')).toBe(false)
   })
 
-  it('показывает личный ориентир под шкалой, а не внутри кнопки 0,5', () => {
+  it('перебирает допустимые значения позывов и показывает личный ориентир отдельно', async () => {
+    const user = userEvent.setup()
     render(<HealthScreen />)
     const urges = screen.getByRole('group', { name: 'Позывы' })
-    const halfButton = within(urges).getByRole('button', { name: '0,5' })
-    const note = screen.getByText('0,5 — личный ориентир')
+    const values: string[] = []
 
-    expect(within(urges).getAllByRole('button')).toHaveLength(7)
-    expect(halfButton.textContent).toBe('0,5')
-    expect(halfButton.classList.contains('personal-reference')).toBe(true)
-    expect(urges.contains(note)).toBe(false)
-    expect(note.classList.contains('scale-reference-note')).toBe(true)
+    for (let index = 0; index < 7; index += 1) {
+      await clickStepper(user, 'Позывы', 'increase')
+      values.push(within(urges).getByRole('status').textContent ?? '')
+    }
+
+    expect(values).toEqual(['0', '0,5', '1', '2', '3', '4', '5'])
+    expect(screen.getByText('0,5 — личный ориентир')).not.toBeNull()
   })
 
-  it('сохраняет текущее оформление и подписи Бристольской шкалы', () => {
+  it('перебирает Бристоль 1–7 и сохраняет «Норма» только для 3 и 4', async () => {
+    const user = userEvent.setup()
     render(<HealthScreen />)
     const bristol = screen.getByRole('group', { name: 'Тип по Бристольской шкале' })
-    const buttons = within(bristol).getAllByRole('button')
+    const values: string[] = []
 
-    expect(buttons).toHaveLength(7)
-    expect(buttons.map((button) => button.querySelector('strong')?.textContent)).toEqual([
-      '1', '2', '3', '4', '5', '6', '7',
-    ])
-    expect(within(bristol).getByRole('button', { name: /3\s*Норма/ })).not.toBeNull()
-    expect(within(bristol).getByRole('button', { name: /4\s*Норма/ })).not.toBeNull()
+    for (let index = 0; index < 7; index += 1) {
+      await clickStepper(user, 'Тип по Бристольской шкале', 'increase')
+      values.push(within(bristol).getByRole('status').textContent ?? '')
+    }
+
+    expect(values).toEqual(['1', '2', '3 · Норма', '4 · Норма', '5', '6', '7'])
+    expect(screen.getByText('Информационный ориентир, а не диагноз')).not.toBeNull()
   })
 
   it('переключает условные поля для вариантов алкоголя', async () => {
@@ -609,13 +600,14 @@ describe('экран здоровья сегодня', () => {
       .toContain('"nonAlcoholicQuantity":null'))
   })
 
-  it('показывает три независимых направления обучения после алкоголя', () => {
+  it('показывает три компактных направления обучения после алкоголя', () => {
     render(<HealthScreen />)
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
     expect(headings.indexOf('Обучение')).toBe(headings.indexOf('Алкоголь') + 1)
     expect(screen.getByRole('region', { name: 'Речь и дикция' })).not.toBeNull()
     expect(screen.getByRole('region', { name: 'Кавист' })).not.toBeNull()
     expect(screen.getByRole('region', { name: 'Керамогранит' })).not.toBeNull()
+    expect(screen.queryByRole('group', { name: /Статус обучения/ })).toBeNull()
   })
 
   it('показывает косметологию последним блоком после обучения без подробных инструкций', () => {
@@ -655,6 +647,7 @@ describe('экран здоровья сегодня', () => {
     render(<HealthScreen />)
     expect(screen.getByRole('heading', { name: 'Не выполнено' })).not.toBeNull()
     expect(screen.getByText(/По плану: 17 июля/)).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: /Кровавый пилинг ART&FACT.*17 июля/ }))
     await user.click(screen.getByRole('button', { name: 'Выполнить сегодня' }))
 
     for (const label of ['Кровавый пилинг ART&FACT', 'Нейтрализатор', 'Vichy H.A. Epidermic Filler', 'Крем для лица']) {
@@ -691,6 +684,7 @@ describe('экран здоровья сегодня', () => {
     }))
 
     render(<HealthScreen />)
+    await user.click(screen.getByRole('button', { name: /Кровавый пилинг ART&FACT.*17 июля/ }))
     await user.click(screen.getByRole('button', { name: 'Пропустить' }))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText('Пропустить эту процедуру до следующего раза?')).not.toBeNull()
@@ -793,6 +787,7 @@ describe('экран здоровья сегодня', () => {
 
     for (const title of ['Речь и дикция', 'Кавист', 'Керамогранит']) {
       const direction = screen.getByRole('region', { name: title })
+      await user.click(within(direction).getByRole('button', { name: new RegExp(title) }))
       await user.click(within(direction).getByRole('button', { name: 'Занимался' }))
       expect(within(direction).queryByLabelText('Заметка')).toBeNull()
     }
@@ -802,6 +797,7 @@ describe('экран здоровья сегодня', () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
     const speech = screen.getByRole('region', { name: 'Речь и дикция' })
+    await user.click(within(speech).getByRole('button', { name: /Речь и дикция/ }))
     await user.click(within(speech).getByRole('button', { name: 'Занимался' }))
     const types = within(speech).getByRole('group', { name: 'Тип обучения: Речь и дикция' })
     expect(within(types).getByRole('button', { name: 'Занятие' })).not.toBeNull()
@@ -831,6 +827,7 @@ describe('экран здоровья сегодня', () => {
     render(<HealthScreen />)
 
     const speech = screen.getByRole('region', { name: 'Речь и дикция' })
+    await user.click(within(speech).getByRole('button', { name: /Речь и дикция/ }))
     await user.click(within(speech).getByRole('button', { name: 'Занимался' }))
     await user.click(within(speech).getByRole('button', { name: 'Занятие' }))
     expect((within(speech).getByLabelText('Номер') as HTMLInputElement).value).toBe('8')
@@ -845,6 +842,7 @@ describe('экран здоровья сегодня', () => {
       const user = userEvent.setup()
       render(<HealthScreen />)
       const direction = screen.getByRole('region', { name: title })
+      await user.click(within(direction).getByRole('button', { name: new RegExp(title) }))
       await user.click(within(direction).getByRole('button', { name: 'Занимался' }))
       const types = within(direction).getByRole('group', { name: `Тип обучения: ${title}` })
       expect(within(types).getByRole('button', { name: 'Урок' })).not.toBeNull()
@@ -878,11 +876,7 @@ describe('экран здоровья сегодня', () => {
   it('автосохраняет выбор и восстанавливает его после повторного открытия', async () => {
     const user = userEvent.setup()
     const firstRender = render(<HealthScreen />)
-    const waterChoices = screen.getByRole('group', {
-      name: 'Количество кружек воды',
-    })
-
-    await user.click(within(waterChoices).getByRole('button', { name: '6' }))
+    await clickStepper(user, 'Количество кружек воды', 'increase', 6)
     await waitFor(() => {
       expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"waterCups":6')
     })
@@ -893,11 +887,7 @@ describe('экран здоровья сегодня', () => {
       name: 'Количество кружек воды',
     })
 
-    expect(
-      within(restoredWaterChoices)
-        .getByRole('button', { name: '6' })
-        .getAttribute('aria-pressed'),
-    ).toBe('true')
+    expect(within(restoredWaterChoices).getByRole('status').textContent).toBe('6')
   })
 
   it('показывает три вкладки и безопасно открывает старый маршрут недели как сегодня', () => {
@@ -928,9 +918,7 @@ describe('экран здоровья сегодня', () => {
     await user.click(screen.getAllByRole('button', { name: /Редактировать день/ })[0])
 
     expect((screen.getByLabelText('Выбрать дату') as HTMLInputElement).value).toBe(today)
-    await user.click(within(screen.getByRole('group', {
-      name: 'Количество кружек воды',
-    })).getByRole('button', { name: '2' }))
+    await clickStepper(user, 'Количество кружек воды', 'increase')
     await user.click(screen.getByRole('button', { name: '← Назад в историю' }))
 
     expect(screen.getByRole('button', { name: 'Календарь' }).getAttribute('aria-pressed'))
@@ -992,9 +980,120 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByRole('heading', { name: 'Настройки здоровья' })).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Сохранить настройки' })).not.toBeNull()
   })
+
+  it('управляет водой stepper, сохраняет литры и не выходит за 0–6 по умолчанию', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    const state = createEmptyHealthState()
+    state.entries[today] = { ...createHealthEntry(today), waterCups: 3 }
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
+    render(<HealthScreen />)
+
+    expect(screen.getByText('3 кружки')).not.toBeNull()
+    expect(screen.getByText('· 0,9 л')).not.toBeNull()
+    await clickStepper(user, 'Количество кружек воды', 'decrease')
+    expect(within(screen.getByRole('group', { name: 'Количество кружек воды' })).getByRole('status').textContent).toBe('2')
+    await clickStepper(user, 'Количество кружек воды', 'decrease', 2)
+    expect((screen.getByRole('button', { name: 'Уменьшить: Количество кружек воды' }) as HTMLButtonElement).disabled).toBe(true)
+    await clickStepper(user, 'Количество кружек воды', 'increase', 6)
+    expect((screen.getByRole('button', { name: 'Увеличить: Количество кружек воды' }) as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}').entries[today].waterCups).toBe(6))
+  })
+
+  it('управляет кофе в диапазоне 0–5 и убирает предупреждение после возврата к цели', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+
+    await clickStepper(user, 'Количество кружек кофе', 'increase', 5)
+    expect(within(screen.getByRole('group', { name: 'Количество кружек кофе' })).getByRole('status').textContent).toBe('5')
+    expect(screen.getByText('Выше цели на 3')).not.toBeNull()
+    expect((screen.getByRole('button', { name: 'Увеличить: Количество кружек кофе' }) as HTMLButtonElement).disabled).toBe(true)
+    await clickStepper(user, 'Количество кружек кофе', 'decrease', 3)
+    expect(screen.queryByText(/Выше цели/)).toBeNull()
+    expect(screen.getByText('Цель — не больше 2')).not.toBeNull()
+  })
+
+  it('перебирает распирание только по шкале 0–5 и сохраняет выбранное значение', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+    const values: string[] = []
+
+    for (let index = 0; index < 6; index += 1) {
+      await clickStepper(user, 'Распирание', 'increase')
+      values.push(within(screen.getByRole('group', { name: 'Распирание' })).getByRole('status').textContent ?? '')
+    }
+
+    expect(values).toEqual(['0', '1', '2', '3', '4', '5'])
+    expect((screen.getByRole('button', { name: 'Увеличить: Распирание' }) as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"bloating":5'))
+  })
+
+  it('открывает только одно направление обучения и не сохраняет UI-state', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+    const speech = screen.getByRole('region', { name: 'Речь и дикция' })
+    const cavist = screen.getByRole('region', { name: 'Кавист' })
+
+    expect(screen.queryByRole('group', { name: /Статус обучения/ })).toBeNull()
+    await user.click(within(speech).getByRole('button', { name: /Речь и дикция/ }))
+    expect(within(speech).getByRole('group', { name: 'Статус обучения: Речь и дикция' })).not.toBeNull()
+    await user.click(within(cavist).getByRole('button', { name: /Кавист/ }))
+    expect(within(speech).queryByRole('group', { name: 'Статус обучения: Речь и дикция' })).toBeNull()
+    expect(within(cavist).getByRole('group', { name: 'Статус обучения: Кавист' })).not.toBeNull()
+    expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toBeNull()
+  })
+
+  it('сворачивает косметологию до трёх долгов и раскрывает действия только одной строки', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    const state = createEmptyHealthState()
+    state.cosmetologyDebtCheckedThrough = today
+    for (let index = 1; index <= 5; index += 1) {
+      const id = `debt-${index}:2026-01-0${index}`
+      state.cosmetologyDebts[id] = {
+        id,
+        procedureId: `debt-${index}`,
+        title: `Процедура ${index}`,
+        plannedDate: `2026-01-0${index}`,
+        procedureIds: [`debt-${index}`],
+        activeDate: null,
+        completedDate: null,
+        skippedDate: null,
+      }
+    }
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
+    render(<HealthScreen />)
+
+    const overdue = screen.getByRole('region', { name: 'Не выполнено' })
+    expect(overdue.querySelectorAll('.health-cosmetology-overdue-row')).toHaveLength(3)
+    expect(screen.getByText('5 задач')).not.toBeNull()
+    await user.click(within(overdue).getByRole('button', { name: /Показать все/ }))
+    expect(overdue.querySelectorAll('.health-cosmetology-overdue-row')).toHaveLength(5)
+
+    await user.click(within(overdue).getByRole('button', { name: /Процедура 1/ }))
+    expect(within(overdue).getByRole('button', { name: 'Выполнить сегодня' })).not.toBeNull()
+    await user.click(within(overdue).getByRole('button', { name: /Процедура 2/ }))
+    expect(overdue.querySelectorAll('.health-cosmetology-overdue-actions')).toHaveLength(1)
+    expect(within(overdue).getByRole('button', { name: /Процедура 1/ }).getAttribute('aria-expanded')).toBe('false')
+    await user.click(within(overdue).getByRole('button', { name: 'Свернуть' }))
+    expect(overdue.querySelectorAll('.health-cosmetology-overdue-row')).toHaveLength(3)
+    expect(Object.keys(JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}').cosmetologyDebts)).toHaveLength(5)
+  })
 })
 
 function HealthScreenWithTimer() {
   const timerController = useHealthTimer()
   return <HealthScreen timerController={timerController} />
+}
+
+async function clickStepper(
+  user: ReturnType<typeof userEvent.setup>,
+  label: string,
+  direction: 'increase' | 'decrease',
+  times = 1,
+): Promise<void> {
+  const buttonName = `${direction === 'increase' ? 'Увеличить' : 'Уменьшить'}: ${label}`
+  for (let index = 0; index < times; index += 1) {
+    await user.click(screen.getByRole('button', { name: buttonName }))
+  }
 }

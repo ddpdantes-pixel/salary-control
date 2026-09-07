@@ -73,6 +73,7 @@ import {
 import { DailySalesScreen } from './DailySalesScreen'
 import { WorkScheduleCard } from './WorkScheduleCard'
 import { HomeTodayCard } from './HomeTodayCard'
+import { HomePlanProgress } from './HomePlanProgress'
 import { buildFinanceOverview } from './financeOverview'
 import { CloudBackupSection } from './CloudBackupSection'
 import {
@@ -1264,7 +1265,12 @@ function App() {
         />
       )}
 
-      <nav className="bottom-nav" aria-label="Разделы приложения">
+      <nav
+        className="bottom-nav"
+        aria-label="Разделы приложения"
+        data-active-index={TABS.findIndex((tab) => tab.id === activeTab)}
+        data-active-tab={activeTab}
+      >
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -1443,6 +1449,7 @@ function HomeScreen({
         </div>
       </section>
 
+      <HomePlanProgress month={month} />
       <Warnings summary={summary} />
       <WorkScheduleCard
         state={dailySalesState}

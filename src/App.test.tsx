@@ -479,6 +479,31 @@ describe('оболочка приложения', () => {
     expect(loadStoredMonths()[0].salesTotal).toBe(1_234_567)
   })
 
+  it('показывает под зарплатой остатки трёх планов из текущего месяца', async () => {
+    const month = {
+      ...createSalaryMonth('2026-08', '2026-08-01T00:00:00.000Z'),
+      salesTotal: 351_604,
+      salesArtkera: 223_479,
+      salesLaparet: 60_563,
+    }
+    saveStoredMonths([month])
+    saveStoredSelectedMonthId(month.id)
+
+    await renderApp()
+
+    const plans = screen.getByRole('region', { name: 'Осталось до плана' })
+    const schedule = screen.getByRole('heading', { name: /Рабочий график/ }).closest('section')
+    expect(within(plans).getByText('648 396 ₽')).not.toBeNull()
+    expect(within(plans).getByText('526 521 ₽')).not.toBeNull()
+    expect(within(plans).getByText('689 437 ₽')).not.toBeNull()
+    expect(plans.compareDocumentPosition(schedule!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(loadStoredMonths()[0]).toMatchObject({
+      salesTotal: 351_604,
+      salesArtkera: 223_479,
+      salesLaparet: 60_563,
+    })
+  })
+
   it('показывает на «Главном» тот же рабочий график и открывает его на выбранном месяце', async () => {
     const user = userEvent.setup()
     const june = createSalaryMonth('2026-06', '2026-06-01T00:00:00.000Z')

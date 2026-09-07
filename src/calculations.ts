@@ -11,10 +11,10 @@ import type {
 export const DEFAULT_SALARY = 20_000
 export const DEFAULT_DAY01_PAYMENT = 10_000
 
-const PLAN_BONUS_LEVEL_1 = 1_000_000
+export const PLAN_BONUS_LEVEL_1 = 1_000_000
 const PLAN_BONUS_LEVEL_2 = 2_000_000
 const PLAN_BONUS_LEVEL_3 = 3_000_000
-const PRODUCT_GROUP_BONUS_THRESHOLD = 750_000
+export const PRODUCT_GROUP_BONUS_THRESHOLD = 750_000
 
 export function roundRubles(value: number): number {
   const rounded = Math.round(toFiniteNumber(value))
