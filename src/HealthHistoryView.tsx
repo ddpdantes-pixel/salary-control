@@ -115,7 +115,7 @@ export function HealthHistoryView({
   }
 
   async function copyDay(entry: HealthEntry): Promise<void> {
-    const copied = await copyTextToClipboard(buildHealthChecklistText(entry, settings))
+    const copied = await copyTextToClipboard(buildHealthChecklistText(entry, settings, {}, entries))
     setCopyMessage(copied ? 'Чек-лист дня скопирован' : 'Не удалось скопировать чек-лист')
   }
 

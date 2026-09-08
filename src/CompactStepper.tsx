@@ -32,8 +32,8 @@ export function CompactStepper({
       >
         <span aria-hidden="true">−</span>
       </button>
-      <output className="compact-stepper-value" aria-live="polite">
-        <span className="compact-stepper-value-pop" key={value ?? 'empty'}>
+      <output className="compact-stepper-value compact-stepper-value-pop" aria-live="polite" key={value ?? 'empty'}>
+        <span>
           {valueContent
             ? valueContent(value)
             : value === null

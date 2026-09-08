@@ -28,6 +28,18 @@ export interface WeeklyLearningProgress {
   complete: boolean
 }
 
+export type LearningDayState =
+  | 'DONE_TODAY'
+  | 'NOT_DONE_TODAY'
+  | 'NEEDS_MARK'
+  | 'WEEKLY_COMPLETE'
+  | 'FUTURE'
+
+export interface LearningDayStatus extends WeeklyLearningProgress {
+  state: LearningDayState
+  completedBeforeDay: number
+}
+
 export interface LearningPlanItem {
   id: string
   date: string
@@ -122,8 +134,9 @@ export function buildWeeklyLearningProgress(
 
     for (const direction of Object.keys(LEARNING_WEEKLY_GOALS) as LearningScheduleDirection[]) {
       const learning = entry.learning[direction]
-      if (learning.status !== 'done' || learning.activityType === null || !getLearningActivityTypes(direction).includes(learning.activityType)) continue
-      const identity = Number.isSafeInteger(learning.number) && (learning.number ?? 0) > 0
+      if (learning.status !== 'done') continue
+      const hasCanonicalActivity = learning.activityType !== null && getLearningActivityTypes(direction).includes(learning.activityType)
+      const identity = hasCanonicalActivity && Number.isSafeInteger(learning.number) && (learning.number ?? 0) > 0
         ? `${direction}:${learning.activityType}:${learning.number}`
         : `${direction}:${learning.activityType}:${completionDate}`
       if (seen.has(identity)) continue
@@ -142,6 +155,39 @@ export function buildWeeklyLearningProgress(
       goal,
       complete: count === goal,
     }
+  })
+}
+
+export function buildLearningDayStatuses(
+  entries: Record<string, HealthEntry>,
+  selectedDate: string,
+  todayDate = getLocalDateId(),
+): LearningDayStatus[] {
+  const range = getLearningWeekRange(selectedDate)
+  const entriesBeforeDay = Object.fromEntries(
+    Object.entries(entries).filter(([date]) => date >= range.startDate && date < selectedDate),
+  )
+  const before = new Map(
+    buildWeeklyLearningProgress(entriesBeforeDay, selectedDate)
+      .map((progress) => [progress.direction, progress.completed]),
+  )
+  const throughDay = buildWeeklyLearningProgress(entries, selectedDate)
+  const selectedEntry = entries[selectedDate]
+
+  return throughDay.map((progress) => {
+    const completedBeforeDay = before.get(progress.direction) ?? 0
+    const explicitStatus = selectedEntry?.learning[progress.direction].status ?? null
+    const state: LearningDayState = selectedDate > todayDate
+      ? 'FUTURE'
+      : explicitStatus === 'done'
+        ? 'DONE_TODAY'
+        : explicitStatus === 'not_done'
+          ? 'NOT_DONE_TODAY'
+          : completedBeforeDay >= progress.goal
+            ? 'WEEKLY_COMPLETE'
+            : 'NEEDS_MARK'
+
+    return { ...progress, completedBeforeDay, state }
   })
 }
 

@@ -1271,6 +1271,7 @@ function App() {
         data-active-index={TABS.findIndex((tab) => tab.id === activeTab)}
         data-active-tab={activeTab}
       >
+        <span className="bottom-nav-pill" aria-hidden="true" />
         {TABS.map((tab) => (
           <button
             key={tab.id}

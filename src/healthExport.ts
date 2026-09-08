@@ -17,6 +17,7 @@ import {
   getHealthEntryWaterMl,
   getWaterGoalMl,
 } from './appleHealthWater'
+import { buildLearningDayStatuses, type LearningDayStatus } from './learningSchedule'
 
 const SCALP_LABELS: Record<ScalpNote, string> = {
   none: 'нет',
@@ -47,6 +48,7 @@ export function buildHealthChecklistText(
   entry: HealthEntry,
   settings: HealthSettings = DEFAULT_HEALTH_SETTINGS,
   cosmetologyDebts: Record<string, CosmetologyDebt> = {},
+  entries: Record<string, HealthEntry> = { [entry.date]: entry },
 ): string {
   const date = parseLocalDate(entry.date)
   const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'long' }).format(date)
@@ -159,10 +161,8 @@ export function buildHealthChecklistText(
     if (reasons) lines.push(`Причины: ${reasons}`)
   }
 
-  const learningLines = formatLearningLines(entry)
-  if (learningLines.length > 0) {
-    lines.push('', 'Обучение:', ...learningLines)
-  }
+  const learningLines = formatLearningLines(entry, entries)
+  lines.push('', 'Обучение:', ...learningLines)
 
   return lines.join('\n')
 }
@@ -174,37 +174,44 @@ function formatWaterLine(entry: HealthEntry, settings: HealthSettings): string {
   return `Вода: ${entry.waterCups} / ${settings.water.goalCups} — ${formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л (кружка ${settings.water.cupVolumeMl} мл)`
 }
 
-function formatLearningLines(entry: HealthEntry): string[] {
+function formatLearningLines(
+  entry: HealthEntry,
+  entries: Record<string, HealthEntry>,
+): string[] {
+  const statuses = buildLearningDayStatuses(entries, entry.date, entry.date)
   return [
     formatLearningDirection('Речь и дикция', entry.learning.speech, {
       session: 'занятие',
       practice: 'практика',
-    }),
+    }, statuses[0]),
     formatLearningDirection('Кавист', entry.learning.cavist, {
       lesson: 'урок',
       practice: 'практика',
-    }),
+    }, statuses[1]),
     formatLearningDirection('Керамогранит', entry.learning.porcelain, {
       lesson: 'урок',
       practice: 'практика',
-    }),
-  ].filter((line): line is string => line !== null)
+    }, statuses[2]),
+  ]
 }
 
 function formatLearningDirection<TActivityType extends string>(
   label: string,
   direction: LearningDirection<TActivityType>,
   activityLabels: Record<TActivityType, string>,
-): string | null {
-  if (direction.status === null) return null
-  if (direction.status === 'not_done') return `${label}: не занимался`
+  dayStatus: LearningDayStatus,
+): string {
+  const weekly = `${dayStatus.completed}/${dayStatus.goal}`
+  if (dayStatus.state === 'WEEKLY_COMPLETE') return `${label}: план выполнен ${weekly}`
+  if (dayStatus.state === 'NEEDS_MARK' || dayStatus.state === 'FUTURE') return `${label}: Не отмечено · ${weekly}`
+  if (direction.status === 'not_done') return `${label}: не занимался · ${weekly}`
 
   const activity = direction.activityType
     ? activityLabels[direction.activityType]
     : 'занимался'
   const number = direction.number === null ? '' : ` №${direction.number}`
   const note = direction.note.trim() ? ` — ${direction.note.trim()}` : ''
-  return `${label}: ${activity}${number}${note}`
+  return `${label}: ${activity}${number}${note} · ${weekly}`
 }
 
 export function formatBeerAmount(value: string): string {

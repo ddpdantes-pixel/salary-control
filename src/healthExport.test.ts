@@ -136,7 +136,7 @@ describe('копирование ежедневного чек-листа', () =
     expect(text).not.toContain('Причины:')
   })
 
-  it('выводит количество безалкогольного и обучение, но не пустые направления', () => {
+  it('выводит количество безалкогольного и все состояния обучения', () => {
     const entry = createHealthEntry('2026-07-11')
     entry.alcoholChoice = 'nonAlcoholic'
     entry.nonAlcoholicQuantity = 2
@@ -150,8 +150,22 @@ describe('копирование ежедневного чек-листа', () =
     expect(text).toContain('Керамогранит: не занимался')
   })
 
-  it('не выводит пустой блок обучения', () => {
-    expect(buildHealthChecklistText(createHealthEntry('2026-07-11'))).not.toContain('Обучение:')
+  it('не опускает обучение и честно показывает неотмеченные направления', () => {
+    const text = buildHealthChecklistText(createHealthEntry('2026-07-11'))
+    expect(text).toContain('Обучение:')
+    expect(text).toContain('Речь и дикция: Не отмечено · 0/3')
+    expect(text).toContain('Кавист: Не отмечено · 0/2')
+    expect(text).toContain('Керамогранит: Не отмечено · 0/1')
+  })
+
+  it('использует недельный selector для статуса выполненного плана', () => {
+    const monday = createHealthEntry('2026-08-17')
+    monday.learning.porcelain.status = 'done'
+    const thursday = createHealthEntry('2026-08-20')
+    const entries = { [monday.date]: monday, [thursday.date]: thursday }
+
+    expect(buildHealthChecklistText(thursday, undefined, {}, entries))
+      .toContain('Керамогранит: план выполнен 1/1')
   })
 
   it('для алкогольного выбора экспортирует только количество и выбранные причины', () => {

@@ -200,7 +200,7 @@ describe('экран здоровья сегодня', () => {
     expect(screen.queryByRole('button', { name: 'Проверить Apple Health' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Обновить из Apple Health' })).toBeNull()
     const waterCard = screen.getByRole('heading', { name: 'Вода — кружки по 300 мл' }).closest('.health-block')
-    expect(waterCard?.querySelector('.compact-stepper')).not.toBeNull()
+    expect(waterCard?.querySelector('.icon-quantity-picker')).not.toBeNull()
     expect(waterCard?.querySelector('.health-water-manual')).toBeNull()
     expect(container.querySelector('.health-water-coffee')?.textContent).not.toContain('Обновить из Apple Health')
     await user.click(screen.getByRole('tab', { name: 'Настройки' }))
@@ -212,7 +212,7 @@ describe('экран здоровья сегодня', () => {
   it('показывает спокойную подсказку после второй кружки кофе', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
-    await clickStepper(user, 'Количество кружек кофе', 'increase', 3)
+    await selectQuantity(user, 'Количество кружек кофе', 3)
 
     expect(screen.getByText('Выше цели на 1')).not.toBeNull()
   })
@@ -268,7 +268,7 @@ describe('экран здоровья сегодня', () => {
 
     render(<HealthScreen />)
     const water = screen.getByRole('group', { name: 'Количество кружек воды' })
-    expect(within(water).getByRole('status').textContent).toBe('6')
+    expect(water.querySelectorAll('[data-active="true"]')).toHaveLength(6)
     expect(screen.getByText('6 кружек')).not.toBeNull()
     expect(screen.getByText('· 1,5 л')).not.toBeNull()
     expect(screen.getByText('6 из 5')).not.toBeNull()
@@ -303,7 +303,7 @@ describe('экран здоровья сегодня', () => {
     await user.click(screen.getByRole('tab', { name: 'Сегодня' }))
 
     expect(screen.getByRole('heading', { name: 'Вода — кружки по 250 мл' })).not.toBeNull()
-    expect((screen.getByRole('button', { name: 'Увеличить: Количество кружек воды' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(within(screen.getByRole('group', { name: 'Количество кружек воды' })).getAllByRole('button')).toHaveLength(6)
   })
 
   it('сохраняет следующую дату косметологии локально и восстанавливает её после повторного открытия', async () => {
@@ -368,20 +368,21 @@ describe('экран здоровья сегодня', () => {
 
     expect(sendButton.disabled).toBe(true)
     expect(regularShareButton.disabled).toBe(true)
-    await clickStepper(user, 'Количество кружек воды', 'increase')
+    await selectQuantity(user, 'Количество кружек воды', 1)
     expect(sendButton.disabled).toBe(false)
     expect(regularShareButton.disabled).toBe(false)
   })
 
   it('одним нажатием создаёт совместимый файл, копирует текст и показывает инструкцию', async () => {
     const user = userEvent.setup()
+    seedAnsweredLearning()
     vi.stubGlobal('navigator', {
       ...navigator,
       canShare: () => true,
       share: vi.fn(async () => undefined),
     })
     render(<HealthScreen />)
-    await clickStepper(user, 'Количество кружек воды', 'increase')
+    await selectQuantity(user, 'Количество кружек воды', 1)
     await user.click(
       screen.getByRole('button', {
         name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
@@ -404,6 +405,7 @@ describe('экран здоровья сегодня', () => {
   it('обычная отправка сохраняет checklist и attachment отдельными файлами', async () => {
     const user = userEvent.setup()
     const today = getLocalDateId()
+    seedAnsweredLearning(today)
     await saveHealthAttachment({
       id: 'share-separately',
       date: today,
@@ -422,7 +424,7 @@ describe('экран здоровья сегодня', () => {
 
     render(<HealthScreen />)
     await screen.findByText('Добавлено: 1 из 4')
-    await clickStepper(user, 'Количество кружек воды', 'increase')
+    await selectQuantity(user, 'Количество кружек воды', 1)
     await user.click(screen.getByRole('button', {
       name: 'Поделиться отчётом здоровья отдельными изображениями',
     }))
@@ -437,6 +439,7 @@ describe('экран здоровья сегодня', () => {
 
   it('не запускает два share одновременно во время подготовки', async () => {
     const user = userEvent.setup()
+    seedAnsweredLearning()
     let finishShare: (() => void) | undefined
     vi.stubGlobal('navigator', {
       ...navigator,
@@ -444,7 +447,7 @@ describe('экран здоровья сегодня', () => {
       share: vi.fn(() => new Promise<void>((resolve) => { finishShare = resolve })),
     })
     render(<HealthScreen />)
-    await clickStepper(user, 'Количество кружек воды', 'increase')
+    await selectQuantity(user, 'Количество кружек воды', 1)
     const chatGptButton = screen.getByRole('button', {
       name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
     }) as HTMLButtonElement
@@ -462,6 +465,7 @@ describe('экран здоровья сегодня', () => {
 
   it('показывает отмену мягким янтарным сообщением', async () => {
     const user = userEvent.setup()
+    seedAnsweredLearning()
     vi.stubGlobal('navigator', {
       ...navigator,
       canShare: () => true,
@@ -470,7 +474,7 @@ describe('экран здоровья сегодня', () => {
       }),
     })
     render(<HealthScreen />)
-    await clickStepper(user, 'Количество кружек воды', 'increase')
+    await selectQuantity(user, 'Количество кружек воды', 1)
     await user.click(
       screen.getByRole('button', {
         name: 'Отправить отчёт здоровья в ChatGPT одним файлом',
@@ -496,21 +500,20 @@ describe('экран здоровья сегодня', () => {
     }
 
     expect(values).toEqual(['0', '0,5', '1', '2', '3', '4', '5'])
-    expect(screen.getByText('0,5 — личный ориентир')).not.toBeNull()
+    expect(screen.getByText('Обычно: 0,5 · личный ориентир')).not.toBeNull()
   })
 
   it('перебирает Бристоль 1–7 и сохраняет «Норма» только для 3 и 4', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
     const bristol = screen.getByRole('group', { name: 'Тип по Бристольской шкале' })
-    const values: string[] = []
-
-    for (let index = 0; index < 7; index += 1) {
-      await clickStepper(user, 'Тип по Бристольской шкале', 'increase')
-      values.push(within(bristol).getByRole('status').textContent ?? '')
-    }
-
-    expect(values).toEqual(['1', '2', '3 · Норма', '4 · Норма', '5', '6', '7'])
+    expect(within(bristol).getAllByRole('button')).toHaveLength(7)
+    expect(within(bristol).getByRole('button', { name: 'Бристоль 3 — норма' }).textContent).toBe('3Норма')
+    expect(within(bristol).getByRole('button', { name: 'Бристоль 4 — норма' }).textContent).toBe('4Норма')
+    await user.click(within(bristol).getByRole('button', { name: 'Бристоль 1' }))
+    expect(within(bristol).getByRole('button', { name: 'Бристоль 1' }).getAttribute('aria-pressed')).toBe('true')
+    await user.click(within(bristol).getByRole('button', { name: 'Бристоль 7' }))
+    expect(within(bristol).getByRole('button', { name: 'Бристоль 7' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByText('Информационный ориентир, а не диагноз')).not.toBeNull()
   })
 
@@ -876,7 +879,7 @@ describe('экран здоровья сегодня', () => {
   it('автосохраняет выбор и восстанавливает его после повторного открытия', async () => {
     const user = userEvent.setup()
     const firstRender = render(<HealthScreen />)
-    await clickStepper(user, 'Количество кружек воды', 'increase', 6)
+    await selectQuantity(user, 'Количество кружек воды', 6)
     await waitFor(() => {
       expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"waterCups":6')
     })
@@ -887,7 +890,7 @@ describe('экран здоровья сегодня', () => {
       name: 'Количество кружек воды',
     })
 
-    expect(within(restoredWaterChoices).getByRole('status').textContent).toBe('6')
+    expect(restoredWaterChoices.querySelectorAll('[data-active="true"]')).toHaveLength(6)
   })
 
   it('показывает три вкладки и безопасно открывает старый маршрут недели как сегодня', () => {
@@ -918,7 +921,7 @@ describe('экран здоровья сегодня', () => {
     await user.click(screen.getAllByRole('button', { name: /Редактировать день/ })[0])
 
     expect((screen.getByLabelText('Выбрать дату') as HTMLInputElement).value).toBe(today)
-    await clickStepper(user, 'Количество кружек воды', 'increase')
+    await selectQuantity(user, 'Количество кружек воды', 2)
     await user.click(screen.getByRole('button', { name: '← Назад в историю' }))
 
     expect(screen.getByRole('button', { name: 'Календарь' }).getAttribute('aria-pressed'))
@@ -981,7 +984,7 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByRole('button', { name: 'Сохранить настройки' })).not.toBeNull()
   })
 
-  it('управляет водой stepper, сохраняет литры и не выходит за 0–6 по умолчанию', async () => {
+  it('управляет водой шестью каплями, уменьшает выбор и сбрасывает его', async () => {
     const user = userEvent.setup()
     const today = getLocalDateId()
     const state = createEmptyHealthState()
@@ -989,28 +992,32 @@ describe('экран здоровья сегодня', () => {
     window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
     render(<HealthScreen />)
 
-    expect(screen.getByText('3 кружки')).not.toBeNull()
-    expect(screen.getByText('· 0,9 л')).not.toBeNull()
-    await clickStepper(user, 'Количество кружек воды', 'decrease')
-    expect(within(screen.getByRole('group', { name: 'Количество кружек воды' })).getByRole('status').textContent).toBe('2')
-    await clickStepper(user, 'Количество кружек воды', 'decrease', 2)
-    expect((screen.getByRole('button', { name: 'Уменьшить: Количество кружек воды' }) as HTMLButtonElement).disabled).toBe(true)
-    await clickStepper(user, 'Количество кружек воды', 'increase', 6)
-    expect((screen.getByRole('button', { name: 'Увеличить: Количество кружек воды' }) as HTMLButtonElement).disabled).toBe(true)
-    await waitFor(() => expect(JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}').entries[today].waterCups).toBe(6))
+    const water = screen.getByRole('group', { name: 'Количество кружек воды' })
+    expect(within(water).getAllByRole('button')).toHaveLength(6)
+    expect(water.querySelectorAll('[data-active="true"]')).toHaveLength(3)
+    expect(screen.getByText((_, element) => element?.classList.contains('icon-quantity-summary') === true && element.textContent?.includes('3 кружки · 0,9 л') === true)).not.toBeNull()
+    await selectQuantity(user, 'Количество кружек воды', 1)
+    expect(water.querySelectorAll('[data-active="true"]')).toHaveLength(1)
+    await selectQuantity(user, 'Количество кружек воды', 6)
+    expect(water.querySelectorAll('[data-active="true"]')).toHaveLength(6)
+    await user.click(screen.getByRole('button', { name: 'Сбросить' }))
+    expect(water.querySelectorAll('[data-active="true"]')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'Сбросить' })).toBeNull()
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}').entries[today].waterCups).toBe(0))
   })
 
-  it('управляет кофе в диапазоне 0–5 и убирает предупреждение после возврата к цели', async () => {
+  it('управляет кофе пятью чашками и убирает предупреждение после возврата к цели', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
 
-    await clickStepper(user, 'Количество кружек кофе', 'increase', 5)
-    expect(within(screen.getByRole('group', { name: 'Количество кружек кофе' })).getByRole('status').textContent).toBe('5')
+    const coffee = screen.getByRole('group', { name: 'Количество кружек кофе' })
+    expect(within(coffee).getAllByRole('button')).toHaveLength(5)
+    await selectQuantity(user, 'Количество кружек кофе', 5)
+    expect(coffee.querySelectorAll('[data-active="true"]')).toHaveLength(5)
     expect(screen.getByText('Выше цели на 3')).not.toBeNull()
-    expect((screen.getByRole('button', { name: 'Увеличить: Количество кружек кофе' }) as HTMLButtonElement).disabled).toBe(true)
-    await clickStepper(user, 'Количество кружек кофе', 'decrease', 3)
+    await selectQuantity(user, 'Количество кружек кофе', 2)
     expect(screen.queryByText(/Выше цели/)).toBeNull()
-    expect(screen.getByText('Цель — не больше 2')).not.toBeNull()
+    expect(screen.getByText('цель ≤2')).not.toBeNull()
   })
 
   it('перебирает распирание только по шкале 0–5 и сохраняет выбранное значение', async () => {
@@ -1024,6 +1031,7 @@ describe('экран здоровья сегодня', () => {
     }
 
     expect(values).toEqual(['0', '1', '2', '3', '4', '5'])
+    expect(screen.getByText('Норма: 0 · обычно нет')).not.toBeNull()
     expect((screen.getByRole('button', { name: 'Увеличить: Распирание' }) as HTMLButtonElement).disabled).toBe(true)
     await waitFor(() => expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"bloating":5'))
   })
@@ -1041,6 +1049,65 @@ describe('экран здоровья сегодня', () => {
     expect(within(speech).queryByRole('group', { name: 'Статус обучения: Речь и дикция' })).toBeNull()
     expect(within(cavist).getByRole('group', { name: 'Статус обучения: Кавист' })).not.toBeNull()
     expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toBeNull()
+  })
+
+  it('различает неотмеченное, явное «не занимался» и выполненное обучение', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+    expect(screen.getByText('3 нужно отметить')).not.toBeNull()
+    const speech = screen.getByRole('region', { name: 'Речь и дикция' })
+    const cavist = screen.getByRole('region', { name: 'Кавист' })
+    expect(within(speech).getByText(/Нужно отметить/).classList.contains('needs-mark')).toBe(true)
+
+    await user.click(within(speech).getByRole('button', { name: /Речь и дикция/ }))
+    await user.click(within(speech).getByRole('button', { name: 'Не занимался' }))
+    expect(speech.querySelector('.health-learning-status')?.classList.contains('neutral')).toBe(true)
+
+    await user.click(within(cavist).getByRole('button', { name: /Кавист/ }))
+    await user.click(within(cavist).getByRole('button', { name: 'Занимался' }))
+    expect(cavist.querySelector('.health-learning-status')?.classList.contains('done')).toBe(true)
+    expect(screen.getByText('1 нужно отметить')).not.toBeNull()
+  })
+
+  it('не завершает день, пока каждое обязательное направление не заполнено', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+    await user.click(screen.getByRole('button', { name: 'Завершить день' }))
+    const dialog = screen.getByRole('dialog', { name: 'Не отмечено обучение' })
+    expect(within(dialog).getAllByRole('group', { name: /Статус обучения/ })).toHaveLength(3)
+    expect((within(dialog).getByRole('button', { name: 'Завершить день' }) as HTMLButtonElement).disabled).toBe(true)
+
+    for (const title of ['Речь и дикция', 'Кавист', 'Керамогранит']) {
+      await user.click(within(dialog).getByRole('group', { name: `Статус обучения: ${title}` })
+        .querySelector('button') as HTMLButtonElement)
+    }
+    expect(within(dialog).getByText('Все обязательные отметки заполнены.')).not.toBeNull()
+    const finish = within(dialog).getByRole('button', { name: 'Завершить день' }) as HTMLButtonElement
+    expect(finish.disabled).toBe(false)
+    await user.click(finish)
+    expect(screen.queryByRole('dialog', { name: 'Не отмечено обучение' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'День завершён' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('проверяет обучение перед ChatGPT и не требует уже закрытое направление', async () => {
+    const user = userEvent.setup()
+    const state = createEmptyHealthState()
+    for (const date of ['2026-08-17', '2026-08-18', '2026-08-19']) {
+      const item = createHealthEntry(date)
+      item.learning.speech.status = 'done'
+      state.entries[date] = item
+    }
+    state.entries['2026-08-20'] = { ...createHealthEntry('2026-08-20'), waterCups: 1 }
+    window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
+    render(<HealthScreen />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-08-20' } })
+    expect(screen.getByText('План выполнен · 3/3')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Отправить отчёт здоровья в ChatGPT одним файлом' }))
+    const dialog = screen.getByRole('dialog', { name: 'Не отмечено обучение' })
+    expect(within(dialog).queryByText('Речь и дикция')).toBeNull()
+    expect(within(dialog).getByText('Кавист')).not.toBeNull()
+    expect(within(dialog).getByText('Керамогранит')).not.toBeNull()
   })
 
   it('сворачивает косметологию до трёх долгов и раскрывает действия только одной строки', async () => {
@@ -1073,7 +1140,7 @@ describe('экран здоровья сегодня', () => {
     await user.click(within(overdue).getByRole('button', { name: /Процедура 1/ }))
     expect(within(overdue).getByRole('button', { name: 'Выполнить сегодня' })).not.toBeNull()
     await user.click(within(overdue).getByRole('button', { name: /Процедура 2/ }))
-    expect(overdue.querySelectorAll('.health-cosmetology-overdue-actions')).toHaveLength(1)
+    expect(overdue.querySelectorAll('.health-accordion-shell.open')).toHaveLength(1)
     expect(within(overdue).getByRole('button', { name: /Процедура 1/ }).getAttribute('aria-expanded')).toBe('false')
     await user.click(within(overdue).getByRole('button', { name: 'Свернуть' }))
     expect(overdue.querySelectorAll('.health-cosmetology-overdue-row')).toHaveLength(3)
@@ -1096,4 +1163,25 @@ async function clickStepper(
   for (let index = 0; index < times; index += 1) {
     await user.click(screen.getByRole('button', { name: buttonName }))
   }
+}
+
+async function selectQuantity(
+  user: ReturnType<typeof userEvent.setup>,
+  label: string,
+  value: number,
+): Promise<void> {
+  const group = screen.getByRole('group', { name: label })
+  const button = group.querySelector(`[data-quantity="${value}"]`)
+  if (!(button instanceof HTMLButtonElement)) throw new Error(`Quantity ${value} not found`)
+  await user.click(button)
+}
+
+function seedAnsweredLearning(date = getLocalDateId()): void {
+  const state = createEmptyHealthState()
+  const entry = createHealthEntry(date)
+  entry.learning.speech.status = 'not_done'
+  entry.learning.cavist.status = 'not_done'
+  entry.learning.porcelain.status = 'not_done'
+  state.entries[date] = entry
+  window.localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
 }

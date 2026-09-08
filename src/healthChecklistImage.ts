@@ -79,8 +79,9 @@ export function createHealthChecklistImage(
   entry: HealthEntry,
   canvasFactory: CanvasFactory = () => document.createElement('canvas'),
   settings: HealthSettings = DEFAULT_HEALTH_SETTINGS,
+  entries: Record<string, HealthEntry> = { [entry.date]: entry },
 ): File {
-  const text = buildHealthChecklistText(entry, settings)
+  const text = buildHealthChecklistText(entry, settings, {}, entries)
   const canvas = canvasFactory()
   canvas.width = HEALTH_CHECKLIST_IMAGE_WIDTH
 

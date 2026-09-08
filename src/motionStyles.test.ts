@@ -10,28 +10,28 @@ const indexCss = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
 describe('motion system', () => {
   it('defines shared timing and easing tokens', () => {
-    expect(indexCss).toContain('--motion-fast: 140ms')
-    expect(indexCss).toContain('--motion-normal: 200ms')
-    expect(indexCss).toContain('--motion-slow: 260ms')
-    expect(indexCss).toContain('--motion-progress: 420ms')
+    expect(indexCss).toContain('--motion-fast: 160ms')
+    expect(indexCss).toContain('--motion-normal: 220ms')
+    expect(indexCss).toContain('--motion-slow: 280ms')
+    expect(indexCss).toContain('--motion-progress: 460ms')
     expect(indexCss).toContain('--motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1)')
+    expect(indexCss).toContain('--motion-slide-ease: cubic-bezier(0.33, 0, 0.2, 1)')
     expect(indexCss).toContain('--motion-spring: cubic-bezier(0.34, 1.45, 0.64, 1)')
   })
 
   it('adds tactile feedback without animating disabled buttons', () => {
     expect(appCss).toContain('button:not(:disabled):active')
-    expect(appCss).toContain('transform: scale(0.985)')
+    expect(appCss).toContain('transform: scale(0.97)')
     expect(appCss).toMatch(/button:disabled\s*{[^}]*transition: none/s)
   })
 
   it('animates navigation, tabs, checkboxes and selected controls', () => {
-    expect(appCss).toMatch(/\.bottom-nav button\.active svg\s*{[^}]*scale\(1\.05\)/s)
-    expect(appCss).toMatch(/\.bottom-nav::before\s*{[^}]*transform 280ms/s)
-    expect(healthCss).toMatch(/\.health-section-tabs::before\s*{[^}]*transform 250ms/s)
+    expect(appCss).toMatch(/\.bottom-nav-pill\s*{[^}]*transform 300ms/s)
+    expect(healthCss).toMatch(/\.health-tabs-pill\s*{[^}]*transform 280ms/s)
     expect(appCss).toMatch(/\.section-tabs button\s*{[^}]*--motion-normal/s)
-    expect(appCss).toMatch(/input\[type='checkbox'\]:checked[^}]*scale\(1\.04\)/s)
+    expect(appCss).toMatch(/input\[type='checkbox'\]:checked,[\s\S]*checkbox-check-in/)
     expect(healthCss).toMatch(/\.number-choices button\.selected,[\s\S]*control-select-in/)
-    expect(healthCss).toMatch(/\.health-toggle\.selected \.health-checkmark[\s\S]*control-select-in/)
+    expect(healthCss).toMatch(/\.health-toggle\.selected \.health-checkmark[\s\S]*health-checkbox-in/)
     expect(financeCss).toMatch(/\.obligation-calendar-grid button\.selected[\s\S]*control-select-in/)
   })
 
@@ -44,9 +44,14 @@ describe('motion system', () => {
   })
 
   it('uses compact feedback for steppers and accordion reveals', () => {
+    expect(healthCss).toMatch(/\.health-screen\s*{[^}]*animation: card-in var\(--motion-normal\) var\(--motion-ease\) backwards/s)
+    expect(healthCss).toContain('animation: health-tab-content-in 230ms var(--motion-ease) backwards')
+    expect(healthCss).toMatch(/\.health-today,[\s\S]*animation: card-in var\(--motion-normal\) var\(--motion-ease\) backwards/)
     expect(healthCss).toContain('@keyframes compact-stepper-pop')
     expect(healthCss).toMatch(/\.compact-stepper-value-pop\s*{[^}]*210ms/s)
-    expect(healthCss).toMatch(/\.health-accordion-panel\s*{[^}]*220ms/s)
+    expect(healthCss).toMatch(/\.health-accordion-shell\s*{[^}]*grid-template-rows 280ms/s)
+    expect(healthCss).toContain('@keyframes quantity-icon-in')
+    expect(healthCss).toContain('@keyframes bristol-select-in')
   })
 
   it('gives every existing dialog family the same entrance treatment', () => {

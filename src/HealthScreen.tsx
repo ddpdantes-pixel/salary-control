@@ -7,6 +7,7 @@ import { HealthIcon, type HealthIconName } from './HealthIcon'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
 import { CompactStepper } from './CompactStepper'
+import { IconQuantityPicker } from './IconQuantityPicker'
 import {
   FACE_COOL_WATER_PROCEDURE_ID,
   activateCosmetologyDebt,
@@ -20,7 +21,11 @@ import {
   toggleCosmetologyCompletion,
 } from './cosmetology'
 import { HEALTH_TIMER_COMPLETION_EVENT } from './healthTimerCompletion'
-import { getNextLearningNumber } from './learningSchedule'
+import {
+  buildLearningDayStatuses,
+  getNextLearningNumber,
+  type LearningDayStatus,
+} from './learningSchedule'
 import {
   completeHealthTaskDebt,
   getHealthTasksForDate,
@@ -57,7 +62,6 @@ import {
   formatWaterLiters,
   getAlcoholFieldVisibility,
   getLocalDateId,
-  isBristolNorm,
   isCoffeeOverGoal,
   isShampooScheduled,
   isWorkoutPlannedForDate,
@@ -81,6 +85,7 @@ import {
   loadStoredHealthSettings,
   saveStoredHealthSettings,
   type HealthSettings,
+  type LearningScheduleDirection,
 } from './healthSettings'
 import type {
   AlcoholChoice,
@@ -96,6 +101,7 @@ import type {
 import './HealthScreen.css'
 
 type HealthSaveState = 'saved' | 'saving' | 'error'
+type PendingFinalAction = 'complete' | 'chatgpt' | 'images'
 type AppleHealthImportNotice =
   | { kind: 'success' | 'error' | 'warning'; message: string; detail?: string }
   | null
@@ -115,6 +121,8 @@ const SAVE_DELAY_MS = 350
 const SCALE_0_TO_5 = [0, 1, 2, 3, 4, 5]
 const URGE_VALUES = [0, 0.5, 1, 2, 3, 4, 5]
 const BRISTOL_TYPES = [1, 2, 3, 4, 5, 6, 7]
+const WATER_PICKER_MAX = 6
+const COFFEE_PICKER_MAX = 5
 const ALCOHOL_CHOICES: Array<{ id: AlcoholChoice; label: string; ariaLabel?: string }> = [
   { id: 'none', label: 'Не пил' },
   { id: 'nonAlcoholic', label: 'Б/а', ariaLabel: 'Безалкогольное' },
@@ -607,6 +615,7 @@ function HealthTabs({
       aria-label="Раздел здоровья"
       data-active-index={HEALTH_TABS.findIndex((tab) => tab.id === activeTab)}
     >
+      <span className="health-tabs-pill" aria-hidden="true" />
       {HEALTH_TABS.map((tab) => (
         <button
           key={tab.id}
@@ -663,14 +672,6 @@ function HealthToday({
 }) {
   const dateHeading = formatHealthDate(selectedDate)
   const alcoholVisibility = getAlcoholFieldVisibility(entry.alcoholChoice)
-  const waterValues = Array.from(
-    { length: Math.max(settings.water.goalCups, entry.waterCups) + 1 },
-    (_, index) => index,
-  )
-  const coffeeValues = Array.from(
-    { length: Math.max(5, settings.coffee.maxPerDay, entry.coffeeCups) + 1 },
-    (_, index) => index,
-  )
   const urgeValues = [...new Set([...URGE_VALUES, settings.urgeReference])].sort((a, b) => a - b)
   const appleHealthWaterActive =
     entry.waterSource === 'apple-health' && entry.waterMl !== undefined
@@ -708,6 +709,20 @@ function HealthToday({
   const [activeShareMode, setActiveShareMode] = useState<'chatgpt' | 'images' | null>(null)
   const [lastShareMode, setLastShareMode] = useState<'chatgpt' | 'images' | null>(null)
   const [showDownloadActions, setShowDownloadActions] = useState(false)
+  const [pendingFinalAction, setPendingFinalAction] = useState<PendingFinalAction | null>(null)
+  const learningStatuses = useMemo(
+    () => buildLearningDayStatuses(entries, selectedDate),
+    [entries, selectedDate],
+  )
+  const unresolvedLearning = learningStatuses.filter((item) => item.state === 'NEEDS_MARK')
+  const learningStatusByDirection = Object.fromEntries(
+    learningStatuses.map((item) => [item.direction, item]),
+  ) as Record<LearningScheduleDirection, LearningDayStatus>
+  const learningHeaderStatus = unresolvedLearning.length > 0
+    ? `${unresolvedLearning.length} ${formatLearningNeedsWord(unresolvedLearning.length)}`
+    : learningStatuses.every((item) => item.complete)
+      ? '✓ Неделя закрыта'
+      : '✓ Готово'
   const handleAttachmentsChange = useCallback(
     (nextAttachments: HealthAttachment[]) => setAttachments(nextAttachments),
     [],
@@ -718,6 +733,16 @@ function HealthToday({
     setShowDownloadActions(false)
   }, [selectedDate])
 
+  function updateLearningStatus(direction: LearningScheduleDirection, status: LearningStatus): void {
+    onChange((current) => ({
+      ...current,
+      learning: {
+        ...current.learning,
+        [direction]: selectLearningStatus(current.learning[direction], status),
+      },
+    }))
+  }
+
   async function shareReport(mode: 'chatgpt' | 'images'): Promise<void> {
     if (activeShareMode) return
     setActiveShareMode(mode)
@@ -725,12 +750,35 @@ function HealthToday({
     setLastShareMode(mode)
     try {
       const share = mode === 'chatgpt' ? shareHealthReportForChatGpt : shareHealthReport
-      const result = await share({ entry, settings, cosmetologyDebts, attachments })
+      const result = await share({ entry, entries, settings, cosmetologyDebts, attachments })
       setShareResult(result)
       setShowDownloadActions(result.status === 'fallback')
     } finally {
       setActiveShareMode(null)
     }
+  }
+
+  function requestFinalAction(action: PendingFinalAction): void {
+    if (unresolvedLearning.length > 0) {
+      setPendingFinalAction(action)
+      return
+    }
+    if (action === 'complete') {
+      onChange((current) => ({ ...current, completed: true }))
+      return
+    }
+    void shareReport(action)
+  }
+
+  function continueFinalAction(): void {
+    if (!pendingFinalAction || unresolvedLearning.length > 0) return
+    const action = pendingFinalAction
+    setPendingFinalAction(null)
+    if (action === 'complete') {
+      onChange((current) => ({ ...current, completed: true }))
+      return
+    }
+    void shareReport(action)
   }
 
   async function deleteTemporaryAttachments(): Promise<void> {
@@ -802,15 +850,17 @@ function HealthToday({
             </div>
           ) : (
             <>
-              <p className="health-compact-summary">
-                <strong>{entry.waterCups} {formatCupWord(entry.waterCups)}</strong>
-                <span>· {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</span>
-              </p>
-              <CompactStepper
-                values={waterValues}
+              <IconQuantityPicker
                 value={entry.waterCups}
+                max={WATER_PICKER_MAX}
+                icon="droplet"
                 label="Количество кружек воды"
-                formatValue={formatChoiceNumber}
+                optionLabel={(quantity) => `${quantity} ${formatCupWord(quantity)} воды`}
+                tone="water"
+                summary={<>
+                  <span><strong>{entry.waterCups} {formatCupWord(entry.waterCups)}</strong> · {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</span>
+                  <small>{entry.waterCups} из {settings.water.goalCups}</small>
+                </>}
                 onChange={(waterCups) => onChange((current) => ({ ...current, waterCups }))}
               />
               <div
@@ -823,7 +873,6 @@ function HealthToday({
               >
                 <span style={{ width: `${Math.min(100, (entry.waterCups / Math.max(1, settings.water.goalCups)) * 100)}%` }} />
               </div>
-              <p className="health-compact-caption">{entry.waterCups} из {settings.water.goalCups}</p>
               {waterGoalMet && <p className="health-water-goal met">Цель выполнена</p>}
               {appleHealthManualMode && typeof entry.appleHealthAvailableMl === 'number' && (
                 <div className="health-water-available">
@@ -841,18 +890,17 @@ function HealthToday({
           )}
         </HealthBlock>
         <HealthBlock icon="coffee" title="Кофе">
-          <p className="health-compact-summary">
-            <strong>{entry.coffeeCups} {formatCoffeeCupWord(entry.coffeeCups)}</strong>
-            <span>· цель ≤{settings.coffee.maxPerDay}</span>
-          </p>
-          <CompactStepper
-            values={coffeeValues}
+          <span className="health-quantity-goal">цель ≤{settings.coffee.maxPerDay}</span>
+          <IconQuantityPicker
             value={entry.coffeeCups}
+            max={COFFEE_PICKER_MAX}
+            icon="coffee"
             label="Количество кружек кофе"
-            formatValue={formatChoiceNumber}
+            optionLabel={(quantity) => `${quantity} ${formatCoffeeCupWord(quantity)} кофе`}
+            tone="coffee"
+            summary={<span><strong>{entry.coffeeCups} {formatCoffeeCupWord(entry.coffeeCups)}</strong> · цель ≤{settings.coffee.maxPerDay}</span>}
             onChange={(coffeeCups) => onChange((current) => ({ ...current, coffeeCups }))}
           />
-          <p className="health-compact-caption">Цель — не больше {settings.coffee.maxPerDay}</p>
           {isCoffeeOverGoal(entry.coffeeCups, settings.coffee.maxPerDay) && (
             <p className="health-amber-note">Выше цели на {entry.coffeeCups - settings.coffee.maxPerDay}</p>
           )}
@@ -965,25 +1013,22 @@ function HealthToday({
           label="Распирание"
           values={SCALE_0_TO_5}
           value={entry.bloating}
+          referenceLabel="Норма: 0 · обычно нет"
           onChange={(bloating) => onChange((current) => ({ ...current, bloating }))}
         />
         <CompactHealthScale
           label="Позывы"
           values={urgeValues}
           value={entry.urges}
-          personalReference={settings.urgeReference}
+          referenceLabel={`Обычно: ${formatChoiceNumber(settings.urgeReference)} · личный ориентир`}
           onChange={(urges) => onChange((current) => ({ ...current, urges }))}
         />
       </HealthBlock>
 
       <HealthBlock icon="chart" title="Бристольская шкала">
-        <CompactStepper
-          values={BRISTOL_TYPES}
+        <BristolScale
           value={entry.bristolType}
-          label="Тип по Бристольской шкале"
-          valueContent={(type) => type === null
-            ? '—'
-            : `${type}${isBristolNorm(type, settings) ? ' · Норма' : ''}`}
+          normalTypes={settings.bristolNormalTypes}
           onChange={(bristolType) => onChange((current) => ({ ...current, bristolType }))}
         />
         {entry.bristolType !== null && (
@@ -1228,16 +1273,24 @@ function HealthToday({
         )}
       </HealthBlock>
 
-      <HealthBlock icon="book" title="Обучение" id="health-learning">
+      <HealthBlock
+        icon="book"
+        title="Обучение"
+        id="health-learning"
+        headingMeta={<span className={`health-learning-header-status ${unresolvedLearning.length > 0 ? 'needs-mark' : 'ready'}`}>{learningHeaderStatus}</span>}
+      >
         <div className="health-learning-list">
           <LearningDirectionField
             id="speech"
             title="Речь и дикция"
             direction={entry.learning.speech}
+            dayStatus={learningStatusByDirection.speech}
+            selectedDate={selectedDate}
             expanded={openLearningDirection === 'speech'}
             onToggle={() => setOpenLearningDirection((current) => current === 'speech' ? null : 'speech')}
             activityTypes={[['session', 'Занятие'], ['practice', 'Практика']]}
             getNextNumber={(activityType) => getNextLearningNumber(entries, 'speech', activityType)}
+            onStatusChange={(status) => updateLearningStatus('speech', status)}
             onChange={(speech) => onChange((current) => ({
               ...current,
               learning: { ...current.learning, speech },
@@ -1247,10 +1300,13 @@ function HealthToday({
             id="cavist"
             title="Кавист"
             direction={entry.learning.cavist}
+            dayStatus={learningStatusByDirection.cavist}
+            selectedDate={selectedDate}
             expanded={openLearningDirection === 'cavist'}
             onToggle={() => setOpenLearningDirection((current) => current === 'cavist' ? null : 'cavist')}
             activityTypes={[['lesson', 'Урок'], ['practice', 'Практика']]}
             getNextNumber={(activityType) => getNextLearningNumber(entries, 'cavist', activityType)}
+            onStatusChange={(status) => updateLearningStatus('cavist', status)}
             onChange={(cavist) => onChange((current) => ({
               ...current,
               learning: { ...current.learning, cavist },
@@ -1260,10 +1316,13 @@ function HealthToday({
             id="porcelain"
             title="Керамогранит"
             direction={entry.learning.porcelain}
+            dayStatus={learningStatusByDirection.porcelain}
+            selectedDate={selectedDate}
             expanded={openLearningDirection === 'porcelain'}
             onToggle={() => setOpenLearningDirection((current) => current === 'porcelain' ? null : 'porcelain')}
             activityTypes={[['lesson', 'Урок'], ['practice', 'Практика']]}
             getNextNumber={(activityType) => getNextLearningNumber(entries, 'porcelain', activityType)}
+            onStatusChange={(status) => updateLearningStatus('porcelain', status)}
             onChange={(porcelain) => onChange((current) => ({
               ...current,
               learning: { ...current.learning, porcelain },
@@ -1331,12 +1390,18 @@ function HealthToday({
                     </span>
                     <b>+{overdueDays} дн.</b>
                   </button>
-                  {expanded && (
-                    <div className="health-cosmetology-overdue-actions health-accordion-panel" id={`cosmetology-debt-${debt.id}`}>
-                      <button type="button" onClick={() => onActivateDebt(debt.id)}>Выполнить сегодня</button>
-                      <button type="button" className="secondary" onClick={() => setSkipConfirmation(debt)}>Пропустить</button>
+                  <div
+                    className={`health-accordion-shell ${expanded ? 'open' : ''}`}
+                    id={`cosmetology-debt-${debt.id}`}
+                    aria-hidden={!expanded}
+                  >
+                    <div className="health-accordion-inner" inert={!expanded}>
+                      <div className="health-cosmetology-overdue-actions health-accordion-panel">
+                        <button type="button" onClick={() => onActivateDebt(debt.id)}>Выполнить сегодня</button>
+                        <button type="button" className="secondary" onClick={() => setSkipConfirmation(debt)}>Пропустить</button>
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </article>
               })}
             </div>
@@ -1391,7 +1456,7 @@ function HealthToday({
           type="button"
           className={`health-complete-action ${entry.completed ? 'completed' : ''}`}
           aria-pressed={entry.completed}
-          onClick={() => onChange((current) => ({ ...current, completed: true }))}
+          onClick={() => requestFinalAction('complete')}
         >
           {entry.completed ? 'День завершён' : 'Завершить день'}
         </button>
@@ -1401,7 +1466,7 @@ function HealthToday({
             className="health-share-action"
             disabled={!hasSavedEntry || activeShareMode !== null}
             aria-label="Отправить отчёт здоровья в ChatGPT одним файлом"
-            onClick={() => void shareReport('chatgpt')}
+            onClick={() => requestFinalAction('chatgpt')}
           >
             {activeShareMode === 'chatgpt' ? 'Подготавливаем…' : 'Отправить в ChatGPT'}
           </button>
@@ -1410,7 +1475,7 @@ function HealthToday({
             className="health-secondary-action"
             disabled={!hasSavedEntry || activeShareMode !== null}
             aria-label="Поделиться отчётом здоровья отдельными изображениями"
-            onClick={() => void shareReport('images')}
+            onClick={() => requestFinalAction('images')}
           >
             {activeShareMode === 'images' ? 'Подготавливаем…' : 'Поделиться изображениями'}
           </button>
@@ -1446,6 +1511,80 @@ function HealthToday({
           </p>
         )}
       </div>
+
+      {pendingFinalAction && (
+        <LearningPreflightDialog
+          action={pendingFinalAction}
+          unresolved={unresolvedLearning}
+          onStatusChange={updateLearningStatus}
+          onBack={() => setPendingFinalAction(null)}
+          onContinue={continueFinalAction}
+        />
+      )}
+    </div>
+  )
+}
+
+function LearningPreflightDialog({
+  action,
+  unresolved,
+  onStatusChange,
+  onBack,
+  onContinue,
+}: {
+  action: PendingFinalAction
+  unresolved: LearningDayStatus[]
+  onStatusChange: (direction: LearningScheduleDirection, status: LearningStatus) => void
+  onBack: () => void
+  onContinue: () => void
+}) {
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const onBackRef = useRef(onBack)
+  onBackRef.current = onBack
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    headingRef.current?.focus()
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onBackRef.current()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+      document.body.style.overflow = previousOverflow
+      previousFocus?.focus()
+    }
+  }, [])
+
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section className="restore-dialog learning-preflight-dialog" role="dialog" aria-modal="true" aria-labelledby="learning-preflight-title">
+        <h2 id="learning-preflight-title" ref={headingRef} tabIndex={-1}>Не отмечено обучение</h2>
+        {unresolved.length > 0 ? (
+          <div className="learning-preflight-list">
+            <p>Заполните только направления, которым сегодня нужен ответ.</p>
+            {unresolved.map((item) => (
+              <section key={item.direction} className="learning-preflight-row" aria-label={item.label}>
+                <div><strong>{item.label}</strong><small>{item.completed}/{item.goal}</small></div>
+                <div className="binary-choice" role="group" aria-label={`Статус обучения: ${item.label}`}>
+                  <button type="button" onClick={() => onStatusChange(item.direction, 'not_done')}>Не занимался</button>
+                  <button type="button" onClick={() => onStatusChange(item.direction, 'done')}>Занимался</button>
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <p className="learning-preflight-ready" role="status">Все обязательные отметки заполнены.</p>
+        )}
+        <div className="dialog-actions">
+          <button type="button" onClick={onBack}>Вернуться</button>
+          <button type="button" className="primary" disabled={unresolved.length > 0} onClick={onContinue}>
+            {action === 'complete' ? 'Завершить день' : 'Продолжить'}
+          </button>
+        </div>
+      </section>
     </div>
   )
 }
@@ -1512,17 +1651,22 @@ function HealthBlock({
   icon,
   id,
   className,
+  headingMeta,
   children,
 }: {
   title: string
   icon?: HealthIconName
   id?: string
   className?: string
+  headingMeta?: ReactNode
   children: ReactNode
 }) {
   return (
     <section id={id} className={`health-block${className ? ` ${className}` : ''}`}>
-      <h2 className="health-section-title">{icon && <HealthIcon name={icon} />}<span>{title}</span></h2>
+      <div className="health-section-heading">
+        <h2 className="health-section-title">{icon && <HealthIcon name={icon} />}<span>{title}</span></h2>
+        {headingMeta}
+      </div>
       {children}
     </section>
   )
@@ -1532,18 +1676,21 @@ function CompactHealthScale({
   label,
   values,
   value,
-  personalReference,
+  referenceLabel,
   onChange,
 }: {
   label: string
   values: readonly number[]
   value: number | null
-  personalReference?: number
+  referenceLabel: string
   onChange: (value: number) => void
 }) {
   return (
     <div className="compact-health-scale">
-      <span>{label}</span>
+      <span className="compact-health-scale-label">
+        <strong>{label}</strong>
+        <small>{referenceLabel}</small>
+      </span>
       <CompactStepper
         values={values}
         value={value}
@@ -1551,17 +1698,54 @@ function CompactHealthScale({
         formatValue={formatChoiceNumber}
         onChange={onChange}
       />
-      {personalReference !== undefined && (
-        <small>{formatChoiceNumber(personalReference)} — личный ориентир</small>
-      )}
     </div>
   )
 }
 
-function formatLearningStatus(status: LearningStatus | null): string {
-  if (status === 'done') return 'Занимался'
-  if (status === 'not_done') return 'Не занимался'
-  return 'Не отмечено'
+function BristolScale({
+  value,
+  normalTypes,
+  onChange,
+}: {
+  value: number | null
+  normalTypes: readonly number[]
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="bristol-scale" role="group" aria-label="Тип по Бристольской шкале">
+      {BRISTOL_TYPES.map((type) => {
+        const normal = normalTypes.includes(type)
+        const selected = value === type
+        return (
+          <button
+            key={type}
+            type="button"
+            className={`${normal ? 'normal' : ''} ${selected ? 'selected' : ''}`.trim()}
+            aria-label={`Бристоль ${type}${normal ? ' — норма' : ''}`}
+            aria-pressed={selected}
+            data-bristol-type={type}
+            onClick={() => onChange(type)}
+          >
+            <strong>{type}</strong>
+            {normal && <small>Норма</small>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatLearningStatus(dayStatus: LearningDayStatus, selectedDate: string): string {
+  const progress = `${dayStatus.completed}/${dayStatus.goal}`
+  if (dayStatus.state === 'DONE_TODAY') return `Занимался · ${progress}`
+  if (dayStatus.state === 'NOT_DONE_TODAY') return `Не занимался · ${progress}`
+  if (dayStatus.state === 'WEEKLY_COMPLETE') return `План выполнен · ${progress}`
+  if (dayStatus.state === 'FUTURE') return `Будущий день · ${progress}`
+  return `${selectedDate < getLocalDateId() ? 'Не отмечено' : 'Нужно отметить'} · ${progress}`
+}
+
+function formatLearningNeedsWord(value: number): string {
+  return value > 0 ? 'нужно отметить' : ''
 }
 
 function formatCupWord(value: number): string {
@@ -1694,23 +1878,36 @@ function LearningDirectionField<TActivityType extends string>({
   id,
   title,
   direction,
+  dayStatus,
+  selectedDate,
   expanded,
   onToggle,
   activityTypes,
   getNextNumber,
+  onStatusChange,
   onChange,
 }: {
   id: string
   title: string
   direction: LearningDirection<TActivityType>
+  dayStatus: LearningDayStatus
+  selectedDate: string
   expanded: boolean
   onToggle: () => void
   activityTypes: ReadonlyArray<readonly [TActivityType, string]>
   getNextNumber: (activityType: TActivityType) => number | null
+  onStatusChange: (status: LearningStatus) => void
   onChange: (direction: LearningDirection<TActivityType>) => void
 }) {
+  const statusTone = dayStatus.state === 'DONE_TODAY'
+    ? 'done'
+    : dayStatus.state === 'WEEKLY_COMPLETE'
+      ? 'complete'
+      : dayStatus.state === 'NEEDS_MARK'
+        ? 'needs-mark'
+        : 'neutral'
   return (
-    <section className="health-learning-direction" aria-label={title}>
+    <section className={`health-learning-direction status-${statusTone}`} aria-label={title}>
       <button
         type="button"
         className="health-learning-summary"
@@ -1720,12 +1917,17 @@ function LearningDirectionField<TActivityType extends string>({
       >
         <span>
           <strong>{title}</strong>
-          <small>{formatLearningStatus(direction.status)}</small>
+          <small className={`health-learning-status ${statusTone}`}>{formatLearningStatus(dayStatus, selectedDate)}</small>
         </span>
         <span className="health-learning-chevron" aria-hidden="true">›</span>
       </button>
-      {expanded && (
-        <div className="health-accordion-panel" id={`health-learning-panel-${id}`}>
+      <div
+        className={`health-accordion-shell ${expanded ? 'open' : ''}`}
+        id={`health-learning-panel-${id}`}
+        aria-hidden={!expanded}
+      >
+        <div className="health-accordion-inner" inert={!expanded}>
+          <div className="health-accordion-panel">
           <div className="binary-choice learning-status-choice" role="group" aria-label={`Статус обучения: ${title}`}>
             {([['not_done', 'Не занимался'], ['done', 'Занимался']] as const).map(([status, label]) => (
               <button
@@ -1733,7 +1935,7 @@ function LearningDirectionField<TActivityType extends string>({
                 type="button"
                 className={direction.status === status ? 'selected' : ''}
                 aria-pressed={direction.status === status}
-                onClick={() => onChange(selectLearningStatus(direction, status))}
+                onClick={() => onStatusChange(status)}
               >
                 {label}
               </button>
@@ -1775,8 +1977,9 @@ function LearningDirectionField<TActivityType extends string>({
               />
             </div>
           )}
+          </div>
         </div>
-      )}
+      </div>
     </section>
   )
 }

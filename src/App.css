@@ -79,7 +79,7 @@ button {
 }
 
 button:not(:disabled):active {
-  transform: scale(0.985);
+  transform: scale(0.97);
 }
 
 button:disabled {
@@ -94,7 +94,7 @@ input[type='radio'] {
 
 input[type='checkbox']:checked,
 input[type='radio']:checked {
-  transform: scale(1.04);
+  animation: checkbox-check-in 210ms var(--motion-spring) both;
 }
 
 .save-status {
@@ -121,6 +121,10 @@ input[type='radio']:checked {
 .save-status.error {
   color: var(--danger);
   background: var(--danger-soft);
+}
+
+.save-status.saved {
+  animation: saved-status-in 240ms var(--motion-spring) both;
 }
 
 .app-notice {
@@ -1332,26 +1336,26 @@ button.danger {
   backdrop-filter: blur(18px);
 }
 
-.bottom-nav::before {
+.bottom-nav-pill {
   position: absolute;
   top: 8px;
   left: var(--bottom-nav-padding);
   width: calc((100% - var(--bottom-nav-total-inset) - var(--bottom-nav-total-gap)) / 4);
   height: 54px;
   border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
   background: var(--accent-soft);
-  box-shadow: var(--shadow-soft);
-  content: '';
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--accent) 14%, transparent);
   pointer-events: none;
   transition:
-    transform 280ms var(--motion-ease),
+    transform 300ms var(--motion-slide-ease),
     background-color var(--motion-normal) var(--motion-ease);
 }
 
-.bottom-nav[data-active-index='1']::before { transform: translateX(calc(100% + var(--bottom-nav-gap))); }
-.bottom-nav[data-active-index='2']::before { transform: translateX(calc(200% + var(--bottom-nav-gap-2))); }
-.bottom-nav[data-active-index='3']::before { transform: translateX(calc(300% + var(--bottom-nav-gap-3))); }
-.bottom-nav[data-active-tab='money']::before { background: #e7f1fc; }
+.bottom-nav[data-active-index='1'] .bottom-nav-pill { transform: translateX(calc(100% + var(--bottom-nav-gap))); }
+.bottom-nav[data-active-index='2'] .bottom-nav-pill { transform: translateX(calc(200% + var(--bottom-nav-gap-2))); }
+.bottom-nav[data-active-index='3'] .bottom-nav-pill { transform: translateX(calc(300% + var(--bottom-nav-gap-3))); }
+.bottom-nav[data-active-tab='money'] .bottom-nav-pill { background: #e7f1fc; }
 
 .bottom-nav button {
   position: relative;
@@ -1391,7 +1395,7 @@ button.danger {
 }
 
 .bottom-nav button.active svg {
-  transform: scale(1.05);
+  animation: bottom-nav-icon-arrive 230ms var(--motion-spring) 100ms both;
 }
 
 .bottom-nav button.money-tab.active {
@@ -1573,14 +1577,32 @@ button.danger {
 
 @keyframes card-in {
   from {
-    opacity: 0;
-    transform: translateY(6px);
+    opacity: 0.75;
+    transform: translateY(8px);
   }
 
   to {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes bottom-nav-icon-arrive {
+  0% { transform: scale(0.92); }
+  65% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes checkbox-check-in {
+  0% { transform: scale(0.82); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 32%, transparent); }
+  62% { transform: scale(1.12); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 0%, transparent); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+
+@keyframes saved-status-in {
+  0% { opacity: 0.72; transform: scale(0.94); }
+  65% { opacity: 1; transform: scale(1.04); }
+  100% { transform: scale(1); }
 }
 
 @keyframes control-select-in {
@@ -1740,7 +1762,7 @@ button.danger {
     background: transparent;
   }
 
-  .bottom-nav[data-active-tab='money']::before {
+  .bottom-nav[data-active-tab='money'] .bottom-nav-pill {
     background: #18334e;
   }
 }
@@ -1777,7 +1799,11 @@ button.danger {
   .binary-choice button.selected,
   .health-toggle.selected .health-checkmark,
   .health-history-calendar-grid > button.selected,
-  .obligation-calendar-grid button.selected {
+  .obligation-calendar-grid button.selected,
+  .bottom-nav button.active svg,
+  .save-status.saved,
+  input[type='checkbox']:checked,
+  input[type='radio']:checked {
     animation: none !important;
   }
 
@@ -1796,6 +1822,7 @@ button.danger {
   }
 
   .compact-progress-bar-fill,
+  .bottom-nav-pill,
   .home-plan-track span,
   .home-learning-progress i,
   .progress-track span,

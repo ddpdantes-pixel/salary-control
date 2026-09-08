@@ -31,9 +31,10 @@ export function createHealthShareFiles(
   attachments: HealthAttachment[],
   createChecklistImage: (entry: HealthEntry) => File = createHealthChecklistImage,
   settings: HealthSettings = DEFAULT_HEALTH_SETTINGS,
+  entries: Record<string, HealthEntry> = { [entry.date]: entry },
 ): File[] {
   const checklistImage = createChecklistImage === createHealthChecklistImage
-    ? createHealthChecklistImage(entry, undefined, settings)
+    ? createHealthChecklistImage(entry, undefined, settings, entries)
     : createChecklistImage(entry)
   return [
     checklistImage,
@@ -56,6 +57,7 @@ export function createHealthShareFiles(
 
 export function shareHealthReport({
   entry,
+  entries = { [entry.date]: entry },
   settings = DEFAULT_HEALTH_SETTINGS,
   cosmetologyDebts = {},
   attachments,
@@ -65,6 +67,7 @@ export function shareHealthReport({
     copyTextForPreparation(text, navigatorLike.clipboard),
 }: {
   entry: HealthEntry
+  entries?: Record<string, HealthEntry>
   settings?: HealthSettings
   cosmetologyDebts?: Record<string, CosmetologyDebt>
   attachments: HealthAttachment[]
@@ -72,7 +75,7 @@ export function shareHealthReport({
   createChecklistImage?: (entry: HealthEntry) => File
   copyTextImmediately?: (text: string) => boolean | Promise<boolean>
 }): Promise<HealthShareResult> {
-  const checklistText = buildHealthChecklistText(entry, settings, cosmetologyDebts)
+  const checklistText = buildHealthChecklistText(entry, settings, cosmetologyDebts, entries)
   const copyResult = copyTextImmediately(checklistText)
   if (copyResult === false) {
     return Promise.resolve({
@@ -83,7 +86,7 @@ export function shareHealthReport({
 
   let files: File[]
   try {
-    files = createHealthShareFiles(entry, attachments, createChecklistImage, settings)
+    files = createHealthShareFiles(entry, attachments, createChecklistImage, settings, entries)
   } catch {
     return resolveCopyResult(copyResult).then((copied) =>
       copied
@@ -148,6 +151,7 @@ export function shareHealthReport({
 
 export async function shareHealthReportForChatGpt({
   entry,
+  entries = { [entry.date]: entry },
   settings = DEFAULT_HEALTH_SETTINGS,
   cosmetologyDebts = {},
   attachments,
@@ -158,6 +162,7 @@ export async function shareHealthReportForChatGpt({
     copyTextForPreparation(text, navigatorLike.clipboard),
 }: {
   entry: HealthEntry
+  entries?: Record<string, HealthEntry>
   settings?: HealthSettings
   cosmetologyDebts?: Record<string, CosmetologyDebt>
   attachments: HealthAttachment[]
@@ -166,14 +171,14 @@ export async function shareHealthReportForChatGpt({
   createCombinedImage?: (files: File[], localDate: string) => Promise<File>
   copyTextImmediately?: (text: string) => boolean | Promise<boolean>
 }): Promise<HealthShareResult> {
-  const checklistText = buildHealthChecklistText(entry, settings, cosmetologyDebts)
+  const checklistText = buildHealthChecklistText(entry, settings, cosmetologyDebts, entries)
   const copyResult = copyTextImmediately(checklistText)
   if (copyResult === false) return getCopyFailureResult()
 
   let sourceFiles: File[] = []
   let combinedFile: File
   try {
-    sourceFiles = createHealthShareFiles(entry, attachments, createChecklistImage, settings)
+    sourceFiles = createHealthShareFiles(entry, attachments, createChecklistImage, settings, entries)
     combinedFile = await createCombinedImage(sourceFiles, entry.date)
   } catch {
     const copied = await resolveCopyResult(copyResult)
