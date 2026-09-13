@@ -231,7 +231,31 @@ input[type='radio']:checked {
 .screen {
   display: grid;
   gap: 12px;
-  animation: card-in var(--motion-normal) var(--motion-ease) both;
+}
+
+.app-view-transition {
+  min-width: 0;
+  animation: app-section-in 320ms var(--motion-slide-ease) backwards;
+}
+
+.app-shell:not(.app-entry-active) .app-view-transition > .screen > :nth-child(-n + 3),
+.app-shell:not(.app-entry-active) .app-view-transition > .health-screen > :nth-child(-n + 3) {
+  animation: app-section-item-in 300ms var(--motion-ease) backwards;
+}
+
+.app-shell:not(.app-entry-active) .app-view-transition > .screen > :nth-child(2),
+.app-shell:not(.app-entry-active) .app-view-transition > .health-screen > :nth-child(2) {
+  animation-delay: 55ms;
+}
+
+.app-shell:not(.app-entry-active) .app-view-transition > .screen > :nth-child(3),
+.app-shell:not(.app-entry-active) .app-view-transition > .health-screen > :nth-child(3) {
+  animation-delay: 110ms;
+}
+
+.app-view-transition > .screen,
+.app-view-transition > .section-with-tabs {
+  min-width: 0;
 }
 
 .section-with-tabs {
@@ -425,20 +449,27 @@ input[type='radio']:checked {
 .home-plan-progress {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
+  gap: 0;
   min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 13%, var(--border));
+  border-radius: var(--radius);
+  padding: 3px;
+  background: color-mix(in srgb, var(--accent-soft) 24%, var(--surface));
 }
 
 .home-plan-mini-card {
   display: grid;
   min-width: 0;
   align-content: space-between;
-  gap: 7px;
-  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
-  border-radius: var(--radius);
-  padding: 9px;
-  background: color-mix(in srgb, var(--accent-soft) 44%, var(--surface));
-  box-shadow: var(--shadow-soft);
+  gap: 6px;
+  border-right: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border));
+  padding: 7px 8px;
+  background: transparent;
+}
+
+.home-plan-mini-card:last-child {
+  border-right: 0;
 }
 
 .home-plan-mini-card h2,
@@ -488,6 +519,11 @@ input[type='radio']:checked {
 .home-plan-mini-card.complete .home-plan-value strong {
   color: var(--success);
   font-size: 12px;
+}
+
+.home-plan-mini-card.complete .home-plan-value strong span {
+  display: inline-block;
+  animation: home-plan-success-in 240ms var(--motion-spring) both;
 }
 
 .home-plan-track {
@@ -1348,7 +1384,7 @@ button.danger {
   box-shadow: 0 5px 16px color-mix(in srgb, var(--accent) 14%, transparent);
   pointer-events: none;
   transition:
-    transform 300ms var(--motion-slide-ease),
+    transform 330ms var(--motion-slide-ease),
     background-color var(--motion-normal) var(--motion-ease);
 }
 
@@ -1395,7 +1431,7 @@ button.danger {
 }
 
 .bottom-nav button.active svg {
-  animation: bottom-nav-icon-arrive 230ms var(--motion-spring) 100ms both;
+  animation: bottom-nav-icon-arrive 250ms var(--motion-spring) 180ms both;
 }
 
 .bottom-nav button.money-tab.active {
@@ -1586,6 +1622,63 @@ button.danger {
     transform: translateY(0);
   }
 }
+
+@keyframes app-entry-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes app-section-in {
+  0% {
+    opacity: 0.65;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes app-section-item-in {
+  0% {
+    opacity: 0.65;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes home-plan-success-in {
+  0% { transform: scale(0.8); }
+  62% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.app-entry-active > .top-bar,
+.app-entry-active .hero-total,
+.app-entry-active .home-plan-progress,
+.app-entry-active .work-schedule-card,
+.app-entry-active .home-today-dashboard,
+.app-entry-active .health-section-tabs,
+.app-entry-active .health-tab-content > :first-child {
+  animation: app-entry-in 420ms var(--motion-ease) backwards;
+}
+
+.app-entry-active > .top-bar { animation-delay: 0ms; }
+.app-entry-active .hero-total,
+.app-entry-active .health-section-tabs { animation-delay: 70ms; }
+.app-entry-active .home-plan-progress,
+.app-entry-active .health-tab-content > :first-child { animation-delay: 140ms; }
+.app-entry-active .work-schedule-card { animation-delay: 210ms; }
+.app-entry-active .home-today-dashboard { animation-delay: 280ms; }
 
 @keyframes bottom-nav-icon-arrive {
   0% { transform: scale(0.92); }
@@ -1778,6 +1871,16 @@ button.danger {
   }
 
   .screen,
+  .app-view-transition,
+  .app-shell:not(.app-entry-active) .app-view-transition > .screen > :nth-child(-n + 3),
+  .app-shell:not(.app-entry-active) .app-view-transition > .health-screen > :nth-child(-n + 3),
+  .app-entry-active > .top-bar,
+  .app-entry-active .hero-total,
+  .app-entry-active .home-plan-progress,
+  .app-entry-active .work-schedule-card,
+  .app-entry-active .home-today-dashboard,
+  .app-entry-active .health-section-tabs,
+  .app-entry-active .health-tab-content > :first-child,
   .health-screen,
   .health-history,
   .dialog-backdrop,
@@ -1801,6 +1904,7 @@ button.danger {
   .health-history-calendar-grid > button.selected,
   .obligation-calendar-grid button.selected,
   .bottom-nav button.active svg,
+  .home-plan-mini-card.complete .home-plan-value strong span,
   .save-status.saved,
   input[type='checkbox']:checked,
   input[type='radio']:checked {

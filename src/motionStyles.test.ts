@@ -26,8 +26,8 @@ describe('motion system', () => {
   })
 
   it('animates navigation, tabs, checkboxes and selected controls', () => {
-    expect(appCss).toMatch(/\.bottom-nav-pill\s*{[^}]*transform 300ms/s)
-    expect(healthCss).toMatch(/\.health-tabs-pill\s*{[^}]*transform 280ms/s)
+    expect(appCss).toMatch(/\.bottom-nav-pill\s*{[^}]*transform 330ms/s)
+    expect(healthCss).toMatch(/\.health-tabs-pill\s*{[^}]*transform 300ms/s)
     expect(appCss).toMatch(/\.section-tabs button\s*{[^}]*--motion-normal/s)
     expect(appCss).toMatch(/input\[type='checkbox'\]:checked,[\s\S]*checkbox-check-in/)
     expect(healthCss).toMatch(/\.number-choices button\.selected,[\s\S]*control-select-in/)
@@ -52,6 +52,18 @@ describe('motion system', () => {
     expect(healthCss).toMatch(/\.health-accordion-shell\s*{[^}]*grid-template-rows 280ms/s)
     expect(healthCss).toContain('@keyframes quantity-icon-in')
     expect(healthCss).toContain('@keyframes bristol-select-in')
+    expect(healthCss).toMatch(/\.health-compact-disclosure\s*{[^}]*overflow: hidden/s)
+    expect(healthCss).toMatch(/\.health-disclosure-chevron\s*{[^}]*260ms/s)
+    expect(healthCss).toMatch(/\.sober-rating-scale \.scale-choices\s*{[^}]*repeat\(10/s)
+  })
+
+  it('separates one-time app entry from shorter section transitions', () => {
+    expect(appCss).toContain('@keyframes app-entry-in')
+    expect(appCss).toContain('translateY(12px) scale(0.985)')
+    expect(appCss).toMatch(/\.app-entry-active > \.top-bar,[\s\S]*420ms/s)
+    expect(appCss).toContain('@keyframes app-section-in')
+    expect(appCss).toMatch(/\.app-view-transition\s*{[^}]*320ms/s)
+    expect(appCss).toContain('animation-delay: 280ms')
   })
 
   it('gives every existing dialog family the same entrance treatment', () => {

@@ -189,6 +189,7 @@ function App() {
     useState(createDefaultPaymentNotificationSettings)
   const [selectedMonthId, setSelectedMonthId] = useState('')
   const [isBooting, setIsBooting] = useState(true)
+  const [appEntryActive, setAppEntryActive] = useState(true)
   const [activeTab, setActiveTab] = useState<TabId>(
     hasInitialAppleHealthWaterImport
       ? 'health'
@@ -230,6 +231,12 @@ function App() {
   const notificationSettingsDidMountRef = useRef(false)
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const firstRenderRef = useRef(true)
+
+  useEffect(() => {
+    if (isBooting || !appEntryActive) return
+    const timeout = window.setTimeout(() => setAppEntryActive(false), 900)
+    return () => window.clearTimeout(timeout)
+  }, [appEntryActive, isBooting])
 
   useEffect(() => {
     const openAppleHealthWaterImport = () => {
@@ -1064,7 +1071,7 @@ function App() {
   const dailySalesActive = activeTab === 'salary' && salaryView === 'sales'
 
   return (
-    <main className={`app-shell ${activeTab === 'money' ? 'finance-active' : ''} ${dailySalesActive ? 'daily-sales-active' : ''}`}>
+    <main className={`app-shell ${appEntryActive ? 'app-entry-active' : ''} ${activeTab === 'money' ? 'finance-active' : ''} ${dailySalesActive ? 'daily-sales-active' : ''}`}>
       {!passwordVaultOpen && <header className="top-bar">
         <div>
           <p className="eyebrow">
@@ -1148,10 +1155,15 @@ function App() {
         onChange={(event) => readBackupFile(event.currentTarget.files?.[0] ?? null)}
       />
 
-      {passwordVaultOpen ? (
-        <PasswordVaultScreen onBack={() => setPasswordVaultOpen(false)} />
-      ) : activeTab === 'home' && (
-        <HomeScreen
+      <div
+        className="app-view-transition"
+        key={passwordVaultOpen ? 'password-vault' : activeTab}
+        data-app-view={passwordVaultOpen ? 'password-vault' : activeTab}
+      >
+        {passwordVaultOpen ? (
+          <PasswordVaultScreen onBack={() => setPasswordVaultOpen(false)} />
+        ) : activeTab === 'home' && (
+          <HomeScreen
           month={currentMonth}
           summary={summary}
           dailySalesState={dailySalesState}
@@ -1178,10 +1190,10 @@ function App() {
           }}
           onOpenLearning={() => { setLearningFocusRequest((value) => value + 1); setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
           onOpenHealth={() => { setActiveTab('health'); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) }}
-        />
-      )}
-      {activeTab === 'salary' && (
-        <section className="section-with-tabs">
+          />
+        )}
+        {activeTab === 'salary' && (
+          <section className="section-with-tabs">
           <SectionTabs
             label="Раздел зарплаты"
             tabs={SALARY_TABS}
@@ -1230,10 +1242,10 @@ function App() {
               onOpen={openMonthFromHistory}
             />
           </div>
-        </section>
-      )}
-      {activeTab === 'money' && (
-        <FinanceScreen
+          </section>
+        )}
+        {activeTab === 'money' && (
+          <FinanceScreen
           state={financeState}
           salaryMonths={months}
           todayIsoDate={getLocalIsoDate()}
@@ -1252,18 +1264,19 @@ function App() {
             setSalaryView('current')
             setActiveTab('salary')
           }}
-        />
-      )}
-      {activeTab === 'health' && (
-        <HealthScreen
+          />
+        )}
+        {activeTab === 'health' && (
+          <HealthScreen
           onSettingsDirtyChange={setHealthSettingsDirty}
           learningFocusRequest={learningFocusRequest}
           faceTimerFocusRequest={faceTimerFocusRequest}
           timerController={healthTimer}
           onStateChange={setHealthState}
           onSettingsChange={setHealthSettings}
-        />
-      )}
+          />
+        )}
+      </div>
 
       <nav
         className="bottom-nav"

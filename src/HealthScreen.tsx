@@ -698,6 +698,8 @@ function HealthToday({
   ]
   const [skipConfirmation, setSkipConfirmation] = useState<CosmetologyDebt | null>(null)
   const [openLearningDirection, setOpenLearningDirection] = useState<'speech' | 'cavist' | 'porcelain' | null>(null)
+  const [scalpNotesOpen, setScalpNotesOpen] = useState(false)
+  const [alcoholDetailsOpen, setAlcoholDetailsOpen] = useState(false)
   const [showAllCosmetologyDebts, setShowAllCosmetologyDebts] = useState(false)
   const [openCosmetologyDebtId, setOpenCosmetologyDebtId] = useState<string | null>(null)
   const visibleOverdueDebts = showAllCosmetologyDebts
@@ -723,6 +725,12 @@ function HealthToday({
     : learningStatuses.every((item) => item.complete)
       ? '✓ Неделя закрыта'
       : '✓ Готово'
+  const scalpNotesSummary = entry.scalpNotes
+    .map((note) => SCALP_CHOICES.find((choice) => choice.id === note)?.label)
+    .filter((label): label is string => Boolean(label))
+    .join(', ') || 'Нет'
+  const alcoholDetailsAvailable = Object.values(alcoholVisibility).some(Boolean)
+  const alcoholDetailsSummary = getAlcoholDetailsSummary(entry)
   const handleAttachmentsChange = useCallback(
     (nextAttachments: HealthAttachment[]) => setAttachments(nextAttachments),
     [],
@@ -1008,7 +1016,7 @@ function HealthToday({
         </button>
       </HealthBlock>
 
-      <HealthBlock icon="pulse" title="Симптомы">
+      <HealthBlock icon="pulse" title="Симптомы" className="health-symptoms-block">
         <CompactHealthScale
           label="Распирание"
           values={SCALE_0_TO_5}
@@ -1025,7 +1033,7 @@ function HealthToday({
         />
       </HealthBlock>
 
-      <HealthBlock icon="chart" title="Бристольская шкала">
+      <HealthBlock icon="chart" title="Бристольская шкала" className="health-bristol-block">
         <BristolScale
           value={entry.bristolType}
           normalTypes={settings.bristolNormalTypes}
@@ -1039,7 +1047,7 @@ function HealthToday({
         <p className="health-muted">Информационный ориентир, а не диагноз</p>
       </HealthBlock>
 
-      <HealthBlock icon="bottle" title="Волосы">
+      <HealthBlock icon="bottle" title="Волосы" className="health-hair-block">
         <div className="hair-schedule">
           <ToggleButton
             label="Шампунь"
@@ -1054,40 +1062,47 @@ function HealthToday({
             onToggle={() => onChange((current) => ({ ...current, minoxidil: !current.minoxidil }))}
           />}
         </div>
-        <FieldTitle>Заметки о коже головы</FieldTitle>
-        <div className="health-chip-grid" role="group" aria-label="Заметки о коже головы">
-          {SCALP_CHOICES.map((choice) => {
-            const selected = entry.scalpNotes.includes(choice.id)
-            return (
-              <button
-                key={choice.id}
-                type="button"
-                className={selected ? 'selected' : ''}
-                aria-pressed={selected}
-                onClick={() =>
-                  onChange((current) => ({
-                    ...current,
-                    scalpNotes: toggleScalpNote(current.scalpNotes, choice.id),
-                  }))
-                }
-              >
-                {choice.label}
-              </button>
-            )
-          })}
-        </div>
-        {entry.scalpNotes.includes('other') && (
-          <TextField
-            label="Другое"
-            value={entry.scalpOtherNote}
-            onChange={(scalpOtherNote) =>
-              onChange((current) => ({ ...current, scalpOtherNote }))
-            }
-          />
-        )}
+        <CompactDisclosure
+          id="scalp-notes"
+          label="Заметки о коже головы"
+          summary={scalpNotesSummary}
+          expanded={scalpNotesOpen}
+          onToggle={() => setScalpNotesOpen((current) => !current)}
+        >
+          <div className="health-chip-grid compact-health-chips" role="group" aria-label="Заметки о коже головы">
+            {SCALP_CHOICES.map((choice) => {
+              const selected = entry.scalpNotes.includes(choice.id)
+              return (
+                <button
+                  key={choice.id}
+                  type="button"
+                  className={selected ? 'selected' : ''}
+                  aria-pressed={selected}
+                  onClick={() =>
+                    onChange((current) => ({
+                      ...current,
+                      scalpNotes: toggleScalpNote(current.scalpNotes, choice.id),
+                    }))
+                  }
+                >
+                  {choice.label}
+                </button>
+              )
+            })}
+          </div>
+          {entry.scalpNotes.includes('other') && (
+            <TextField
+              label="Другое"
+              value={entry.scalpOtherNote}
+              onChange={(scalpOtherNote) =>
+                onChange((current) => ({ ...current, scalpOtherNote }))
+              }
+            />
+          )}
+        </CompactDisclosure>
       </HealthBlock>
 
-      <HealthBlock icon="wine" title="Алкоголь">
+      <HealthBlock icon="wine" title="Алкоголь" className="health-alcohol-block">
         <p className="health-muted">Не больше {settings.alcoholMaxEvenings} {settings.alcoholMaxEvenings === 1 ? 'вечера' : 'вечеров'} из 7</p>
         <div className="health-chip-grid alcohol-choices" role="group" aria-label="Что пил">
           {ALCOHOL_CHOICES.map((choice) => (
@@ -1097,17 +1112,26 @@ function HealthToday({
               className={entry.alcoholChoice === choice.id ? 'selected' : ''}
               aria-pressed={entry.alcoholChoice === choice.id}
               aria-label={choice.ariaLabel}
-              onClick={() =>
+              onClick={() => {
+                setAlcoholDetailsOpen(false)
                 onChange((current) => selectAlcoholChoice(current, choice.id))
-              }
+              }}
             >
               {choice.label}
             </button>
           ))}
         </div>
 
-        {alcoholVisibility.nonAlcoholicDetails && (
-          <div className="conditional-fields">
+        {alcoholDetailsAvailable && (
+          <CompactDisclosure
+            id="alcohol-details"
+            label="Дополнительные данные"
+            summary={alcoholDetailsSummary}
+            expanded={alcoholDetailsOpen}
+            onToggle={() => setAlcoholDetailsOpen((current) => !current)}
+          >
+          {alcoholVisibility.nonAlcoholicDetails && (
+            <div className="conditional-fields">
             <FieldTitle>Количество</FieldTitle>
             <div
               className="health-chip-grid beer-amount-choices"
@@ -1143,11 +1167,11 @@ function HealthToday({
                 }))}
               />
             )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {alcoholVisibility.replacement && (
-          <div className="conditional-fields">
+          {alcoholVisibility.replacement && (
+            <div className="conditional-fields">
             <FieldTitle>Банку заменил?</FieldTitle>
             <div className="binary-choice" role="group" aria-label="Банку заменил">
               <button
@@ -1179,15 +1203,16 @@ function HealthToday({
               title="Оценка вечера без алкоголя"
               values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
               selected={entry.soberEveningRating}
+              className="sober-rating-scale"
               onSelect={(soberEveningRating) =>
                 onChange((current) => ({ ...current, soberEveningRating }))
               }
             />
-          </div>
-        )}
+            </div>
+          )}
 
-        {alcoholVisibility.alcoholicDetails && (
-          <div className="conditional-fields">
+          {alcoholVisibility.alcoholicDetails && (
+            <div className="conditional-fields">
             {entry.alcoholChoice === 'beer' ? (
               <>
                 <FieldTitle>Количество</FieldTitle>
@@ -1269,7 +1294,9 @@ function HealthToday({
                 }
               />
             )}
-          </div>
+            </div>
+          )}
+          </CompactDisclosure>
         )}
       </HealthBlock>
 
@@ -1277,6 +1304,7 @@ function HealthToday({
         icon="book"
         title="Обучение"
         id="health-learning"
+        className="health-learning-block"
         headingMeta={<span className={`health-learning-header-status ${unresolvedLearning.length > 0 ? 'needs-mark' : 'ready'}`}>{learningHeaderStatus}</span>}
       >
         <div className="health-learning-list">
@@ -1365,7 +1393,7 @@ function HealthToday({
         {overdueTasks.length === 0 && scheduledTasks.length === 0 && <p className="health-muted">На этот день регулярных задач нет</p>}
       </HealthBlock>
 
-      <HealthBlock icon="sparkles" title="Косметология">
+      <HealthBlock icon="sparkles" title="Косметология" className="health-cosmetology-block">
         {selectedDate === getLocalDateId() && overdueDebts.length > 0 && (
           <section className="health-cosmetology-overdue" aria-label="Не выполнено">
             <div className="health-cosmetology-overdue-heading">
@@ -1770,21 +1798,87 @@ function formatTaskWord(value: number): string {
   return 'задач'
 }
 
+function getAlcoholDetailsSummary(entry: HealthEntry): string {
+  if (entry.alcoholChoice === 'none') {
+    const replacement = entry.replacedCan === true
+      ? entry.replacement.trim()
+        ? `Замена: ${entry.replacement.trim()}`
+        : 'Банку заменил'
+      : entry.replacedCan === false
+        ? 'Банку не заменял'
+        : 'Замена не отмечена'
+    const rating = entry.soberEveningRating === null
+      ? 'Оценка не указана'
+      : `Оценка ${entry.soberEveningRating}/10`
+    return `${replacement} · ${rating}`
+  }
+  if (entry.alcoholChoice === 'nonAlcoholic') {
+    return entry.nonAlcoholicQuantity === null
+      ? 'Количество не указано'
+      : `${entry.nonAlcoholicQuantity} шт.`
+  }
+  return entry.alcoholAmount.trim()
+    ? `Количество: ${entry.alcoholAmount.trim()}`
+    : 'Количество и причины'
+}
+
+function CompactDisclosure({
+  id,
+  label,
+  summary,
+  expanded,
+  onToggle,
+  children,
+}: {
+  id: string
+  label: string
+  summary: string
+  expanded: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="health-compact-disclosure">
+      <button
+        type="button"
+        className="health-disclosure-toggle"
+        aria-expanded={expanded}
+        aria-controls={`${id}-panel`}
+        onClick={onToggle}
+      >
+        <span><strong>{label}</strong><small>{summary}</small></span>
+        <span className="health-disclosure-chevron" aria-hidden="true">›</span>
+      </button>
+      <div
+        className={`health-accordion-shell ${expanded ? 'open' : ''}`}
+        id={`${id}-panel`}
+        aria-hidden={!expanded}
+      >
+        <div className="health-accordion-inner" inert={!expanded}>
+          <div className="health-disclosure-panel health-accordion-panel">{children}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ScaleField({
   title,
   values,
   selected,
   personalReference,
+  className,
   onSelect,
 }: {
   title: string
   values: number[]
   selected: number | null
   personalReference?: number
+  className?: string
   onSelect: (value: number) => void
 }) {
   return (
-    <div className="scale-field">
+    <div className={`scale-field${className ? ` ${className}` : ''}`}>
       <FieldTitle>{title}</FieldTitle>
       <div className="number-choices scale-choices" role="group" aria-label={title}>
         {values.map((value) => (

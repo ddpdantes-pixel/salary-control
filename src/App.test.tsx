@@ -79,6 +79,24 @@ describe('оболочка приложения', () => {
     expect(within(navigation).queryByRole('button', { name: 'Выплаты' })).toBeNull()
   })
 
+  it('запускает полный вход только один раз за runtime-сессию', async () => {
+    const user = userEvent.setup()
+    const view = await renderApp()
+    const shell = document.querySelector('.app-shell')
+
+    expect(shell?.classList.contains('app-entry-active')).toBe(true)
+    view.rerender(<App />)
+    expect(shell?.classList.contains('app-entry-active')).toBe(true)
+    await waitFor(
+      () => expect(shell?.classList.contains('app-entry-active')).toBe(false),
+      { timeout: 1_600 },
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Здоровье' }))
+    await user.click(screen.getByRole('button', { name: 'Главное' }))
+    expect(shell?.classList.contains('app-entry-active')).toBe(false)
+  })
+
   it('не показывает удалённый раздел «Планы» на Главном и очищает только его прежний ключ', async () => {
     window.localStorage.setItem('moi-ritm.plans.v1', '{"tasks":[{"title":"Не показывать"}]}')
     window.localStorage.setItem(HEALTH_STATE_KEY, '{"schemaVersion":6,"entries":{},"cosmetologyDebts":{}}')

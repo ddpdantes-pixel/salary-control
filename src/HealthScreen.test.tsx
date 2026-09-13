@@ -517,23 +517,66 @@ describe('экран здоровья сегодня', () => {
     expect(screen.getByText('Информационный ориентир, а не диагноз')).not.toBeNull()
   })
 
+  it('держит заметки о коже головы свёрнутыми и сохраняет все варианты', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+
+    const disclosure = screen.getByRole('button', { name: /Заметки о коже головы.*Нет/ })
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('group', { name: 'Заметки о коже головы' })).toBeNull()
+
+    await user.click(disclosure)
+    const choices = screen.getByRole('group', { name: 'Заметки о коже головы' })
+    expect(within(choices).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Нет', 'Зуд', 'Сухость', 'Покраснение', 'Другое',
+    ])
+    await user.click(within(choices).getByRole('button', { name: 'Зуд' }))
+    expect(screen.getByRole('button', { name: /Заметки о коже головы.*Зуд/ })).not.toBeNull()
+    await user.click(within(choices).getByRole('button', { name: 'Другое' }))
+    await user.type(screen.getByLabelText('Другое'), 'чувствительность')
+    await waitFor(() => expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('чувствительность'))
+
+    await user.click(screen.getByRole('button', { name: /Заметки о коже головы/ }))
+    expect(screen.queryByRole('group', { name: 'Заметки о коже головы' })).toBeNull()
+    expect(screen.getByRole('button', { name: /Зуд, Другое/ })).not.toBeNull()
+  })
+
+  it('показывает детали трезвого вечера компактно и сохраняет оценку 1–10', async () => {
+    const user = userEvent.setup()
+    render(<HealthScreen />)
+
+    await user.click(screen.getByRole('button', { name: 'Не пил' }))
+    const disclosure = screen.getByRole('button', { name: /Дополнительные данные/ })
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false')
+    await user.click(disclosure)
+    await user.click(within(screen.getByRole('group', { name: 'Банку заменил' })).getByRole('button', { name: 'Нет' }))
+    const rating = screen.getByRole('group', { name: 'Оценка вечера без алкоголя' })
+    expect(within(rating).getAllByRole('button')).toHaveLength(10)
+    await user.click(within(rating).getByRole('button', { name: '6' }))
+
+    expect(screen.getByRole('button', { name: /Банку не заменял.*Оценка 6\/10/ })).not.toBeNull()
+    await waitFor(() => expect(window.localStorage.getItem(HEALTH_STATE_KEY)).toContain('"soberEveningRating":6'))
+  })
+
   it('переключает условные поля для вариантов алкоголя', async () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
 
     await user.click(screen.getByRole('button', { name: 'Не пил' }))
+    const details = screen.getByRole('button', { name: /Дополнительные данные/ })
+    expect(details.getAttribute('aria-expanded')).toBe('false')
+    await user.click(details)
     expect(screen.getByText('Банку заменил?')).not.toBeNull()
     expect(screen.getByText('Оценка вечера без алкоголя')).not.toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Безалкогольное' }))
-    expect(screen.queryByText('Банку заменил?')).toBeNull()
-    expect(screen.queryByText('Оценка вечера без алкоголя')).toBeNull()
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     expect(screen.getByText('Количество')).not.toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Пиво' }))
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     expect(screen.getByText('Количество')).not.toBeNull()
     expect(screen.getByText('Причины')).not.toBeNull()
-    expect(screen.queryByText('Банку заменил?')).toBeNull()
   })
 
   it('показывает для пива быстрый выбор и ручное поле только после «Другое»', async () => {
@@ -541,6 +584,7 @@ describe('экран здоровья сегодня', () => {
     render(<HealthScreen />)
 
     await user.click(screen.getByRole('button', { name: 'Пиво' }))
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     const beerAmount = screen.getByRole('group', { name: 'Количество пива' })
 
     expect(within(beerAmount).getByRole('button', { name: '1' })).not.toBeNull()
@@ -575,6 +619,7 @@ describe('экран здоровья сегодня', () => {
     const nonAlcoholic = screen.getByRole('button', { name: 'Безалкогольное' })
     expect(nonAlcoholic.textContent).toBe('Б/а')
     await user.click(nonAlcoholic)
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     const quantity = screen.getByRole('group', { name: 'Количество безалкогольного' })
     expect(within(quantity).getAllByRole('button').map((button) => button.textContent)).toEqual([
       '1', '2', 'Другое',
@@ -585,6 +630,7 @@ describe('экран здоровья сегодня', () => {
     })
     await user.click(screen.getByRole('button', { name: 'Вино' }))
     await user.click(nonAlcoholic)
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     expect(within(screen.getByRole('group', { name: 'Количество безалкогольного' }))
       .getAllByRole('button').every((button) => button.getAttribute('aria-pressed') === 'false')).toBe(true)
   })
@@ -593,6 +639,7 @@ describe('экран здоровья сегодня', () => {
     const user = userEvent.setup()
     render(<HealthScreen />)
     await user.click(screen.getByRole('button', { name: 'Безалкогольное' }))
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     expect(screen.queryByLabelText('Количество напитков')).toBeNull()
     await user.click(within(screen.getByRole('group', { name: 'Количество безалкогольного' }))
       .getByRole('button', { name: 'Другое' }))
@@ -750,7 +797,7 @@ describe('экран здоровья сегодня', () => {
     const tasks = screen.getByRole('heading', { name: 'Задачи' }).closest('section')!
     await user.click(within(tasks).getByRole('checkbox', { name: /Внести продажи Global Tile/ }))
 
-    await waitFor(() => expect(within(tasks).queryByRole('checkbox', { name: /Внести продажи Global Tile/ })).toBeNull())
+    await waitFor(() => expect(tasks.querySelector('.health-task-row.overdue')).toBeNull())
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}')
       expect(stored.taskDebts[debtId].completedDate).toBe(today)
@@ -858,14 +905,17 @@ describe('экран здоровья сегодня', () => {
     render(<HealthScreen />)
 
     await user.click(screen.getByRole('button', { name: 'Пиво' }))
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     let beerAmount = screen.getByRole('group', { name: 'Количество пива' })
     await user.click(within(beerAmount).getByRole('button', { name: '2' }))
     await user.click(screen.getByRole('button', { name: 'Вино' }))
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
 
     const wineAmount = screen.getByLabelText('Количество') as HTMLInputElement
     expect(wineAmount.value).toBe('')
 
     await user.click(screen.getByRole('button', { name: 'Пиво' }))
+    await user.click(screen.getByRole('button', { name: /Дополнительные данные/ }))
     beerAmount = screen.getByRole('group', { name: 'Количество пива' })
     expect(
       within(beerAmount).getByRole('button', { name: '1' }).getAttribute('aria-pressed'),
