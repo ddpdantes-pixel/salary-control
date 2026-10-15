@@ -5,11 +5,13 @@ import { VitePWA } from 'vite-plugin-pwa'
 const basePath = process.env.BASE_PATH ?? '/'
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: basePath,
+export default defineConfig(({ mode }) => ({
+  base: mode === 'android' ? '/' : basePath,
+  build: { outDir: mode === 'android' ? 'dist-android' : 'dist' },
   plugins: [
     react(),
     VitePWA({
+      disable: mode === 'android',
       registerType: 'prompt',
       includeAssets: [
         'favicon.svg',
@@ -53,4 +55,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+}))

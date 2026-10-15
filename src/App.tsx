@@ -134,6 +134,8 @@ import {
   type AppleHealthWaterRemotePayload,
 } from './appleHealthWater'
 import './App.css'
+import { isNativeAndroid, shouldRegisterServiceWorker } from './platform'
+import { useNativeBack } from './nativeBack'
 
 type SaveState = 'saved' | 'saving' | 'error'
 type UpdateServiceWorker = (reloadPage?: boolean) => Promise<void>
@@ -212,6 +214,29 @@ function App() {
   const [faceTimerFocusRequest, setFaceTimerFocusRequest] = useState(0)
   const [pendingAppTab, setPendingAppTab] = useState<TabId | null>(null)
   const [passwordVaultOpen, setPasswordVaultOpen] = useState(false)
+  const nativeTabHistory = useRef<TabId[]>([])
+  const previousNativeTab = useRef(activeTab)
+  useEffect(() => {
+    if (previousNativeTab.current !== activeTab) {
+      nativeTabHistory.current.push(previousNativeTab.current)
+      previousNativeTab.current = activeTab
+    }
+  }, [activeTab])
+  useNativeBack(() => {
+    if (passwordVaultOpen) { setPasswordVaultOpen(false); return true }
+    const tabs = document.querySelector('[role="tablist"]')
+    const selected = tabs?.querySelector('[role="tab"][aria-selected="true"]')
+    const first = tabs?.querySelector<HTMLButtonElement>('[role="tab"]')
+    if (first && selected && selected !== first) { first.click(); return true }
+    const previous = nativeTabHistory.current.pop()
+    if (previous && previous !== activeTab) {
+      if (!(activeTab === 'health' && healthSettingsDirty)) previousNativeTab.current = previous
+      openAppTab(previous)
+      return true
+    }
+    if (activeTab !== 'home') { openAppTab('home'); return true }
+    return false
+  })
   const healthTimer = useHealthTimer()
   const healthStateRef = useRef(healthState)
   const appleHealthSyncAbortRef = useRef<AbortController | null>(null)
@@ -512,7 +537,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (isBooting) return
+    if (isBooting || !shouldRegisterServiceWorker()) return
     const updateSW = registerSW({
       immediate: true,
       onNeedRefresh() {
@@ -969,6 +994,12 @@ function App() {
   }
 
   function saveCurrentReport(): void {
+    if (isNativeAndroid()) {
+      void import('./nativeAdapters').then(({ printNativeReport }) =>
+        printNativeReport(buildPrintReportHtml(currentMonth, summary)),
+      ).catch(() => setStorageMessage('Не удалось открыть печать отчёта. Повторите попытку.'))
+      return
+    }
     const reportWindow = window.open('', '_blank')
 
     if (!reportWindow) {
@@ -1149,6 +1180,7 @@ function App() {
       )}
       <input
         ref={restoreInputRef}
+        aria-label="Выбрать файл резервной копии"
         className="visually-hidden"
         type="file"
         accept="application/json,.json"
@@ -1238,6 +1270,7 @@ function App() {
               onCreate={createNextMonth}
               onDelete={deleteMonth}
               createBackupPayload={createCurrentBackupText}
+              onRequestLocalRestore={() => restoreInputRef.current?.click()}
               onCloudRestore={prepareBackupRestore}
               onOpen={openMonthFromHistory}
             />
@@ -1676,6 +1709,7 @@ function HistoryScreen({
   onCreate,
   onDelete,
   createBackupPayload,
+  onRequestLocalRestore,
   onCloudRestore,
   onOpen,
 }: {
@@ -1684,6 +1718,7 @@ function HistoryScreen({
   onCreate: () => void
   onDelete: (monthId: string) => void
   createBackupPayload: () => string | Promise<string>
+  onRequestLocalRestore: () => void
   onCloudRestore: (
     payload: string,
     label: string,
@@ -1701,6 +1736,7 @@ function HistoryScreen({
 
       <CloudBackupSection
         createBackupPayload={createBackupPayload}
+        onRequestLocalRestore={onRequestLocalRestore}
         onRequestRestore={onCloudRestore}
       />
 

@@ -20,10 +20,13 @@ import {
   type CloudBackupMetadata,
 } from './cloudBackup'
 import './CloudBackupSection.css'
+import { createBackupFileName } from './backup'
+import { exportFile } from './fileExport'
 
 export function CloudBackupSection({
   createBackupPayload,
   onRequestRestore,
+  onRequestLocalRestore,
 }: {
   createBackupPayload: () => string | Promise<string>
   onRequestRestore: (
@@ -31,6 +34,7 @@ export function CloudBackupSection({
     label: string,
     source: 'cloud' | 'snapshot',
   ) => void
+  onRequestLocalRestore?: () => void
 }) {
   const [key, setKey] = useState(loadCloudBackupKey)
   const [backups, setBackups] = useState<CloudBackupMetadata[]>([])
@@ -100,6 +104,14 @@ export function CloudBackupSection({
       const next = await refreshBackups(cloudKey, false)
       setStatus(`Облачная копия сохранена ${formatCloudBackupDate(saved.createdAt)}`)
       setBackups(next)
+    })
+  }
+
+  function handleLocalExport(): void {
+    void runBusy(async () => {
+      const payload = await createBackupPayload()
+      const saved = await exportFile(createBackupFileName(), new Blob([payload], { type: 'application/json' }))
+      setStatus(saved ? 'Резервная копия подготовлена для сохранения в файл.' : 'Сохранение файла отменено.')
     })
   }
 
@@ -271,6 +283,8 @@ export function CloudBackupSection({
       </p>
 
       <div className="cloud-backup-actions">
+        <button type="button" disabled={busy} onClick={handleLocalExport}>Сохранить резервную копию в файл</button>
+        {onRequestLocalRestore && <button type="button" disabled={busy} onClick={onRequestLocalRestore}>Восстановить из файла</button>}
         <button type="button" className="primary-action" disabled={busy} onClick={handleSave}>
           {busy ? 'Подождите…' : 'Сохранить в облако'}
         </button>

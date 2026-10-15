@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CloudBackupSection } from './CloudBackupSection'
+import { exportFile } from './fileExport'
 import {
   CLOUD_BACKUP_KEY_STORAGE,
   createCloudConnectionToken,
@@ -15,6 +16,7 @@ vi.mock('qrcode', () => ({
     toDataURL: vi.fn(async () => 'data:image/png;base64,qr'),
   },
 }))
+vi.mock('./fileExport', () => ({ exportFile: vi.fn(async () => true) }))
 
 const PAYLOAD = JSON.stringify({
   app: 'kontrol-zarplaty',
@@ -23,6 +25,7 @@ const PAYLOAD = JSON.stringify({
 })
 
 beforeEach(() => {
+  vi.mocked(exportFile).mockReset().mockResolvedValue(true)
   window.localStorage.clear()
   vi.stubGlobal('fetch', vi.fn())
   vi.stubGlobal('confirm', vi.fn(() => true))
@@ -40,6 +43,31 @@ afterEach(() => {
 })
 
 describe('интерфейс облачной копии', () => {
+  it('экспортирует полный существующий payload локально без изменения данных и облачных запросов', async () => {
+    const user = userEvent.setup()
+    const createBackupPayload = vi.fn(() => PAYLOAD)
+    const onRequestRestore = vi.fn()
+    renderSection({ createBackupPayload, onRequestRestore })
+    await user.click(screen.getByRole('button', { name: 'Сохранить резервную копию в файл' }))
+    await screen.findByText('Резервная копия подготовлена для сохранения в файл.')
+    const [name, blob] = vi.mocked(exportFile).mock.calls[0]
+    expect(name).toMatch(/^moi-ritm-backup-\d{4}-\d{2}-\d{2}\.json$/)
+    expect(blob.type).toBe('application/json')
+    const reader = new FileReader()
+    const text = await new Promise((resolve) => { reader.onload = () => resolve(reader.result); reader.readAsText(blob) })
+    expect(text).toBe(PAYLOAD)
+    expect(createBackupPayload).toHaveBeenCalledOnce()
+    expect(fetch).not.toHaveBeenCalled()
+    expect(onRequestRestore).not.toHaveBeenCalled()
+  })
+
+  it('сообщает об отмене Android file picker, не объявляя файл сохранённым', async () => {
+    vi.mocked(exportFile).mockResolvedValueOnce(false)
+    renderSection()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Сохранить резервную копию в файл' }))
+    expect(await screen.findByText('Сохранение файла отменено.')).not.toBeNull()
+  })
+
   it('показывает облачный блок и пояснение про фотографии', () => {
     renderSection()
     expect(screen.getByRole('heading', { name: 'Облачная копия' })).not.toBeNull()
