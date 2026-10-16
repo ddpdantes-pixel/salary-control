@@ -4,6 +4,10 @@
 Постоянный package ID: `io.github.ddpdantespixel.moyritm`; он не связан с Dima AI.
 Android origin: `https://localhost`. Данные PWA с GitHub Pages автоматически не появляются в APK.
 
+Для постоянной подписи, согласованной версии 2 / 1.0.0 и перехода с debug APK
+используйте `ANDROID_RELEASE_MIGRATION.md` (задача 63). Ниже сохранён отчёт этапа 62;
+его debug APK и ограничения проверки не являются результатом release-тестирования.
+
 ## Инструменты
 
 - Node.js 24.19.0 (Capacitor требует Node 22+), pnpm 11.7.0.

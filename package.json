@@ -10,6 +10,7 @@
     "android:sync": "npm run build:android && cap sync android",
     "android:open": "cap open android",
     "android:apk": "npm run android:sync && node scripts/build-android.mjs",
+    "android:release": "node scripts/build-android.mjs release",
     "lint": "oxlint",
     "test": "vitest run",
     "test:frontend": "vitest run src tests",
