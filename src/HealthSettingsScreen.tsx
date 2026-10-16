@@ -20,6 +20,7 @@ import {
   maskAppleHealthSyncToken,
 } from './appleHealthWater'
 import { EveningChecklistTransferDialog } from './EveningChecklistTransferDialog'
+import { AndroidUpdatesCard } from './AndroidUpdatesCard'
 
 interface HealthSettingsScreenProps {
   settings: HealthSettings
@@ -662,6 +663,8 @@ export function HealthSettingsScreen({
         <p>Используйте этот текст, если текущий чат вечернего чек-листа ChatGPT закончился. Скопируйте его и вставьте первым сообщением в новый чат проекта «Здоровье».</p>
         <button type="button" onClick={() => setTransferProtocolOpen(true)}>Открыть регламент</button>
       </section>
+
+      <AndroidUpdatesCard />
 
       <div className="health-settings-savebar">
         <p aria-live="polite">{message}</p>

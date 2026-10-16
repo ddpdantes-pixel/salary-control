@@ -537,6 +537,11 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (isBooting || !isNativeAndroid()) return
+    void import('./androidOta').then((ota) => ota.confirmOtaBootstrapReady())
+  }, [isBooting])
+
+  useEffect(() => {
     if (isBooting || !shouldRegisterServiceWorker()) return
     const updateSW = registerSW({
       immediate: true,

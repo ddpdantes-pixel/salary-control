@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NativeExportPlugin.class);
+        registerPlugin(MoyRitmOtaPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

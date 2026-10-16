@@ -1,0 +1,7 @@
+Android OTA updater: @capgo/capacitor-updater 8.53.0
+License: Mozilla Public License 2.0 (included as capgo-updater-MPL-2.0.txt).
+Unmodified upstream source distributed in the versioned package:
+https://www.npmjs.com/package/@capgo/capacitor-updater/v/8.53.0
+https://unpkg.com/@capgo/capacitor-updater@8.53.0/
+Upstream repository: https://github.com/Cap-go/capacitor-updater
+No Capgo Cloud account or subscription is required for this self-hosted integration.

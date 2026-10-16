@@ -4,6 +4,7 @@ param(
     [string]$KeyStorePath = (Join-Path $env:USERPROFILE 'AndroidKeys\MoyRitm\moyritm-release.jks'),
     [string]$KeyAlias = 'moyritm',
     [switch]$PrepareUpdateTest,
+    [switch]$PrepareOtaTest,
     [switch]$CheckToolsOnly
 )
 
@@ -71,7 +72,7 @@ function Invoke-LocalCommand {
     }
 }
 
-function Confirm-Apk([string]$RelativePath, [int]$Code, [string]$Name) {
+function Confirm-Apk([string]$RelativePath, [int]$Code, [string]$Name, [string]$ExpectedChannel = 'stable') {
     $fullPath = Join-Path $android $RelativePath
     if (!(Test-Path -LiteralPath $fullPath -PathType Leaf)) { throw 'Ожидаемый APK не найден.' }
     $signature = Invoke-LocalCommand -File $java -Arguments @('-jar', $apkSignerJar, 'verify', '--print-certs', $fullPath)
@@ -86,15 +87,33 @@ function Confirm-Apk([string]$RelativePath, [int]$Code, [string]$Name) {
         $badging -match 'application-debuggable') {
         throw 'Пакет, версия или debug-флаг APK не соответствуют ожидаемому релизу.'
     }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($fullPath)
+    try {
+        $entry = $archive.GetEntry('assets/capacitor.config.json')
+        if (!$entry) { throw 'В APK отсутствует нативная конфигурация.' }
+        $reader = [IO.StreamReader]::new($entry.Open())
+        try { $nativeConfig = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+        $otaKeys = Get-Content -LiteralPath (Join-Path $root 'ota/public-key.json') -Raw | ConvertFrom-Json
+        if ($nativeConfig.plugins.MoyRitmOta.channel -ne $ExpectedChannel -or
+            $nativeConfig.plugins.MoyRitmOta.publicKey -cne $otaKeys.spki -or
+            $nativeConfig.plugins.MoyRitmOta.contractFingerprint -cne $expectedContractFingerprint -or
+            $nativeConfig.plugins.CapacitorUpdater.publicKey -cne $otaKeys.capgo -or
+            $nativeConfig.plugins.CapacitorUpdater.autoUpdate -ne $false -or
+            $nativeConfig.plugins.CapacitorUpdater.statsUrl -ne '') {
+            throw 'Канал или криптографическая конфигурация OTA в APK не соответствует ожидаемой.'
+        }
+    } finally { $archive.Dispose() }
     return [ordered]@{
         path = $fullPath; bytes = (Get-Item -LiteralPath $fullPath).Length
         sha256 = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
         versionCode = $Code; versionName = $Name; certificateSha256 = $fingerprint
-        packageId = $package.Groups[1].Value; debuggable = $false; signatureVerified = $true
+        packageId = $package.Groups[1].Value; debuggable = $false; signatureVerified = $true; otaChannel = $ExpectedChannel
     }
 }
 
 try {
+    if ($PrepareOtaTest -and $PrepareUpdateTest) { throw 'Используйте только один режим подготовки тестовых APK.' }
     $keyFile = Get-Item -LiteralPath $KeyStorePath -ErrorAction Stop
     if ($keyFile.PSIsContainer -or $keyFile.FullName.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Keystore должен быть файлом вне репозитория.'
@@ -128,7 +147,7 @@ try {
     foreach ($tool in @($java, $keytool, $aapt, $apkSignerJar, $node, $npmCli)) {
         if (!(Test-Path -LiteralPath $tool -PathType Leaf)) { throw "Не найден инструмент: $tool" }
     }
-    $publicEnvironment = @{ JAVA_HOME = $javaHome; ANDROID_HOME = $sdk; PATH = "$nodeDirectory;$env:PATH" }
+    $publicEnvironment = @{ JAVA_HOME = $javaHome; ANDROID_HOME = $sdk; PATH = "$nodeDirectory;$env:PATH"; MOYRITM_OTA_CHANNEL = 'stable' }
     $nodeVersion = Invoke-LocalCommand -File $node -Arguments @('--version')
     if ($nodeVersion -notmatch '^v(2[2-9]|[3-9][0-9])\.') { throw 'Нужен Node.js 22 или новее.' }
     $version = ConvertFrom-StringData (Get-Content -LiteralPath (Join-Path $android 'version.properties') -Raw)
@@ -140,6 +159,9 @@ try {
         return
     }
 
+    $phase = 'Проверка совместимости OTA и нативного кода'
+    $expectedContractFingerprint = (Invoke-LocalCommand -File $node -Arguments @('scripts/ota-compatibility.mjs', '--verify')).Trim()
+    if ($expectedContractFingerprint -notmatch '^[a-f0-9]{64}$') { throw 'Не подтверждена нативная совместимость OTA.' }
     Write-Host 'Пароль вводится только здесь. Символы не показываются; в чат пароль не отправляйте.'
     $secret = Read-Host 'Введите пароль созданного PKCS12 keystore' -AsSecureString
     if ($secret.Length -eq 0) { throw 'Пароль не введён.' }
@@ -181,14 +203,25 @@ try {
     $listing = $null; $entry = $null; $pem = $null
     Write-Host "Ключ проверен. SHA-256 сертификата: $fingerprint"
 
-    $phase = 'Сборка web-assets и Capacitor sync'
-    Write-Host "$phase..."
-    $null = Invoke-LocalCommand -File $node -Arguments @($npmCli, 'run', 'android:sync')
     $session = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
     $evidenceRelative = 'app/build/outputs/moyritm-release-checks/' + $session
     $evidenceDirectory = Join-Path $android $evidenceRelative
     $null = New-Item -ItemType Directory -Path $evidenceDirectory
     $qaApks = @()
+    if ($PrepareOtaTest) {
+        $publicEnvironment.MOYRITM_OTA_CHANNEL = 'qa'
+        $phase = 'Подготовка изолированной QA OTA-сборки'
+        Write-Host "$phase..."
+        $null = Invoke-LocalCommand -File $node -Arguments @($npmCli, 'run', 'android:sync')
+        $null = Invoke-LocalCommand -File $env:ComSpec -Directory $android -Signing -RawArguments '/d /c gradlew.bat :app:assembleRelease --no-daemon --no-configuration-cache --console=plain --max-workers=2'
+        $qaRelative = "$evidenceRelative/qa-ota.apk"
+        Copy-Item -LiteralPath (Join-Path $android 'app/build/outputs/apk/release/app-release.apk') -Destination (Join-Path $android $qaRelative)
+        $qaApks += Confirm-Apk $qaRelative $baseCode $baseName 'qa'
+    }
+    $publicEnvironment.MOYRITM_OTA_CHANNEL = 'stable'
+    $phase = 'Сборка web-assets и Capacitor sync для постоянной stable APK'
+    Write-Host "$phase..."
+    $null = Invoke-LocalCommand -File $node -Arguments @($npmCli, 'run', 'android:sync')
     $steps = if ($PrepareUpdateTest) { @($baseCode, ($baseCode + 1), 0) } else { @(0) }
     foreach ($testCode in $steps) {
         $phase = if ($testCode) { "Подписанная QA-сборка $testCode" } else { "Подписанная release-сборка $baseCode / $baseName" }

@@ -17,6 +17,8 @@ dist-android
 *.keystore
 *.p12
 *.pfx
+*.private.pem
+ota-output/
 keystore.properties
 signing*.properties
 android/local.properties
