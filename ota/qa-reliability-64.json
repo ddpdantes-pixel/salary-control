@@ -1,0 +1,890 @@
+{
+  "task": 64,
+  "sourceCommit": "93a57cf695ec405019389c47687a3409d0aace4b",
+  "status": "BLOCKED",
+  "rootCauseProven": false,
+  "productCodeChanged": false,
+  "timeoutMs": 30000,
+  "firstFailure": {
+    "set": "2026-10-16T16:54:13.404Z",
+    "ignoredReady": "2026-10-16T16:54:13.950Z",
+    "rollback": "2026-10-16T16:54:43.411Z",
+    "setToRollbackMs": 30007,
+    "documentIdentityUnknown": true
+  },
+  "warmSwitches": [
+    {
+      "case": "offline old -> .1 #1",
+      "status": "success",
+      "notifyCallMs": 163,
+      "jsErrors": 0
+    },
+    {
+      "case": "offline .1 -> .2 #1",
+      "status": "success",
+      "notifyCallMs": 295.20000000001164,
+      "jsErrors": 0
+    },
+    {
+      "case": "offline .2 -> old #1",
+      "status": "success",
+      "notifyCallMs": 244,
+      "jsErrors": 0
+    },
+    {
+      "case": "offline old -> .1 #2",
+      "status": "success",
+      "notifyCallMs": 205.90000000000873,
+      "jsErrors": 0
+    }
+  ],
+  "coldStarts": [
+    {
+      "case": "offline cold old -> .1 #2",
+      "status": "success",
+      "setToReadyMs": 355,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 169.40000000002328
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 206.10000000000582
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 217.20000000001164
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 228.70000000001164
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 157.30000000001746
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 156.60000000000582
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 184.60000000000582
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 176.70000000001164
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 199.30000000001746
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 199.40000000002328
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 213.90000000002328
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "offline cold old #2",
+      "status": "success",
+      "setToReadyMs": 380,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 125.20000000001164
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 204.10000000003492
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 237
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 257.1000000000349
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CStZyF5U.js",
+          "end": 92
+        },
+        {
+          "name": "index-CMmaMyp_.css",
+          "end": 72.80000000004657
+        },
+        {
+          "name": "androidOta-DxfaITV4.js",
+          "end": 147.10000000003492
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 142.80000000004657
+        },
+        {
+          "name": "nativeAdapters-DnWI2tb0.js",
+          "end": 174.20000000001164
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 184
+        },
+        {
+          "name": "esm-Caad79Jn.js",
+          "end": 230.5
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "offline cold old -> .2 #1",
+      "status": "success",
+      "setToReadyMs": 255,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 66.09999999997672
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 95.19999999995343
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 105.29999999998836
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 126.5
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 59.79999999998836
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 43.79999999998836
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 76
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 78.29999999998836
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 87.59999999997672
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 88
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 115.29999999998836
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "online cold .1 #1",
+      "status": "success",
+      "setToReadyMs": 3281,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 51.40000000002328
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 76.70000000001164
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 90.70000000001164
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 103.29999999998836
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 33.90000000002328
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 30.70000000001164
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 58.90000000002328
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 56.59999999997672
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 69.20000000001164
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 70
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 84.79999999998836
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "online cold .2 #1",
+      "status": "success",
+      "setToReadyMs": 232,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 46.5
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 71.60000000003492
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 81.60000000003492
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 93.70000000001164
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 29.100000000034925
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 24.70000000001164
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 48.5
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 56.100000000034925
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 62.79999999998836
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 63.600000000034925
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 76.29999999998836
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "online cold .1 #2",
+      "status": "success",
+      "setToReadyMs": 312,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 56.79999999998836
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 82.29999999998836
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 95.5
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 108.09999999997672
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 33.59999999997672
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 30.5
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 65.59999999997672
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 65.59999999997672
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 75.39999999996508
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 75.39999999996508
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 88.5
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "online cold .2 #2",
+      "status": "success",
+      "setToReadyMs": 367,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 84.59999999997672
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 111.5
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 124.39999999996508
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 137.89999999996508
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 44.399999999965075
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 41.09999999997672
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 92.59999999997672
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 91.89999999996508
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 105.20000000001164
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 104.39999999996508
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 117.29999999998836
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "online cold .1 #3",
+      "status": "success",
+      "setToReadyMs": 510,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 187.19999999995343
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 212.5
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 223.19999999995343
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 239.29999999998836
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 108.79999999998836
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 100.59999999997672
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 190.39999999996508
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 190.5
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 206.09999999997672
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 205.19999999995343
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 218.29999999998836
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "online cold .2 #3",
+      "status": "success",
+      "setToReadyMs": 467,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 46.100000000034925
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 73.40000000002328
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 114.5
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 128.5
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 22.900000000023283
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 21.900000000023283
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 57.600000000034925
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 52.79999999998836
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 64.5
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 64.10000000003492
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 106.40000000002328
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "offline cold .1 extra #1",
+      "status": "success",
+      "setToReadyMs": 383,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 63
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 91.29999999998836
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 104.60000000003492
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 117.40000000002328
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 26.20000000001164
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 25.70000000001164
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 70.10000000003492
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 76.79999999998836
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 83.90000000002328
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 84.70000000001164
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 100.10000000003492
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "offline cold .2 extra #1",
+      "status": "success",
+      "setToReadyMs": 397,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 64.79999999998836
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 110.40000000002328
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 127.20000000001164
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 160.20000000001164
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 48.600000000034925
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 30.70000000001164
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 68.90000000002328
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 74.20000000001164
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 88.60000000003492
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 89.10000000003492
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 133.10000000003492
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "offline cold .1 extra #2",
+      "status": "success",
+      "setToReadyMs": 436,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 81
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 121
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 147.89999999996508
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 166.19999999995343
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 52
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 39.899999999965075
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 85.89999999996508
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 86.19999999995343
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 103.59999999997672
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 107.19999999995343
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 136.29999999998836
+        }
+      ],
+      "ignoredReadyCalls": 0
+    },
+    {
+      "case": "offline cold .2 extra #2",
+      "status": "success",
+      "setToReadyMs": 327,
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 46.29999999998836
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 73.5
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 84.59999999997672
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 96.29999999998836
+        }
+      ],
+      "assetResponseEnds": [
+        {
+          "name": "index-CxVNuudZ.js",
+          "end": 30.20000000001164
+        },
+        {
+          "name": "index-CFSSD3-P.css",
+          "end": 29.70000000001164
+        },
+        {
+          "name": "androidOta-ET8li_VO.js",
+          "end": 52.09999999997672
+        },
+        {
+          "name": "definitions-BXfyEA5k.js",
+          "end": 50.70000000001164
+        },
+        {
+          "name": "nativeAdapters-CMVKDIAa.js",
+          "end": 63.59999999997672
+        },
+        {
+          "name": "definitions-DlpntO5o.js",
+          "end": 66.59999999997672
+        },
+        {
+          "name": "esm-Dfqayrzj.js",
+          "end": 78.79999999998836
+        }
+      ],
+      "ignoredReadyCalls": 0
+    }
+  ],
+  "slowSwitches": [
+    {
+      "case": "offline cache-cleared CPU4 old",
+      "status": "success",
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 212.59999999997672
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 423.4000000000233
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 443.19999999995343
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 473.19999999995343
+        }
+      ]
+    },
+    {
+      "case": "offline cache-cleared CPU4 .1",
+      "status": "success",
+      "root": true,
+      "marks": [
+        {
+          "name": "moi-ritm:app-start",
+          "t": 195.19999999995343
+        },
+        {
+          "name": "moi-ritm:first-render",
+          "t": 292.69999999995343
+        },
+        {
+          "name": "moi-ritm:storage-restore-start",
+          "t": 311.5
+        },
+        {
+          "name": "moi-ritm:storage-restore-ready",
+          "t": 312
+        }
+      ]
+    }
+  ],
+  "resumes": [
+    {
+      "case": "offline resume #1",
+      "sameDocument": true,
+      "root": true,
+      "version": "1.1.1-qa.64.no-apple.2",
+      "status": "success"
+    },
+    {
+      "case": "offline resume #2",
+      "sameDocument": true,
+      "root": true,
+      "version": "1.1.1-qa.64.no-apple.2",
+      "status": "success"
+    },
+    {
+      "case": "offline resume #3",
+      "sameDocument": true,
+      "root": true,
+      "version": "1.1.1-qa.64.no-apple.2",
+      "status": "success"
+    },
+    {
+      "case": "online resume #1",
+      "sameDocument": true,
+      "root": true
+    },
+    {
+      "case": "online resume #2",
+      "sameDocument": true,
+      "root": true
+    },
+    {
+      "case": "online resume #3",
+      "sameDocument": true,
+      "root": true
+    }
+  ],
+  "firstSignedActivations": [
+    {
+      "case": ".2 first offline (new user 10)",
+      "setEpochMs": 1792183736751,
+      "readyEpochMs": 1792183740632,
+      "setToReadyMs": 3881,
+      "rollback": false
+    },
+    {
+      "case": ".2 first online (new user 11)",
+      "setEpochMs": 1792183914367,
+      "readyEpochMs": 1792183918428,
+      "setToReadyMs": 4061,
+      "rollback": false
+    },
+    {
+      "case": ".1 first offline (new user 12)",
+      "setEpochMs": 1792184102088,
+      "readyEpochMs": 1792184106516,
+      "setToReadyMs": 4428,
+      "rollback": false
+    }
+  ],
+  "rollback": {
+    "setToRollbackMs": 30021,
+    "restoredVersion": "1.1.1-qa.64.no-apple.1",
+    "businessUnchanged": true,
+    "goalImagesUnchanged": true,
+    "changedServiceKeys": [
+      "CapacitorUpdater.webViewSession"
+    ]
+  },
+  "checks": {
+    "javascriptTargeted": 29,
+    "nativePolicy": 13
+  },
+  "qaPaused": true,
+  "stablePublished": false,
+  "SamsungTouched": false,
+  "signedOwnerDifferentBackupFields": [],
+  "qaPauseVerification": {
+    "checkedAt": "2026-10-16T20:59:26.355Z",
+    "githubApiEnabled": false,
+    "publicHttpsEnabled": false,
+    "sameSignedSequence": true
+  }
+}
