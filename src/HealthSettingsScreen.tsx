@@ -12,22 +12,12 @@ import {
   type HealthSettings,
 } from './healthSettings'
 import type { HealthEntry, PlannedWorkoutDay, WorkoutDefinition } from './healthTypes'
-import { getLocalDateId } from './healthModel'
-import {
-  createAppleHealthSyncToken,
-  getAppleHealthWaterSyncApiUrl,
-  getAppleHealthWaterSyncLinkBase,
-  maskAppleHealthSyncToken,
-} from './appleHealthWater'
 import { EveningChecklistTransferDialog } from './EveningChecklistTransferDialog'
 import { AndroidUpdatesCard } from './AndroidUpdatesCard'
 
 interface HealthSettingsScreenProps {
   settings: HealthSettings
   entries: Record<string, HealthEntry>
-  appleHealthImportError?: boolean
-  appleHealthSyncStatus?: 'idle' | 'checking' | 'transferred' | 'synced' | 'available-manual' | 'empty' | 'launching' | 'waiting' | 'timeout' | 'error'
-  onCheckAppleHealthSync?: () => void
   onSave: (settings: HealthSettings) => boolean
   onDirtyChange: (dirty: boolean) => void
 }
@@ -35,7 +25,6 @@ interface HealthSettingsScreenProps {
 type Confirmation =
   | { kind: 'restore' }
   | { kind: 'delete-workout'; workoutId: string }
-  | { kind: 'reset-apple-health-key' }
   | null
 
 const QUICK_ITEMS = [
@@ -48,9 +37,6 @@ const QUICK_ITEMS = [
 export function HealthSettingsScreen({
   settings,
   entries,
-  appleHealthImportError = false,
-  appleHealthSyncStatus = 'idle',
-  onCheckAppleHealthSync = () => undefined,
   onSave,
   onDirtyChange,
 }: HealthSettingsScreenProps) {
@@ -59,11 +45,7 @@ export function HealthSettingsScreen({
   const [message, setMessage] = useState('')
   const [workoutFilter, setWorkoutFilter] = useState<'active' | 'archived'>('active')
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
-  const [appleSetupOpen, setAppleSetupOpen] = useState(false)
   const [transferProtocolOpen, setTransferProtocolOpen] = useState(false)
-  const [appleLinkState, setAppleLinkState] = useState<
-    'idle' | 'worker-copied' | 'token-copied' | 'safari-copied' | 'error'
-  >('idle')
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(settings),
     [draft, settings],
@@ -72,36 +54,6 @@ export function HealthSettingsScreen({
     () => new Set(Object.values(entries).flatMap((entry) => entry.selectedWorkouts.map((item) => item.workoutId))),
     [entries],
   )
-  const latestAppleHealthEntry = useMemo(
-    () => Object.values(entries)
-      .filter((entry) =>
-        entry.waterSource === 'apple-health' &&
-        typeof entry.waterMl === 'number' &&
-        typeof entry.waterSyncedAt === 'string',
-      )
-      .sort((left, right) =>
-        (right.waterSyncedAt ?? '').localeCompare(left.waterSyncedAt ?? ''),
-      )[0],
-    [entries],
-  )
-  const appleHealthStatus = appleHealthImportError || appleHealthSyncStatus === 'error'
-    ? 'Ошибка прямой отправки'
-    : appleHealthSyncStatus === 'launching'
-      ? 'Запускаю Быструю команду'
-      : appleHealthSyncStatus === 'checking' ||
-          appleHealthSyncStatus === 'waiting' ||
-          appleHealthSyncStatus === 'transferred'
-        ? 'Ожидаю новые данные'
-        : appleHealthSyncStatus === 'timeout'
-          ? 'Ошибка прямой отправки'
-          : !draft.appleHealth.syncToken
-            ? 'Не настроено'
-            : !draft.appleHealth.directSyncConfigured
-              ? 'Требуется изменить Быструю команду'
-              : latestAppleHealthEntry?.date === getLocalDateId()
-                ? 'Синхронизировано сегодня'
-                : 'Готово к автоматической синхронизации'
-
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   useEffect(() => {
     if (!dirty) setDraft(structuredClone(settings))
@@ -125,58 +77,6 @@ export function HealthSettingsScreen({
       setMessage('Настройки сохранены')
     } else {
       setMessage('Не удалось сохранить настройки')
-    }
-  }
-
-  function ensureAppleHealthSyncToken(): string | null {
-    if (draft.appleHealth.syncToken) return draft.appleHealth.syncToken
-    const token = createAppleHealthSyncToken()
-    const next = {
-      ...draft,
-      appleHealth: { ...draft.appleHealth, syncToken: token },
-    }
-    if (!onSave(structuredClone(next))) return null
-    setDraft(next)
-    return token
-  }
-
-  async function copyAppleHealthWorkerAddress(): Promise<void> {
-    await copyAppleHealthValue(
-      getAppleHealthWaterSyncApiUrl(),
-      'worker-copied',
-    )
-  }
-
-  async function copyAppleHealthSyncKey(): Promise<void> {
-    const token = ensureAppleHealthSyncToken()
-    if (!token) {
-      setAppleLinkState('error')
-      return
-    }
-    await copyAppleHealthValue(token, 'token-copied')
-  }
-
-  async function copyAppleHealthLinkBase(): Promise<void> {
-    const token = ensureAppleHealthSyncToken()
-    if (!token) {
-      setAppleLinkState('error')
-      return
-    }
-    await copyAppleHealthValue(
-      getAppleHealthWaterSyncLinkBase(token),
-      'safari-copied',
-    )
-  }
-
-  async function copyAppleHealthValue(
-    value: string,
-    success: Exclude<typeof appleLinkState, 'idle' | 'error'>,
-  ): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(value)
-      setAppleLinkState(success)
-    } catch {
-      setAppleLinkState('error')
     }
   }
 
@@ -246,23 +146,6 @@ export function HealthSettingsScreen({
         workouts: current.workouts.filter((workout) => workout.id !== confirmation.workoutId),
       }))
     }
-    if (confirmation?.kind === 'reset-apple-health-key') {
-      const next = {
-        ...draft,
-        appleHealth: {
-          ...draft.appleHealth,
-          syncToken: createAppleHealthSyncToken(),
-          directSyncConfigured: false,
-        },
-      }
-      if (onSave(structuredClone(next))) {
-        setDraft(next)
-        setAppleLinkState('idle')
-        setMessage('Ключ сброшен. Скопируйте новый ключ в Быструю команду.')
-      } else {
-        setMessage('Не удалось сбросить ключ синхронизации')
-      }
-    }
     setConfirmation(null)
   }
 
@@ -320,142 +203,6 @@ export function HealthSettingsScreen({
             onChange={(maxPerDay) => updateDraft((current) => ({ ...current, coffee: { maxPerDay } }))}
           />
         </div>
-        <section className="health-apple-water" aria-labelledby="apple-health-water-title">
-          <div className="health-apple-water-heading">
-            <div>
-              <h3 id="apple-health-water-title">Apple Health — вода</h3>
-              <span className={appleHealthImportError || appleHealthSyncStatus === 'error' ? 'error' : ''}>{appleHealthStatus}</span>
-            </div>
-            {latestAppleHealthEntry && (
-              <p>
-                <strong>{formatWaterMl(latestAppleHealthEntry.waterMl ?? 0)} мл</strong>
-                <span>{formatAppleHealthSyncDate(latestAppleHealthEntry.waterSyncedAt)} · Apple Health</span>
-              </p>
-            )}
-          </div>
-          <div className="health-apple-water-direct">
-            <h4>Прямая синхронизация</h4>
-            <p>Быстрая команда отправляет воду прямо в «Мой ритм», не открывая Safari.</p>
-            <label className="health-apple-water-field">
-              <span>Имя Быстрой команды</span>
-              <input
-                type="text"
-                value={draft.appleHealth.shortcutName}
-                maxLength={120}
-                onChange={(event) => {
-                  const shortcutName = event.currentTarget.value
-                  updateDraft((current) => ({
-                    ...current,
-                    appleHealth: {
-                      ...current.appleHealth,
-                      shortcutName,
-                    },
-                  }))
-                }}
-              />
-              {errors['appleHealth.shortcutName'] && (
-                <small className="error">{errors['appleHealth.shortcutName']}</small>
-              )}
-            </label>
-            <div className="health-apple-water-secret">
-              <span>Ключ синхронизации</span>
-              <strong aria-label="Ключ синхронизации скрыт">
-                {maskAppleHealthSyncToken(draft.appleHealth.syncToken)}
-              </strong>
-            </div>
-            <p className="health-apple-water-warning">Не отправляйте этот ключ другим людям.</p>
-            <div className="health-apple-water-actions">
-              <button type="button" onClick={() => void copyAppleHealthWorkerAddress()}>
-                Скопировать адрес Worker
-              </button>
-              <button type="button" onClick={() => void copyAppleHealthSyncKey()}>
-                Скопировать ключ синхронизации
-              </button>
-              <button type="button" onClick={() => setAppleSetupOpen((current) => !current)}>
-                {appleSetupOpen ? 'Скрыть инструкцию' : 'Показать инструкцию'}
-              </button>
-            </div>
-            {appleLinkState === 'worker-copied' && <p className="health-apple-water-message success">Адрес Worker скопирован</p>}
-            {appleLinkState === 'token-copied' && <p className="health-apple-water-message success">Ключ синхронизации скопирован</p>}
-            {appleLinkState === 'error' && <p className="health-apple-water-message error">Не удалось скопировать данные</p>}
-            {appleSetupOpen && (
-              <ol className="health-apple-water-steps">
-                <li>Откройте команду «{draft.appleHealth.shortcutName || 'Вода в Мой ритм'}» в приложении «Быстрые команды».</li>
-                <li>Оставьте действия поиска воды за сегодня, получения значений, суммы, округления и форматирования даты как yyyy-MM-dd.</li>
-                <li>Добавьте форматирование текущей даты и времени в ISO 8601 для поля clientUpdatedAt.</li>
-                <li>Удалите старые действия «Текст» со ссылкой, «Получить URL-адреса» и «Открыть URL-адреса».</li>
-                <li>Добавьте действие «URL-адрес» и вставьте скопированный адрес Worker.</li>
-                <li>Добавьте «Получить содержимое URL», раскройте параметры и выберите метод POST.</li>
-                <li>Добавьте заголовок Authorization со значением Bearer, пробел и скопированный ключ. Второй заголовок: X-Moi-Ritm-Client со значением ios-shortcut-v1.</li>
-                <li>Выберите тело запроса JSON. Добавьте version = 2, date = форматированная дата, waterMl = округлённая сумма как число, source = apple-health и clientUpdatedAt = время ISO 8601.</li>
-                <li>Запустите Команду один раз для проверки. При успехе Safari открываться не должен.</li>
-              </ol>
-            )}
-            <label className="health-settings-switch health-apple-water-confirm">
-              <input
-                type="checkbox"
-                checked={draft.appleHealth.directSyncConfigured}
-                onChange={(event) => {
-                  const directSyncConfigured = event.currentTarget.checked
-                  updateDraft((current) => ({
-                    ...current,
-                    appleHealth: {
-                      ...current.appleHealth,
-                      directSyncConfigured,
-                    },
-                  }))
-                }}
-              />
-              <span>Прямая отправка в Команде настроена</span>
-              <small>Это отметка-памятка. PWA не изменяет настройки iOS.</small>
-            </label>
-          </div>
-
-          <details className="health-apple-water-automation">
-            <summary>Автоматическое обновление четыре раза в день</summary>
-            <div>
-              <p>Рекомендуемые времена: 09:00, 13:00, 18:00 и 22:30. Можно выбрать другие.</p>
-              <ol className="health-apple-water-steps">
-                <li>Откройте «Быстрые команды» и вкладку «Автоматизация».</li>
-                <li>Нажмите «+», выберите «Время суток», укажите время и повтор «Ежедневно».</li>
-                <li>Выберите «Запускать немедленно» или аналогичный вариант запуска без подтверждения.</li>
-                <li>Добавьте действие «Запустить быструю команду» и выберите «{draft.appleHealth.shortcutName || 'Вода в Мой ритм'}».</li>
-                <li>Сохраните и повторите эти шаги отдельно для каждого из четырёх времён.</li>
-              </ol>
-              <p>iOS может показать служебный баннер. Команда не должна открывать Safari или GitHub Pages.</p>
-            </div>
-          </details>
-
-          <details className="health-apple-water-fallback">
-            <summary>Резервный способ через Safari</summary>
-            <p>Используйте только если прямая отправка временно не работает. Основной способ Safari не открывает.</p>
-            <button type="button" onClick={() => void copyAppleHealthLinkBase()}>
-              Скопировать резервную основу ссылки
-            </button>
-            {appleLinkState === 'safari-copied' && <p className="health-apple-water-message success">Резервная основа ссылки скопирована</p>}
-          </details>
-
-          <div className="health-apple-water-actions">
-            <button
-              type="button"
-              disabled={!draft.appleHealth.syncToken || appleHealthSyncStatus === 'checking'}
-              onClick={onCheckAppleHealthSync}
-            >
-              Проверить данные в Worker
-            </button>
-          </div>
-          <p className="health-apple-water-note">Команду заново создавать не нужно.</p>
-          <p className="health-apple-water-privacy">Быстрая команда передаёт в «Мой ритм» только дату и общий объём воды за день. Отдельные записи и другие показатели Apple Health не передаются.</p>
-          {draft.appleHealth.syncToken && (
-            <button
-              type="button"
-              className="health-apple-water-reset"
-              onClick={() => setConfirmation({ kind: 'reset-apple-health-key' })}
-            >
-              Сбросить ключ синхронизации
-            </button>
-          )}
-        </section>
       </SettingsGroup>
 
       <SettingsGroup title="Ежедневные пункты">
@@ -674,11 +421,11 @@ export function HealthSettingsScreen({
       {confirmation && (
         <div className="dialog-backdrop" role="presentation">
           <section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="health-settings-confirm-title">
-            <h2 id="health-settings-confirm-title">{confirmation.kind === 'restore' ? 'Вернуть стандартные цели и графики?' : confirmation.kind === 'reset-apple-health-key' ? 'Сбросить ключ синхронизации?' : 'Удалить шаблон тренировки?'}</h2>
-            <p>{confirmation.kind === 'restore' ? 'Записи здоровья не будут удалены.' : confirmation.kind === 'reset-apple-health-key' ? 'Старая ссылка Команды перестанет передавать воду в установленное приложение. Локальные записи воды сохранятся.' : 'Этот шаблон ещё не используется в записях и будет удалён из настроек.'}</p>
+            <h2 id="health-settings-confirm-title">{confirmation.kind === 'restore' ? 'Вернуть стандартные цели и графики?' : 'Удалить шаблон тренировки?'}</h2>
+            <p>{confirmation.kind === 'restore' ? 'Записи здоровья не будут удалены.' : 'Этот шаблон ещё не используется в записях и будет удалён из настроек.'}</p>
             <div className="dialog-actions">
               <button type="button" onClick={() => setConfirmation(null)}>Отмена</button>
-              <button type="button" className="primary" onClick={confirmAction}>{confirmation.kind === 'restore' ? 'Восстановить' : confirmation.kind === 'reset-apple-health-key' ? 'Сбросить ключ' : 'Удалить'}</button>
+              <button type="button" className="primary" onClick={confirmAction}>{confirmation.kind === 'restore' ? 'Восстановить' : 'Удалить'}</button>
             </div>
           </section>
         </div>
@@ -697,22 +444,6 @@ function getLearningScheduleTitle(item: LearningScheduleItem): string {
       ? 'Кавист'
       : 'Керамогранит'
   return `${direction} — ${getLearningActivityLabel(item.activityType)}`
-}
-
-function formatWaterMl(value: number): string {
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)
-}
-
-function formatAppleHealthSyncDate(value: string | undefined): string {
-  if (!value) return 'Дата синхронизации неизвестна'
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) return 'Дата синхронизации неизвестна'
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
 }
 
 function getLearningActivityLabel(activityType: LearningScheduleItem['activityType']): string {

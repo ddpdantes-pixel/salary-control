@@ -565,22 +565,8 @@
 .health-water-coffee .health-result { font-size: 15px; line-height: 1.25; }
 .health-water-coffee .health-muted { line-height: 1.25; }
 .health-water-coffee .health-amber-note { padding: 7px 8px; font-size: 12px; line-height: 1.3; }
-.health-import-notice { display: grid; gap: 6px; margin: 0; border-radius: 6px; padding: 9px 11px; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
-.health-import-notice p { margin: 0; font-weight: 750; }
-.health-import-notice span { font-size: 12px; }
-.health-import-notice button { justify-self: start; min-height: 38px; padding: 7px 10px; box-shadow: none; }
-.health-import-notice.success { color: var(--success); background: var(--success-soft); }
-.health-import-notice.error { color: var(--danger); background: var(--danger-soft); }
-.health-import-notice.warning { color: #765316; background: #fff3d6; }
-.health-water-sync { display: grid; gap: 8px; min-width: 0; }
-.health-water-source { display: grid; gap: 2px; margin: 0; min-width: 0; }
-.health-water-source strong { color: var(--text-primary); font-size: 14px; }
-.health-water-source span { color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
 .health-water-goal { margin: 0; color: var(--text-secondary); font-size: 13px; font-weight: 750; }
 .health-water-goal.met { color: var(--success); }
-.health-water-manual { justify-self: start; min-height: 38px; padding: 7px 10px; color: var(--accent); background: var(--accent-soft); font-size: 12px; box-shadow: none; }
-.health-water-available { display: grid; gap: 7px; min-width: 0; }
-.health-water-available p { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 750; overflow-wrap: anywhere; }
 
 .health-compact-summary { display: flex; min-width: 0; flex-wrap: wrap; gap: 3px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.25; }
 .health-compact-summary strong { color: var(--text-primary); font-size: 13px; }
@@ -1915,40 +1901,6 @@
 .health-settings-field { display: grid; min-width: 0; gap: 6px; color: var(--text-secondary); font-size: 13px; font-weight: 700; }
 .health-settings-field input, .health-settings-field select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 10px; color: var(--text-primary); background: var(--surface); font: inherit; font-size: 16px; }
 .health-settings-calculation { grid-column: 1 / -1; margin: 0; color: var(--accent); font-size: 14px; font-weight: 800; }
-.health-apple-water { display: grid; gap: 10px; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--surface-muted); }
-.health-apple-water-heading { display: grid; gap: 8px; min-width: 0; }
-.health-apple-water-heading > div, .health-apple-water-heading > p { display: grid; gap: 3px; min-width: 0; margin: 0; }
-.health-apple-water-heading h3 { margin: 0; color: var(--text-primary); font-size: 16px; }
-.health-apple-water-heading span { color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
-.health-apple-water-heading span.error { color: var(--danger); }
-.health-apple-water-heading strong { font-size: 15px; }
-.health-apple-water-direct { display: grid; gap: 10px; min-width: 0; padding-top: 4px; }
-.health-apple-water-direct h4, .health-apple-water-direct > p { margin: 0; }
-.health-apple-water-direct h4 { font-size: 14px; }
-.health-apple-water-direct > p { color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
-.health-apple-water-field { display: grid; gap: 6px; min-width: 0; font-size: 13px; font-weight: 700; }
-.health-apple-water-field input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 10px; color: var(--text-primary); background: var(--surface); font: inherit; font-size: 16px; }
-.health-apple-water-field small.error { color: var(--danger); font-size: 12px; }
-.health-apple-water-secret { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; font-size: 13px; }
-.health-apple-water-secret strong { max-width: 100%; overflow-wrap: anywhere; letter-spacing: 0; }
-.health-apple-water-warning { margin: 0; color: var(--warning-text, #8a5a00); font-size: 12px; }
-.health-apple-water-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.health-apple-water-actions button { flex: 1 1 150px; min-width: 0; min-height: 42px; padding: 8px 10px; color: var(--accent); background: var(--accent-soft); box-shadow: none; font-size: 13px; overflow-wrap: anywhere; }
-.health-apple-water-actions button:disabled { opacity: .55; }
-.health-apple-water-message, .health-apple-water-note, .health-apple-water-privacy { margin: 0; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-.health-apple-water-message.success { color: var(--success); }
-.health-apple-water-message.error { color: var(--danger); }
-.health-apple-water-note { color: var(--text-secondary); }
-.health-apple-water-privacy { color: var(--text-primary); }
-.health-apple-water-confirm { margin-top: 2px; }
-.health-apple-water-automation, .health-apple-water-fallback { min-width: 0; border-top: 1px solid var(--border); padding-top: 8px; }
-.health-apple-water-automation summary, .health-apple-water-fallback summary { min-height: 40px; cursor: pointer; font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
-.health-apple-water-automation > div, .health-apple-water-fallback { color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
-.health-apple-water-automation p, .health-apple-water-fallback p { margin: 0 0 8px; overflow-wrap: anywhere; }
-.health-apple-water-fallback button { max-width: 100%; min-height: 40px; padding: 8px 10px; color: var(--accent); background: var(--accent-soft); box-shadow: none; font-size: 13px; overflow-wrap: anywhere; }
-.health-apple-water-reset { justify-self: start; min-height: 38px; padding: 7px 10px; color: var(--danger); background: transparent; border: 1px solid var(--border); box-shadow: none; font-size: 12px; }
-.health-apple-water-steps { display: grid; gap: 7px; margin: 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
-.health-apple-water-steps li { padding-left: 2px; overflow-wrap: anywhere; }
 .health-settings-error { color: var(--danger); font-size: 12px; }
 .health-settings-toggle-list, .health-settings-workouts, .health-settings-radio { display: grid; gap: 10px; }
 .health-settings-switch { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; min-height: 44px; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; font-size: 14px; font-weight: 700; }

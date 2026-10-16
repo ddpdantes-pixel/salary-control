@@ -565,7 +565,7 @@ function formatHistoryWater(
 ): string {
   const prefix = detailed ? '' : 'Вода: '
   if (entry.waterSource === 'apple-health' && entry.waterMl !== undefined) {
-    return `${prefix}${getHealthEntryWaterMl(entry, settings)} из ${getWaterGoalMl(settings)} мл${detailed ? ' · Apple Health' : ''}`
+    return `${prefix}${getHealthEntryWaterMl(entry, settings)} из ${getWaterGoalMl(settings)} мл${detailed ? ' · сохранённая запись' : ''}`
   }
   return detailed
     ? `${entry.waterCups} из ${settings.water.goalCups} кружек — ${formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л`

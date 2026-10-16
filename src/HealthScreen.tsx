@@ -41,20 +41,7 @@ import type { HealthTimerController } from './useHealthTimer'
 import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
 import { shareHealthReport, shareHealthReportForChatGpt } from './healthShare'
 import type { HealthShareResult } from './healthShare'
-import {
-  APPLE_HEALTH_WATER_SYNC_EVENT,
-  APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
-  applyAppleHealthWaterImport,
-  clearAppleHealthWaterFragment,
-  getHealthEntryWaterMl,
-  getWaterGoalMl,
-  isWaterGoalMet,
-  parseAppleHealthWaterFragment,
-  sendAppleHealthWaterToWorker,
-  switchHealthEntryToManualWater,
-  useAvailableAppleHealthWater,
-  type AppleHealthWaterSyncPayload,
-} from './appleHealthWater'
+import { getHealthEntryWaterMl, getWaterGoalMl, isWaterGoalMet, switchHealthEntryToManualWater } from './appleHealthWater'
 import {
   BRISTOL_DESCRIPTIONS,
   createHealthEntry,
@@ -102,21 +89,6 @@ import './HealthScreen.css'
 
 type HealthSaveState = 'saved' | 'saving' | 'error'
 type PendingFinalAction = 'complete' | 'chatgpt' | 'images'
-type AppleHealthImportNotice =
-  | { kind: 'success' | 'error' | 'warning'; message: string; detail?: string }
-  | null
-type AppleHealthSyncStatus =
-  | 'idle'
-  | 'checking'
-  | 'transferred'
-  | 'synced'
-  | 'available-manual'
-  | 'empty'
-  | 'launching'
-  | 'waiting'
-  | 'timeout'
-  | 'error'
-
 const SAVE_DELAY_MS = 350
 const SCALE_0_TO_5 = [0, 1, 2, 3, 4, 5]
 const URGE_VALUES = [0, 0.5, 1, 2, 3, 4, 5]
@@ -170,16 +142,6 @@ function formatWaterMl(value: number): string {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)
 }
 
-function formatSyncTime(value: string | undefined): string {
-  if (!value) return 'недавно'
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) return 'недавно'
-  return new Intl.DateTimeFormat('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
-
 export function HealthScreen({
   initialTab = 'today',
   onSettingsDirtyChange,
@@ -211,12 +173,6 @@ export function HealthScreen({
     createHealthHistoryNavigationState,
   )
   const [canReturnToHistory, setCanReturnToHistory] = useState(false)
-  const [appleHealthImportNotice, setAppleHealthImportNotice] =
-    useState<AppleHealthImportNotice>(null)
-  const [pendingAppleHealthTransfer, setPendingAppleHealthTransfer] =
-    useState<AppleHealthWaterSyncPayload | null>(null)
-  const [appleHealthSyncStatus, setAppleHealthSyncStatus] =
-    useState<AppleHealthSyncStatus>('idle')
   const initialStateRef = useRef(state)
   const initialStatePersistedRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
@@ -244,132 +200,6 @@ export function HealthScreen({
       }
     })
   }, [faceTimerFocusRequest, timerController?.timer?.dateId, timerController?.timer?.kind])
-  const transferAppleHealthWater = useCallback(
-    async (payload: AppleHealthWaterSyncPayload) => {
-      setPendingAppleHealthTransfer(payload)
-      setAppleHealthImportNotice({
-        kind: 'warning',
-        message: 'Передаём воду в установленное приложение…',
-      })
-      try {
-        const saved = await sendAppleHealthWaterToWorker(payload)
-        setPendingAppleHealthTransfer(null)
-        setAppleHealthSyncStatus('transferred')
-        setAppleHealthImportNotice({
-          kind: 'success',
-          message: `Вода передана в “Мой ритм”: ${formatWaterMl(saved.waterMl)} мл`,
-          detail: 'Вернитесь в приложение с домашнего экрана.',
-        })
-      } catch {
-        setAppleHealthSyncStatus('error')
-        setAppleHealthImportNotice({
-          kind: 'error',
-          message: 'Не удалось передать воду. Проверьте интернет и повторите Команду.',
-        })
-      }
-    },
-    [],
-  )
-
-  useEffect(() => {
-    const importWaterFromFragment = () => {
-      const result = parseAppleHealthWaterFragment(window.location.hash)
-      if (result.status === 'none') return
-      clearAppleHealthWaterFragment()
-
-      if (result.status === 'invalid') {
-        setAppleHealthImportNotice({
-          kind: 'error',
-          message: 'Не удалось импортировать воду: проверьте данные Команды.',
-        })
-        return
-      }
-
-      const payload = result.payload
-      setSelectedDate(payload.date)
-      setActiveTab('today')
-      if (payload.version === 2) {
-        void transferAppleHealthWater(payload)
-        return
-      }
-
-      const syncedAt = new Date().toISOString()
-      setState((current) =>
-        applyAppleHealthWaterImport(current, payload, syncedAt),
-      )
-      setAppleHealthImportNotice({
-        kind: 'warning',
-        message: `Вода обновлена только в Safari: ${formatWaterMl(payload.waterMl)} мл`,
-        detail: 'Старая ссылка v1 не передаёт воду в установленную PWA. Скопируйте новую основу v2 в настройках.',
-      })
-    }
-
-    importWaterFromFragment()
-    window.addEventListener('hashchange', importWaterFromFragment)
-    return () => window.removeEventListener('hashchange', importWaterFromFragment)
-  }, [transferAppleHealthWater])
-
-  useEffect(() => {
-    const receiveSyncStatus = (event: Event) => {
-      if (!(event instanceof CustomEvent) || typeof event.detail?.status !== 'string') {
-        return
-      }
-      setAppleHealthSyncStatus(event.detail.status as AppleHealthSyncStatus)
-      if (event.detail.status === 'synced' || event.detail.status === 'available-manual') {
-        const refreshed = loadStoredHealthState()
-        initialStateRef.current = refreshed.state
-        setState(refreshed.state)
-        setSaveState('saved')
-      }
-      if (event.detail.manualRefresh === true) {
-        if (event.detail.status === 'launching') {
-          setAppleHealthImportNotice({
-            kind: 'warning',
-            message: 'Запускаю Apple Health…',
-          })
-        } else if (event.detail.status === 'waiting') {
-          setAppleHealthImportNotice({
-            kind: 'warning',
-            message: 'Ожидаю новые данные',
-          })
-        } else if (event.detail.status === 'timeout') {
-          setAppleHealthImportNotice({
-            kind: 'error',
-            message: 'Команда не передала новые данные. Проверьте её настройку.',
-          })
-        } else if (
-          (event.detail.status === 'synced' || event.detail.status === 'available-manual') &&
-          typeof event.detail.waterMl === 'number'
-        ) {
-          setAppleHealthImportNotice({
-            kind: 'success',
-            message: event.detail.status === 'available-manual'
-              ? `В Apple Health доступно ${formatWaterMl(event.detail.waterMl)} мл`
-              : `Вода обновлена: ${formatWaterMl(event.detail.waterMl)} мл`,
-          })
-        } else if (event.detail.status === 'error') {
-          setAppleHealthImportNotice({
-            kind: 'error',
-            message: 'Не удалось получить данные. Проверьте интернет и настройку Команды.',
-          })
-        }
-      }
-    }
-    window.addEventListener(APPLE_HEALTH_WATER_SYNC_EVENT, receiveSyncStatus)
-    return () => window.removeEventListener(
-      APPLE_HEALTH_WATER_SYNC_EVENT,
-      receiveSyncStatus,
-    )
-  }, [])
-
-  useEffect(() => {
-    if (activeTab !== 'today') return
-    window.dispatchEvent(new CustomEvent(
-      APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
-      { detail: { force: false } },
-    ))
-  }, [activeTab])
-
   useEffect(() => {
     if (!settingsDirty) return
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -518,21 +348,6 @@ export function HealthScreen({
     <section className="health-screen">
       <HealthTabs activeTab={activeTab} onChange={changeHealthTab} />
 
-      {appleHealthImportNotice && (
-        <div className={`health-import-notice ${appleHealthImportNotice.kind}`} role="status">
-          <p>{appleHealthImportNotice.message}</p>
-          {appleHealthImportNotice.detail && <span>{appleHealthImportNotice.detail}</span>}
-          {pendingAppleHealthTransfer && appleHealthImportNotice.kind === 'error' && (
-            <button
-              type="button"
-              onClick={() => void transferAppleHealthWater(pendingAppleHealthTransfer)}
-            >
-              Повторить передачу
-            </button>
-          )}
-        </div>
-      )}
-
       <div className="health-tab-content" key={activeTab}>
         {activeTab === 'today' ? (
           <HealthToday
@@ -570,12 +385,6 @@ export function HealthScreen({
           <HealthSettingsScreen
           settings={settings}
           entries={state.entries}
-          appleHealthImportError={appleHealthImportNotice?.kind === 'error'}
-          appleHealthSyncStatus={appleHealthSyncStatus}
-          onCheckAppleHealthSync={() => window.dispatchEvent(new CustomEvent(
-            APPLE_HEALTH_WATER_SYNC_REQUEST_EVENT,
-            { detail: { force: true } },
-          ))}
           onSave={saveSettings}
           onDirtyChange={setSettingsDirty}
           />
@@ -673,9 +482,8 @@ function HealthToday({
   const dateHeading = formatHealthDate(selectedDate)
   const alcoholVisibility = getAlcoholFieldVisibility(entry.alcoholChoice)
   const urgeValues = [...new Set([...URGE_VALUES, settings.urgeReference])].sort((a, b) => a - b)
-  const appleHealthWaterActive =
+  const hasLegacyWaterAmount =
     entry.waterSource === 'apple-health' && entry.waterMl !== undefined
-  const appleHealthManualMode = entry.waterManualMode === true
   const waterMl = getHealthEntryWaterMl(entry, settings)
   const waterGoalMl = getWaterGoalMl(settings)
   const waterGoalMet = isWaterGoalMet(entry, settings)
@@ -834,68 +642,37 @@ function HealthToday({
       {storageIssue && <p className="health-storage-issue">{storageIssue}</p>}
 
       <div className="health-water-coffee" aria-label="Вода и кофе">
-        <HealthBlock icon="droplet" title={appleHealthWaterActive
-          ? `Вода — ${formatWaterMl(waterMl)} из ${formatWaterMl(waterGoalMl)} мл`
-          : `Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
-          {appleHealthWaterActive ? (
-            <div className="health-water-sync">
-              <p className="health-water-source">
-                <strong>Apple Health</strong>
-                <span>Синхронизировано {formatSyncTime(entry.waterSyncedAt)}</span>
-              </p>
-              <p className={waterGoalMet ? 'health-water-goal met' : 'health-water-goal'}>
-                {waterGoalMet
-                  ? 'Цель выполнена'
-                  : `До цели ${formatWaterMl(Math.max(0, waterGoalMl - waterMl))} мл`}
-              </p>
-              <button
-                type="button"
-                className="health-water-manual"
-                onClick={() => onChange(switchHealthEntryToManualWater)}
-              >
-                Использовать ручной учёт
-              </button>
-            </div>
-          ) : (
-            <>
-              <IconQuantityPicker
-                value={entry.waterCups}
-                max={WATER_PICKER_MAX}
-                icon="droplet"
-                label="Количество кружек воды"
-                optionLabel={(quantity) => `${quantity} ${formatCupWord(quantity)} воды`}
-                tone="water"
-                summary={<>
-                  <span><strong>{entry.waterCups} {formatCupWord(entry.waterCups)}</strong> · {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</span>
-                  <small>{entry.waterCups} из {settings.water.goalCups}</small>
-                </>}
-                onChange={(waterCups) => onChange((current) => ({ ...current, waterCups }))}
-              />
-              <div
-                className="health-compact-progress"
-                role="progressbar"
-                aria-label={`Вода: ${entry.waterCups} из ${settings.water.goalCups}`}
-                aria-valuemin={0}
-                aria-valuemax={settings.water.goalCups}
-                aria-valuenow={Math.min(entry.waterCups, settings.water.goalCups)}
-              >
-                <span style={{ width: `${Math.min(100, (entry.waterCups / Math.max(1, settings.water.goalCups)) * 100)}%` }} />
-              </div>
-              {waterGoalMet && <p className="health-water-goal met">Цель выполнена</p>}
-              {appleHealthManualMode && typeof entry.appleHealthAvailableMl === 'number' && (
-                <div className="health-water-available">
-                  <p>В Apple Health доступно {formatWaterMl(entry.appleHealthAvailableMl)} мл</p>
-                  <button
-                    type="button"
-                    className="health-water-manual"
-                    onClick={() => onChange(useAvailableAppleHealthWater)}
-                  >
-                    Использовать Apple Health
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+        <HealthBlock icon="droplet" title={`Вода — кружки по ${settings.water.cupVolumeMl} мл`}>
+          <IconQuantityPicker
+            value={entry.waterCups}
+            max={WATER_PICKER_MAX}
+            icon="droplet"
+            label="Количество кружек воды"
+            optionLabel={(quantity) => `${quantity} ${formatCupWord(quantity)} воды`}
+            tone="water"
+            summary={<>
+              {hasLegacyWaterAmount
+                ? <span><strong>{formatWaterMl(waterMl)} мл</strong> · сохранённая запись</span>
+                : <span><strong>{entry.waterCups} {formatCupWord(entry.waterCups)}</strong> · {formatWaterLiters(entry.waterCups, settings.water.cupVolumeMl)} л</span>}
+              <small>{hasLegacyWaterAmount ? `${formatWaterMl(waterMl)} из ${formatWaterMl(waterGoalMl)} мл` : `${entry.waterCups} из ${settings.water.goalCups}`}</small>
+            </>}
+            onChange={(waterCups) => onChange((current) => ({
+              ...(current.waterSource === 'apple-health' && current.waterMl !== undefined
+                ? switchHealthEntryToManualWater(current) : current),
+              waterCups,
+            }))}
+          />
+          <div
+            className="health-compact-progress"
+            role="progressbar"
+            aria-label={hasLegacyWaterAmount ? `Вода: ${waterMl} из ${waterGoalMl} мл` : `Вода: ${entry.waterCups} из ${settings.water.goalCups}`}
+            aria-valuemin={0}
+            aria-valuemax={hasLegacyWaterAmount ? waterGoalMl : settings.water.goalCups}
+            aria-valuenow={hasLegacyWaterAmount ? Math.min(waterMl, waterGoalMl) : Math.min(entry.waterCups, settings.water.goalCups)}
+          >
+            <span style={{ width: `${Math.min(100, (waterMl / Math.max(1, waterGoalMl)) * 100)}%` }} />
+          </div>
+          {waterGoalMet && <p className="health-water-goal met">Цель выполнена</p>}
         </HealthBlock>
         <HealthBlock icon="coffee" title="Кофе">
           <span className="health-quantity-goal">цель ≤{settings.coffee.maxPerDay}</span>

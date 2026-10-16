@@ -54,6 +54,7 @@ describe('оболочка приложения', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('показывает четыре основных раздела без отдельной кнопки продаж', async () => {
@@ -183,55 +184,22 @@ describe('оболочка приложения', () => {
     expect(screen.getByText('Выбрать дату')).not.toBeNull()
   })
 
-  it('открывает здоровье напрямую по локальной ссылке Apple Health', async () => {
+  it('не импортирует воду по старой ссылке и не синхронизирует старый ключ при focus', async () => {
     const today = getLocalDateId()
-    window.history.replaceState(
-      {},
-      '',
-      `/#health-water/v1/apple-health/${today}/1800`,
-    )
-
-    await renderApp()
-
-    expect(await screen.findByText(/Вода обновлена только в Safari: 1.?800 мл/)).not.toBeNull()
-    expect(screen.getByRole('heading', { name: /Вода — 1.?800 из 1.?800 мл/ })).not.toBeNull()
-    expect(window.location.hash).toBe('')
-  })
-
-  it('получает воду при запуске, focus и возврате visibility без перезагрузки', async () => {
-    const today = getLocalDateId()
+    const entry = { ...createHealthEntry(today), waterMl: 1850, waterSource: 'apple-health' as const }
+    saveStoredHealthState({ ...createEmptyHealthState(), entries: { [today]: entry } })
     const settings = createDefaultHealthSettings()
     settings.appleHealth.syncToken = 'C'.repeat(43)
     saveStoredHealthSettings(settings)
-    let clock = 10_000
-    vi.spyOn(Date, 'now').mockImplementation(() => clock)
-    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
-      version: 2,
-      date: today,
-      waterMl: 1800,
-      source: 'apple-health',
-      updatedAt: '2026-07-29T18:00:00.000Z',
-    }), { status: 200 }))
+    const fetchMock = vi.fn<typeof fetch>()
     vi.stubGlobal('fetch', fetchMock)
-
+    window.history.replaceState({}, '', `/#health-water/v1/apple-health/${today}/600`)
     await renderApp()
-    await waitFor(() => {
-      const stored = JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}')
-      expect(stored.entries[today]).toMatchObject({ waterMl: 1800 })
-    })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-
-    clock += 4_000
+    expect(screen.getByRole('heading', { name: 'Главное' })).not.toBeNull()
     window.dispatchEvent(new Event('focus'))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-
-    clock += 4_000
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      value: 'visible',
-    })
     document.dispatchEvent(new Event('visibilitychange'))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(JSON.parse(window.localStorage.getItem(HEALTH_STATE_KEY) ?? '{}').entries[today].waterMl).toBe(1850)
   })
 
   it('открывает защищённый раздел Пароли из Денег без пятой нижней вкладки', async () => {
@@ -744,6 +712,7 @@ describe('оболочка приложения', () => {
   })
 
   it('оставляет активный таймер холодной воды видимым между разделами и возвращает к здоровью', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-07-21T12:00:00+03:00').getTime())
     const user = userEvent.setup()
     await renderApp()
     await user.click(screen.getByRole('button', { name: 'Здоровье' }))
@@ -759,7 +728,7 @@ describe('оболочка приложения', () => {
 
     await user.click(banner)
     expect(screen.queryByText('Таймеры')).toBeNull()
-    expect(screen.getByText('Таймер холодной воды')).not.toBeNull()
+    expect(await screen.findByText('Таймер холодной воды')).not.toBeNull()
     expect(screen.getByText('Подход 1 из 3')).not.toBeNull()
   })
 

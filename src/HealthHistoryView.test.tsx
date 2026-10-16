@@ -107,7 +107,7 @@ describe('интерфейс истории здоровья', () => {
 
     expect(screen.getByText('Вода: 1800 из 1800 мл')).not.toBeNull()
     await user.click(screen.getByRole('button', { name: /Открыть запись за 14 июля/ }))
-    expect(screen.getByText('1800 из 1800 мл · Apple Health')).not.toBeNull()
+    expect(screen.getByText('1800 из 1800 мл · сохранённая запись')).not.toBeNull()
   })
 
   afterEach(() => {
