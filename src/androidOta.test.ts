@@ -74,6 +74,31 @@ describe('Android manual OTA control', () => {
     expect(mocks.updater.download).not.toHaveBeenCalled()
   })
 
+  it.each([false, true])('does not distribute a paused channel to the client (manual=%s)', async (manual) => {
+    mocks.control.verifyManifest.mockResolvedValue({ sequence: 2, enabled: false, revokedVersions: [] })
+    const ota = await import('./androidOta')
+    await ota.checkOtaUpdates(manual)
+    expect(mocks.control.verifyManifest).toHaveBeenCalledTimes(1)
+    expect(ota.getOtaView().status).toBe('paused')
+    expect(mocks.control.recordAttempt).not.toHaveBeenCalled()
+    expect(mocks.updater.download).not.toHaveBeenCalled()
+    expect(mocks.control.queue).not.toHaveBeenCalled()
+    expect(mocks.updater.set).not.toHaveBeenCalled()
+    expect(mocks.updater.reset).not.toHaveBeenCalled()
+  })
+
+  it('does not treat a channel pause as cancellation of an already queued verified bundle', async () => {
+    mocks.state.pending = 'previously-verified'
+    mocks.control.takePending.mockResolvedValue({ id: 'previously-verified' })
+    const ota = await import('./androidOta')
+    await ota.checkOtaUpdates()
+    expect(ota.getOtaView().status).toBe('pending')
+    expect(fetch).not.toHaveBeenCalled()
+    expect(mocks.updater.download).not.toHaveBeenCalled()
+    await ota.activateOtaOnColdStart()
+    expect(mocks.updater.set).toHaveBeenCalledWith({ id: 'previously-verified' })
+  })
+
   it('blocks a failed bootstrap version even for a manual retry', async () => {
     mocks.updater.list.mockResolvedValue({ bundles: [{ version: release.version, status: 'error' }] })
     const ota = await import('./androidOta')

@@ -1,0 +1,119 @@
+{
+  "task": 64,
+  "scope": "HTTP checks from this machine, not a new emulator or Samsung run",
+  "checkedAt": "2026-10-17T04:22:07.998Z",
+  "canonicalApi": {
+    "startedAt": "2026-10-17T04:22:06.549Z",
+    "finishedAt": "2026-10-17T04:22:07.131Z",
+    "elapsedMs": 572,
+    "url": "https://api.github.com/repos/ddpdantes-pixel/salary-control/contents/channel.json?ref=android-ota-qa",
+    "status": 200,
+    "headers": {
+      "date": "Sat, 17 Oct 2026 04:22:07 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "1782",
+      "cache-control": "public, max-age=60, s-maxage=60",
+      "etag": "\"ac3432758d2c513e9402afa2177ff64ad1c6b721\"",
+      "x-cache": null,
+      "x-cache-hits": null,
+      "access-control-allow-origin": "*"
+    },
+    "bodySha256": "02d8bf08b7cd4a9b11e23362003b918ac57fa3be89d5ab593a46da44977846a4"
+  },
+  "signedEnvelope": {
+    "payload": "{\"protocol\":1,\"packageId\":\"io.github.ddpdantespixel.moyritm\",\"channel\":\"qa\",\"sequence\":1792184090312,\"issuedAt\":\"2026-10-16T20:54:50.312Z\",\"expiresAt\":\"2026-10-23T20:54:50.312Z\",\"enabled\":false,\"revokedVersions\":[]}",
+    "signature": "QJAM0B0BFalJ1+9GyhJjDA0P9HGuDL2FNKm9WNlPyyyFmec0iHMNBDU8aghouX7WUnxsLCIjDI+Vhsr2gTPscbgZAPLNRqbr7zzS/AhlshUVft8DQKRctwxtY1s8CqWfaMeb3xrzc85fNHoVbwd2TOb4j5YtL1qUwSqvwRu8Foa13Xe9z1EaGUYBTzfe+acAUfomMjBO2OZtoM/lqq7psPd+qDrVrmFIEE5ELJ78dm6VlhsBOUfoxkx+cM60U95x4E8AlgGDaPJVJxyVw3sF9OSVC8mafEFpMAP9c6MuKEtLDV2EOSlOXGS1QbQDxSzm052XEJYxiii4hMpaR6w8lQ=="
+  },
+  "payload": {
+    "protocol": 1,
+    "packageId": "io.github.ddpdantespixel.moyritm",
+    "channel": "qa",
+    "sequence": 1792184090312,
+    "issuedAt": "2026-10-16T20:54:50.312Z",
+    "expiresAt": "2026-10-23T20:54:50.312Z",
+    "enabled": false,
+    "revokedVersions": []
+  },
+  "checks": [
+    {
+      "name": "public manifest",
+      "startedAt": "2026-10-17T04:22:07.133Z",
+      "finishedAt": "2026-10-17T04:22:07.559Z",
+      "elapsedMs": 425,
+      "url": "https://raw.githubusercontent.com/ddpdantes-pixel/salary-control/android-ota-qa/channel.json",
+      "status": 200,
+      "headers": {
+        "date": "Sat, 17 Oct 2026 04:22:07 GMT",
+        "content-type": "text/plain; charset=utf-8",
+        "content-length": "504",
+        "cache-control": "max-age=300",
+        "etag": "W/\"0842f5a6d8eab88e0e6ff6416d109742ae6761e86b83cc64be98a59c0cc9bf71\"",
+        "x-cache": "MISS",
+        "x-cache-hits": "0",
+        "access-control-allow-origin": "*"
+      },
+      "bodySha256": "9c450db37d7c4728eeb67895b728bf1dd355ad28f056359b3e39ca1695060e7d",
+      "signatureValid": true,
+      "enabled": false,
+      "hasRelease": false,
+      "sequence": 1792184090312
+    },
+    {
+      "name": "client-style no-store request",
+      "startedAt": "2026-10-17T04:22:07.559Z",
+      "finishedAt": "2026-10-17T04:22:07.640Z",
+      "elapsedMs": 81,
+      "url": "https://raw.githubusercontent.com/ddpdantes-pixel/salary-control/android-ota-qa/channel.json?check=1792210927133",
+      "status": 200,
+      "headers": {
+        "date": "Sat, 17 Oct 2026 04:22:07 GMT",
+        "content-type": "text/plain; charset=utf-8",
+        "content-length": "504",
+        "cache-control": "max-age=300",
+        "etag": "W/\"0842f5a6d8eab88e0e6ff6416d109742ae6761e86b83cc64be98a59c0cc9bf71\"",
+        "x-cache": "HIT",
+        "x-cache-hits": "1",
+        "access-control-allow-origin": "*"
+      },
+      "bodySha256": "9c450db37d7c4728eeb67895b728bf1dd355ad28f056359b3e39ca1695060e7d",
+      "signatureValid": true,
+      "enabled": false,
+      "hasRelease": false,
+      "sequence": 1792184090312
+    },
+    {
+      "name": "Android user-agent HTTP request",
+      "startedAt": "2026-10-17T04:22:07.640Z",
+      "finishedAt": "2026-10-17T04:22:07.707Z",
+      "elapsedMs": 67,
+      "url": "https://raw.githubusercontent.com/ddpdantes-pixel/salary-control/android-ota-qa/channel.json?check=1792210927134",
+      "status": 200,
+      "headers": {
+        "date": "Sat, 17 Oct 2026 04:22:07 GMT",
+        "content-type": "text/plain; charset=utf-8",
+        "content-length": "504",
+        "cache-control": "max-age=300",
+        "etag": "W/\"0842f5a6d8eab88e0e6ff6416d109742ae6761e86b83cc64be98a59c0cc9bf71\"",
+        "x-cache": "HIT",
+        "x-cache-hits": "2",
+        "access-control-allow-origin": "*"
+      },
+      "bodySha256": "9c450db37d7c4728eeb67895b728bf1dd355ad28f056359b3e39ca1695060e7d",
+      "signatureValid": true,
+      "enabled": false,
+      "hasRelease": false,
+      "sequence": 1792184090312
+    }
+  ],
+  "stableManifest": {
+    "url": "https://raw.githubusercontent.com/ddpdantes-pixel/salary-control/android-ota-stable/channel.json",
+    "status": 404,
+    "checkedAt": "2026-10-17T04:22:07.998Z"
+  },
+  "limits": [
+    "Cannot prove every CDN point of presence simultaneously",
+    "Pause blocks new downloads only after the paused manifest is received",
+    "Already queued bundles can still activate; pause is not revocation",
+    "Offline clients cannot receive the pause until they reconnect"
+  ]
+}
