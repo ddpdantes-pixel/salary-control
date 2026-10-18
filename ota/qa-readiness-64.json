@@ -1,0 +1,1663 @@
+{
+  "schema": 1,
+  "task": 64,
+  "date": "2026-10-17",
+  "status": "READY FOR LIMITED CANARY REVIEW",
+  "historicalCauseProven": false,
+  "nativeCode": 3,
+  "appReadyTimeoutMs": 30000,
+  "contractFingerprint": "3c2c2fbe08f870736e16c7d7ad009c407d3af0e7ea6788ddcffc7bb53c041385",
+  "candidate": {
+    "buildId": "64-readiness-20261017",
+    "version": "1.1.1-qa.64.readiness.1",
+    "bundleSha256": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+    "encryptedSha256": "c8ce865adad9a66b6242a1e69474ea0300f79ec8f5e9258545cb5b9cd7967483",
+    "baseCommit": "81975f22e809c885afeb1cbcab85fe6f33c7ee98",
+    "includedUncommittedReadinessFix": true
+  },
+  "independentProfiles": {
+    "androidUsers": [
+      10,
+      11,
+      12
+    ],
+    "emulatorCount": 1,
+    "apkReinstalled": false,
+    "businessKeysCompared": 10,
+    "goalImagesCompared": 1,
+    "documentLoads": 9,
+    "resumeChecks": 3,
+    "runs": [
+      {
+        "profile": 10,
+        "case": "first-offline",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "4oJLg4Oi8f",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:56:33.385+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "entry",
+            "atMs": 177.19999999995343,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213042011.8
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "adapters-ready",
+            "atMs": 190.09999999997672,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "react-committed",
+            "atMs": 200.69999999995343,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "native-current",
+            "atMs": 207.09999999997672,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "pending"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "notify-called",
+            "atMs": 207.19999999995343,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "native-ready-confirmed",
+            "atMs": 430.29999999993015,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "state-restore-start",
+            "atMs": 433.9000000000233,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "418fce5a-4469-4e23-a786-479926a7d170",
+            "stage": "state-restore-complete",
+            "atMs": 451.69999999995343,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 10,
+        "case": "reload-offline",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "4oJLg4Oi8f",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:56:33.385+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "entry",
+            "atMs": 78.09999999997672,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213051378.3
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "adapters-ready",
+            "atMs": 93.59999999997672,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "react-committed",
+            "atMs": 97.40000000002328,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "native-current",
+            "atMs": 114.59999999997672,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "notify-called",
+            "atMs": 114.59999999997672,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "native-appReady-event",
+            "atMs": 129.19999999995343,
+            "generation": 1,
+            "status": "disabled",
+            "version": "1.1.0"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "native-ready-confirmed",
+            "atMs": 129.90000000002328,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "state-restore-start",
+            "atMs": 136.90000000002328,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "state-restore-complete",
+            "atMs": 140.90000000002328,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 10,
+        "case": "resume-offline",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "4oJLg4Oi8f",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:56:33.385+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "entry",
+            "atMs": 78.09999999997672,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213051378.3
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "adapters-ready",
+            "atMs": 93.59999999997672,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "react-committed",
+            "atMs": 97.40000000002328,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "native-current",
+            "atMs": 114.59999999997672,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "notify-called",
+            "atMs": 114.59999999997672,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "native-appReady-event",
+            "atMs": 129.19999999995343,
+            "generation": 1,
+            "status": "disabled",
+            "version": "1.1.0"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "native-ready-confirmed",
+            "atMs": 129.90000000002328,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "state-restore-start",
+            "atMs": 136.90000000002328,
+            "generation": 1
+          },
+          {
+            "runId": "bbc12940-0165-4d19-9ebd-6379f00130d1",
+            "documentId": "4c73c505-52ff-4495-a004-2555f4320683",
+            "stage": "state-restore-complete",
+            "atMs": 140.90000000002328,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 10,
+        "case": "cold-online",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "4oJLg4Oi8f",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:56:33.385+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "entry",
+            "atMs": 649.2999999999302,
+            "generation": null,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213053840.2
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "adapters-ready",
+            "atMs": 670.5999999999767,
+            "generation": null
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "react-committed",
+            "atMs": 681.8999999999069,
+            "generation": null
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "native-current",
+            "atMs": 683.5,
+            "generation": null,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "notify-called",
+            "atMs": 683.5,
+            "generation": null
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "native-ready-confirmed",
+            "atMs": 699.8999999999069,
+            "generation": null,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "state-restore-start",
+            "atMs": 703.2999999999302,
+            "generation": null
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "state-restore-complete",
+            "atMs": 743.1999999999534,
+            "generation": null
+          },
+          {
+            "runId": "a75ed01d-8e10-46ca-a22b-68d61d7b33f7",
+            "documentId": "d3e17af7-9fb1-4282-a1d0-a3e1b9494c04",
+            "stage": "native-appReady-event",
+            "atMs": 743.7999999999302,
+            "generation": null,
+            "status": "disabled",
+            "version": "1.1.1-qa.64.readiness.1"
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 11,
+        "case": "first-online",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "QsZPlWWxbo",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:58:01.151+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "entry",
+            "atMs": 717.7000000000698,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213095057.6
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "adapters-ready",
+            "atMs": 744,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "react-committed",
+            "atMs": 868.7000000000698,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "native-current",
+            "atMs": 873.6000000000931,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "pending"
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "notify-called",
+            "atMs": 873.9000000000233,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "native-ready-confirmed",
+            "atMs": 1145.4000000000233,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "state-restore-start",
+            "atMs": 1250.5,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "state-restore-complete",
+            "atMs": 1375.5,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "06c0ca77-9ea8-4203-a8c3-8bae17ba0f05",
+            "stage": "native-appReady-event",
+            "atMs": 26112.70000000007,
+            "generation": 1,
+            "status": "disabled",
+            "version": "1.1.0"
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 11,
+        "case": "reload-online",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "QsZPlWWxbo",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:58:01.151+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "entry",
+            "atMs": 335.4000000000233,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213131229
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "adapters-ready",
+            "atMs": 362.10000000009313,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "react-committed",
+            "atMs": 365.30000000004657,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "native-current",
+            "atMs": 429.20000000006985,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "notify-called",
+            "atMs": 429.30000000004657,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "native-ready-confirmed",
+            "atMs": 506.20000000006985,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "state-restore-start",
+            "atMs": 518.3000000000466,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "state-restore-complete",
+            "atMs": 522.2000000000698,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 11,
+        "case": "resume-online",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "QsZPlWWxbo",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:58:01.151+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "entry",
+            "atMs": 335.4000000000233,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213131229
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "adapters-ready",
+            "atMs": 362.10000000009313,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "react-committed",
+            "atMs": 365.30000000004657,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "native-current",
+            "atMs": 429.20000000006985,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "notify-called",
+            "atMs": 429.30000000004657,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "native-ready-confirmed",
+            "atMs": 506.20000000006985,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "state-restore-start",
+            "atMs": 518.3000000000466,
+            "generation": 1
+          },
+          {
+            "runId": "fd2a35a3-4785-4d62-88e7-4b03b7c46dca",
+            "documentId": "35db3974-dbeb-462c-a065-2bb84a38d570",
+            "stage": "state-restore-complete",
+            "atMs": 522.2000000000698,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 11,
+        "case": "cold-offline",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "QsZPlWWxbo",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:58:01.151+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "entry",
+            "atMs": 787.5999999999767,
+            "generation": null,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213136336.2
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "adapters-ready",
+            "atMs": 805.6999999999534,
+            "generation": null
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "react-committed",
+            "atMs": 825.7999999999302,
+            "generation": null
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "native-current",
+            "atMs": 843.5,
+            "generation": null,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "notify-called",
+            "atMs": 844.2999999999302,
+            "generation": null
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "native-ready-confirmed",
+            "atMs": 857.6999999999534,
+            "generation": null,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "state-restore-start",
+            "atMs": 861.6999999999534,
+            "generation": null
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "state-restore-complete",
+            "atMs": 887.7999999999302,
+            "generation": null
+          },
+          {
+            "runId": "0daeb8f7-180e-49fe-b8c2-d7b1a27e00fe",
+            "documentId": "61594ff1-50fd-4278-98f5-ba067ba96ed6",
+            "stage": "native-appReady-event",
+            "atMs": 978.2999999999302,
+            "generation": null,
+            "status": "disabled",
+            "version": "1.1.1-qa.64.readiness.1"
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 12,
+        "case": "first-offline",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "UFoTjeVrRu",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:59:29.726+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "entry",
+            "atMs": 1088.7000000000698,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213193067.9
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "adapters-ready",
+            "atMs": 1112.3000000000466,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "react-committed",
+            "atMs": 1125.7000000000698,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "native-current",
+            "atMs": 1142.0999999999767,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "pending"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "notify-called",
+            "atMs": 1142.2000000000698,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "native-ready-confirmed",
+            "atMs": 1153.5,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "state-restore-start",
+            "atMs": 1608.2000000000698,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "ae894bea-3aed-4ca3-a9e1-0aea96c443b8",
+            "stage": "state-restore-complete",
+            "atMs": 1712,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 12,
+        "case": "reload-offline",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "UFoTjeVrRu",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:59:29.726+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "entry",
+            "atMs": 423.79999999993015,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213199761.6
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "adapters-ready",
+            "atMs": 677.2999999999302,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "react-committed",
+            "atMs": 682.0999999999767,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "native-current",
+            "atMs": 684.6999999999534,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "notify-called",
+            "atMs": 684.6999999999534,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "native-appReady-event",
+            "atMs": 690.6999999999534,
+            "generation": 1,
+            "status": "disabled",
+            "version": "1.1.0"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "native-ready-confirmed",
+            "atMs": 694.0999999999767,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "state-restore-start",
+            "atMs": 726.8999999999069,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "state-restore-complete",
+            "atMs": 728.3999999999069,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 12,
+        "case": "resume-offline",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "UFoTjeVrRu",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:59:29.726+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "entry",
+            "atMs": 423.79999999993015,
+            "generation": 1,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213199761.6
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "adapters-ready",
+            "atMs": 677.2999999999302,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "react-committed",
+            "atMs": 682.0999999999767,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "native-current",
+            "atMs": 684.6999999999534,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "notify-called",
+            "atMs": 684.6999999999534,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "native-appReady-event",
+            "atMs": 690.6999999999534,
+            "generation": 1,
+            "status": "disabled",
+            "version": "1.1.0"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "native-ready-confirmed",
+            "atMs": 694.0999999999767,
+            "generation": 1,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "state-restore-start",
+            "atMs": 726.8999999999069,
+            "generation": 1
+          },
+          {
+            "runId": "9fd72b48-76fa-4394-bc5e-14a5473ff5fe",
+            "documentId": "a37c3423-a2e6-4100-bded-143a44d14fa4",
+            "stage": "state-restore-complete",
+            "atMs": 728.3999999999069,
+            "generation": 1
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      },
+      {
+        "profile": 12,
+        "case": "cold-online",
+        "dataEqual": true,
+        "current": {
+          "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+          "id": "UFoTjeVrRu",
+          "version": "1.1.1-qa.64.readiness.1",
+          "downloaded": "2026-10-17T04:59:29.726+0000",
+          "status": "success"
+        },
+        "trace": [
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "entry",
+            "atMs": 1299.9000000000233,
+            "generation": null,
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "documentStartedAt": 1792213207100.9
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "adapters-ready",
+            "atMs": 1683.5,
+            "generation": null
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "react-committed",
+            "atMs": 1888.5,
+            "generation": null
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "native-current",
+            "atMs": 1925.1999999999534,
+            "generation": null,
+            "version": "1.1.1-qa.64.readiness.1",
+            "expectedVersion": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "notify-called",
+            "atMs": 1925.5,
+            "generation": null
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "native-ready-confirmed",
+            "atMs": 1939.5,
+            "generation": null,
+            "version": "1.1.1-qa.64.readiness.1",
+            "status": "success"
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "native-appReady-event",
+            "atMs": 1942.5999999999767,
+            "generation": null,
+            "status": "disabled",
+            "version": "1.1.1-qa.64.readiness.1"
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "state-restore-start",
+            "atMs": 1948.5999999999767,
+            "generation": null
+          },
+          {
+            "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+            "documentId": "19aab869-e45b-4b47-bfd5-0d662baa0f50",
+            "stage": "state-restore-complete",
+            "atMs": 2115.0999999999767,
+            "generation": null
+          }
+        ],
+        "expected": "1.1.1-qa.64.readiness.1",
+        "apple": false
+      }
+    ]
+  },
+  "controlledRaf": {
+    "oldMid": {
+      "gate": {
+        "version": "1.1.1-qa.64.no-apple.1",
+        "held": 1
+      },
+      "marks": [
+        "moi-ritm:app-start",
+        "moi-ritm:first-render"
+      ]
+    },
+    "newResult": {
+      "gate": {
+        "version": "1.1.1-qa.64.readiness.1",
+        "held": 0
+      },
+      "trace": [
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "entry",
+          "atMs": 114.5,
+          "generation": 8,
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "documentStartedAt": 1792212629405.2
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "native-appReady-event",
+          "atMs": 125.20000000001164,
+          "generation": 8,
+          "status": "disabled",
+          "version": "1.1.1-qa.64.no-apple.1"
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "adapters-ready",
+          "atMs": 155.89999999999418,
+          "generation": 8
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "react-committed",
+          "atMs": 167.89999999999418,
+          "generation": 8
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "native-current",
+          "atMs": 172,
+          "generation": 8,
+          "version": "1.1.1-qa.64.readiness.1",
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "status": "pending"
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "notify-called",
+          "atMs": 172.20000000001164,
+          "generation": 8
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "native-ready-confirmed",
+          "atMs": 205.60000000000582,
+          "generation": 8,
+          "version": "1.1.1-qa.64.readiness.1",
+          "status": "success"
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "state-restore-start",
+          "atMs": 209.5,
+          "generation": 8
+        },
+        {
+          "runId": "37c30125-6797-4484-8eaf-512ec3734a09",
+          "documentId": "a89ac40a-a4bb-4c1d-8705-7bc1a98f1c02",
+          "stage": "state-restore-complete",
+          "atMs": 233.89999999999418,
+          "generation": 8
+        }
+      ]
+    },
+    "oldTimeoutMs": 30030,
+    "oldStressFallback": "Old same-ID SDK stress retried old held bundle then reset builtin; not a normal queue path or historical reconstruction"
+  },
+  "staleNativeReplay": {
+    "replay64": {
+      "old": {
+        "documentId": "19a21ecb-5684-4593-b285-c2b153963ad7",
+        "generation": 2
+      },
+      "newDocument": "c781247b-e925-41ef-9939-d65529e6c93d",
+      "newGeneration": 3,
+      "beforeStatus": "pending",
+      "afterStatus": "pending"
+    },
+    "replayAfter64": {
+      "current": {
+        "checksum": "662526eb87790a9a83e03f7998cc714a2c82f27f10b4a3fc3157ad589b123d2d",
+        "id": "UFoTjeVrRu",
+        "version": "1.1.1-qa.64.readiness.1",
+        "downloaded": "2026-10-17T04:59:29.726+0000",
+        "status": "success"
+      },
+      "trace": [
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "entry",
+          "atMs": 113.80000000004657,
+          "generation": 3,
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "documentStartedAt": 1792213289740.5
+        },
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "adapters-ready",
+          "atMs": 130.5,
+          "generation": 3
+        },
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "react-committed",
+          "atMs": 134,
+          "generation": 3
+        },
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "native-current",
+          "atMs": 137.70000000006985,
+          "generation": 3,
+          "version": "1.1.1-qa.64.readiness.1",
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "status": "pending"
+        },
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "notify-called",
+          "atMs": 138,
+          "generation": 3
+        },
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "native-ready-confirmed",
+          "atMs": 212.59999999997672,
+          "generation": 3,
+          "version": "1.1.1-qa.64.readiness.1",
+          "status": "success"
+        },
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "state-restore-start",
+          "atMs": 217.70000000006985,
+          "generation": 3
+        },
+        {
+          "runId": "1a6de2c9-a938-48dd-91ca-5460d9efecb1",
+          "documentId": "c781247b-e925-41ef-9939-d65529e6c93d",
+          "stage": "state-restore-complete",
+          "atMs": 219.80000000004657,
+          "generation": 3
+        }
+      ],
+      "expected": "1.1.1-qa.64.readiness.1",
+      "apple": false
+    }
+  },
+  "coldQueueTrace": [
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "c6da80b1-185a-4412-b11d-fea574d4bafd",
+      "stage": "entry",
+      "atMs": 655.5,
+      "generation": null,
+      "expectedVersion": "1.1.1-qa.64.readiness.1",
+      "documentStartedAt": 1792213299440.4
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "c6da80b1-185a-4412-b11d-fea574d4bafd",
+      "stage": "document-retiring",
+      "atMs": 680.6999999999534,
+      "generation": null,
+      "target": "UFoTjeVrRu"
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "entry",
+      "atMs": 126.19999999995343,
+      "generation": 1,
+      "expectedVersion": "1.1.1-qa.64.readiness.1",
+      "documentStartedAt": 1792213300133.2
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "adapters-ready",
+      "atMs": 134.59999999997672,
+      "generation": 1
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "react-committed",
+      "atMs": 143.29999999993015,
+      "generation": 1
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "native-current",
+      "atMs": 146.59999999997672,
+      "generation": 1,
+      "version": "1.1.1-qa.64.readiness.1",
+      "expectedVersion": "1.1.1-qa.64.readiness.1",
+      "status": "pending"
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "notify-called",
+      "atMs": 146.69999999995343,
+      "generation": 1
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "native-ready-confirmed",
+      "atMs": 177.69999999995343,
+      "generation": 1,
+      "version": "1.1.1-qa.64.readiness.1",
+      "status": "success"
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "state-restore-start",
+      "atMs": 190.5,
+      "generation": 1
+    },
+    {
+      "runId": "addd4480-5f68-4f56-b115-79c257909167",
+      "documentId": "8eaccaba-4977-4647-9711-84096b0a23a4",
+      "stage": "state-restore-complete",
+      "atMs": 220.59999999997672,
+      "generation": 1
+    }
+  ],
+  "rollback": {
+    "crash": {
+      "version": "1.1.1-qa.64.readiness.1",
+      "status": "success",
+      "fromBundle": "XxuK2g6cCD",
+      "reloadEpoch": 1792213377.122,
+      "rollbackEpoch": 1792213407.127,
+      "rollbackMs": 30005,
+      "dataEqual": true,
+      "trace": [
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "entry",
+          "atMs": 85.59999999997672,
+          "generation": 2,
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "documentStartedAt": 1792213407142.7
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "native-appReady-event",
+          "atMs": 90.29999999993015,
+          "generation": 2,
+          "status": "disabled",
+          "version": "1.1.1-qa.64.readiness.1"
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "adapters-ready",
+          "atMs": 97.19999999995343,
+          "generation": 2
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "react-committed",
+          "atMs": 104.90000000002328,
+          "generation": 2
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "native-current",
+          "atMs": 111.69999999995343,
+          "generation": 2,
+          "version": "1.1.1-qa.64.readiness.1",
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "status": "pending"
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "notify-called",
+          "atMs": 111.79999999993015,
+          "generation": 2
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "native-ready-confirmed",
+          "atMs": 129.69999999995343,
+          "generation": 2,
+          "version": "1.1.1-qa.64.readiness.1",
+          "status": "success"
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "state-restore-start",
+          "atMs": 278.79999999993015,
+          "generation": 2
+        },
+        {
+          "runId": "7e741850-f9ff-4ce1-b71d-e949d6746c99",
+          "documentId": "5b4298f3-92a1-4ee4-96d6-a6c324a274d7",
+          "stage": "state-restore-complete",
+          "atMs": 322,
+          "generation": 2
+        }
+      ]
+    },
+    "noReady": {
+      "version": "1.1.1-qa.64.readiness.1",
+      "status": "success",
+      "fromBundle": "CI8wpWXsbO",
+      "offline": true,
+      "reloadEpoch": 1792213432.432,
+      "rollbackEpoch": 1792213462.444,
+      "rollbackMs": 30012,
+      "dataEqual": true,
+      "trace": [
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "entry",
+          "atMs": 86.40000000002328,
+          "generation": 2,
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "documentStartedAt": 1792213462456.3
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "native-appReady-event",
+          "atMs": 93.40000000002328,
+          "generation": 2,
+          "status": "disabled",
+          "version": "1.1.1-qa.64.readiness.1"
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "adapters-ready",
+          "atMs": 106.59999999997672,
+          "generation": 2
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "react-committed",
+          "atMs": 118.59999999997672,
+          "generation": 2
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "native-current",
+          "atMs": 121.40000000002328,
+          "generation": 2,
+          "version": "1.1.1-qa.64.readiness.1",
+          "expectedVersion": "1.1.1-qa.64.readiness.1",
+          "status": "pending"
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "notify-called",
+          "atMs": 121.5,
+          "generation": 2
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "native-ready-confirmed",
+          "atMs": 235.09999999997672,
+          "generation": 2,
+          "version": "1.1.1-qa.64.readiness.1",
+          "status": "success"
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "state-restore-start",
+          "atMs": 253.79999999993015,
+          "generation": 2
+        },
+        {
+          "runId": "43e2dc39-387f-4414-bf8a-68c1df0a3584",
+          "documentId": "487112aa-f6b0-4d7d-a67b-a0e401ac8dd4",
+          "stage": "state-restore-complete",
+          "atMs": 296.9000000000233,
+          "generation": 2
+        }
+      ],
+      "metadataNote": "Existing no-JS fault ZIP; current compatibility metadata signed locally for QA only; ZIP and stable unchanged"
+    }
+  },
+  "cloudReadOnly": {
+    "status": 200,
+    "connected": true,
+    "count": 1
+  },
+  "waterManual": {
+    "water4": {
+      "stored": 4,
+      "text": "Вода — кружки по 300 мл\n1\n2\n3\n4\n5\n6\n4 кружки · 1,2 л\n4 из 6\nСбросить"
+    },
+    "water3": {
+      "stored": 3,
+      "text": "Вода — кружки по 300 мл\n1\n2\n3\n4\n5\n6\n3 кружки · 0,9 л\n3 из 6\nСбросить",
+      "apple": false
+    }
+  },
+  "pwaSmoke": {
+    "title": "Мой ритм",
+    "home": true,
+    "native": false,
+    "diagnostics": false,
+    "overflow": false,
+    "health": true,
+    "errors": []
+  },
+  "pause": {
+    "firstCdnObservation": {
+      "checkedAt": "2026-10-17T05:04:32.299Z",
+      "api": {
+        "sequence": 1792213458417,
+        "enabled": false,
+        "hasRelease": false
+      },
+      "rows": [
+        {
+          "query": false,
+          "status": 200,
+          "ms": 137,
+          "sequence": 1792212460347,
+          "enabled": true,
+          "hasRelease": true,
+          "equalsApi": false,
+          "sha256": "db974fcab244399428aa94432f95d08e67553181d50ffbb82dc3cf0a9b220d48",
+          "headers": {
+            "cache-control": "max-age=300",
+            "x-cache": "HIT",
+            "access-control-allow-origin": "*",
+            "age": null
+          }
+        },
+        {
+          "query": true,
+          "status": 200,
+          "ms": 78,
+          "sequence": 1792212460347,
+          "enabled": true,
+          "hasRelease": true,
+          "equalsApi": false,
+          "sha256": "db974fcab244399428aa94432f95d08e67553181d50ffbb82dc3cf0a9b220d48",
+          "headers": {
+            "cache-control": "max-age=300",
+            "x-cache": "HIT",
+            "access-control-allow-origin": "*",
+            "age": null
+          }
+        }
+      ]
+    },
+    "finalCdnObservation": {
+      "checkedAt": "2026-10-17T05:09:27.066Z",
+      "api": {
+        "sequence": 1792213458417,
+        "enabled": false,
+        "hasRelease": false
+      },
+      "stableStatus": 404,
+      "rows": [
+        {
+          "query": false,
+          "status": 200,
+          "ms": 360,
+          "sequence": 1792213458417,
+          "enabled": false,
+          "hasRelease": false,
+          "equalsApi": true,
+          "sha256": "0b25f9438b05694ad39f092e8a65d209c144a92329224d8837bd612533073f6f",
+          "headers": {
+            "cache-control": "max-age=300",
+            "x-cache": "MISS",
+            "access-control-allow-origin": "*",
+            "age": null
+          }
+        },
+        {
+          "query": true,
+          "status": 200,
+          "ms": 70,
+          "sequence": 1792213458417,
+          "enabled": false,
+          "hasRelease": false,
+          "equalsApi": true,
+          "sha256": "0b25f9438b05694ad39f092e8a65d209c144a92329224d8837bd612533073f6f",
+          "headers": {
+            "cache-control": "max-age=300",
+            "x-cache": "HIT",
+            "access-control-allow-origin": "*",
+            "age": null
+          }
+        }
+      ]
+    },
+    "androidWebView": {
+      "http": 200,
+      "sequence": 1792213458417,
+      "enabled": false,
+      "hasRelease": false,
+      "pending": "",
+      "lastCheck": "2026-10-17T05:09:35.957Z",
+      "uiPaused": true
+    }
+  },
+  "tests": {
+    "targeted": 38,
+    "frontend": 916,
+    "worker": 42,
+    "total": 958,
+    "files": 94,
+    "nativePolicy": 13,
+    "oxlint": "PASS",
+    "typescriptFrontend": "PASS",
+    "typescriptWorker": "PASS",
+    "pwaBuild": "PASS",
+    "androidWebBuild": "PASS",
+    "capacitorSync": "PASS",
+    "assembleDebug": "PASS",
+    "diagnosticsAbsentFromNormalAssets": true
+  },
+  "safety": {
+    "newApkRequired": false,
+    "stablePublished": false,
+    "mainChanged": false,
+    "samsungTouched": false,
+    "schemasChanged": false,
+    "userDataCleared": false,
+    "keysRegenerated": false
+  },
+  "finalAudit": {
+    "date": "2026-10-18",
+    "additionalFix": "Optional version metadata refresh cannot block state restoration after accepted native readiness; update errors remain visible in post-restore check",
+    "runtimeCandidateIncludesAdditionalFix": false,
+    "requiredBeforeSamsung": "Build and verify a new signed QA package from the final clean commit, then obtain separate canary authorization",
+    "targeted": 39,
+    "frontend": 917,
+    "worker": 42,
+    "total": 959,
+    "files": 94,
+    "fullSuiteSuccess": true,
+    "oxlint": "PASS",
+    "typescriptFrontend": "PASS",
+    "pwaBuild": "PASS",
+    "androidWebBuild": "PASS",
+    "capacitorSync": "PASS",
+    "compatibilityFingerprint": "3c2c2fbe08f870736e16c7d7ad009c407d3af0e7ea6788ddcffc7bb53c041385",
+    "pauseRecheck": {
+      "http": 200,
+      "sequence": 1792213458417,
+      "enabled": false,
+      "hasRelease": false,
+      "stableHttp": 404,
+      "serverDate": "Sun, 18 Oct 2026 04:14:31 GMT"
+    },
+    "secretAudit": {
+      "files": 10,
+      "issues": 0
+    }
+  }
+}

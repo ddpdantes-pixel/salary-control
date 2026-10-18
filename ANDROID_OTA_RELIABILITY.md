@@ -1,5 +1,8 @@
 # 64: расследование первого OTA bootstrap timeout
 
+Продолжение 17 октября: [readiness и limited canary review](ANDROID_OTA_READINESS.md).
+Ниже сохранён исторический результат предыдущей диагностики, не текущий rollout approval.
+
 Дата: 16 октября 2026. Исходники: `93a57cf695ec405019389c47687a3409d0aace4b`,
 ветка `feat/android-ota-64`. Итог: **BLOCKED для stable OTA**.
 

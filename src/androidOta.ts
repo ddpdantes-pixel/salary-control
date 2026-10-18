@@ -1,6 +1,7 @@
 import { registerPlugin } from '@capacitor/core'
 import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater'
 import { isNativeAndroid } from './platform'
+import { otaDiagnosticsEnabled, traceOtaBootstrap } from './otaBootstrapTrace'
 
 export interface OtaNativeState {
   nativeVersion: string
@@ -48,9 +49,12 @@ export interface OtaView {
 let view: OtaView = { nativeVersion: '', otaVersion: '', lastCheck: '', status: 'idle', message: '' }
 const subscribers = new Set<() => void>()
 let inFlight: Promise<void> | null = null
-let bootstrap: Promise<void> | null = null
+let bootstrap: Promise<boolean> | null = null
 let adaptersReady = false
 let bootstrapError = false
+let retiringDocument = false
+const expectedVersion = typeof document === 'undefined' ? '' :
+  document.querySelector<HTMLMetaElement>('meta[name="moyritm-ota-version"]')?.content ?? ''
 
 function update(next: Partial<OtaView>): void {
   view = { ...view, ...next }
@@ -63,19 +67,39 @@ export function subscribeOta(listener: () => void): () => void {
   return () => { subscribers.delete(listener) }
 }
 
-export function markNativeAdaptersReady(): void { adaptersReady = true }
+export function markNativeAdaptersReady(): void {
+  adaptersReady = true
+  traceOtaBootstrap('adapters-ready')
+}
 
 // Called before React mounts. Never called on resume, focus or during editing.
-export async function activateOtaOnColdStart(): Promise<void> {
-  if (!isNativeAndroid()) return
-  window.addEventListener('error', (event) => { if (event.error) bootstrapError = true })
-  window.addEventListener('unhandledrejection', () => { bootstrapError = true })
+export async function activateOtaOnColdStart(): Promise<boolean> {
+  if (!isNativeAndroid()) return true
+  traceOtaBootstrap('entry', { expectedVersion, documentStartedAt: performance.timeOrigin })
+  window.addEventListener('error', (event) => {
+    if (event.error) { bootstrapError = true; traceOtaBootstrap('bootstrap-error', { kind: 'error' }) }
+  })
+  window.addEventListener('unhandledrejection', () => {
+    bootstrapError = true
+    traceOtaBootstrap('bootstrap-error', { kind: 'unhandledrejection' })
+  })
+  if (otaDiagnosticsEnabled) {
+    void CapacitorUpdater.addListener('appReady', (event) => {
+      traceOtaBootstrap('native-appReady-event', { status: event.status, version: event.bundle.version })
+    }).catch(() => {})
+  }
   const { id } = await control.takePending()
+  if (!id) return true
+  // A set/reset response can arrive after a reload or its timeout. This document
+  // must never mount React or acknowledge the replacement, even if the call resolves.
+  retiringDocument = true
+  traceOtaBootstrap('document-retiring', { target: id })
   if (id === 'builtin') {
     await CapacitorUpdater.reset({ toLastSuccessful: false })
-  } else if (id) {
+  } else {
     await CapacitorUpdater.set({ id })
   }
+  return false
 }
 
 export async function refreshOtaView(): Promise<void> {
@@ -84,16 +108,34 @@ export async function refreshOtaView(): Promise<void> {
     lastCheck: state.lastCheck, ...(state.pending ? { status: 'pending' as const } : {}) })
 }
 
-export function confirmOtaBootstrapReady(): Promise<void> {
-  if (!isNativeAndroid()) return Promise.resolve()
+export function confirmOtaBootstrapReady(): Promise<boolean> {
+  if (!isNativeAndroid()) return Promise.resolve(true)
   bootstrap ??= (async () => {
-    // The caller has restored the existing app state; wait for its committed screen.
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
-    if (!adaptersReady || bootstrapError || !document.getElementById('root')?.firstElementChild) return
+    traceOtaBootstrap('react-committed')
+    if (!adaptersReady || bootstrapError || retiringDocument || !document.getElementById('root')?.firstElementChild) return false
+    const before = (await CapacitorUpdater.current()).bundle
+    const matchesDocument = (bundle: BundleInfo) => expectedVersion
+      ? bundle.id !== 'builtin' && bundle.version === expectedVersion
+      : bundle.id === 'builtin'
+    traceOtaBootstrap('native-current', { version: before.version, expectedVersion, status: before.status })
+    if (retiringDocument || bootstrapError || !matchesDocument(before)) return false
+    traceOtaBootstrap('notify-called')
     await CapacitorUpdater.notifyAppReady()
-    await refreshOtaView()
-    void checkOtaUpdates()
-  })().catch(() => { update({ status: 'error', message: 'Проверка обновлений недоступна. Локальные данные не изменялись.' }) })
+    // Capgo 8.53 may resolve a stale-generation call without accepting it.
+    // The current native status, not Promise resolution or appReady event, is the acknowledgement.
+    if (retiringDocument || bootstrapError) return false
+    const after = (await CapacitorUpdater.current()).bundle
+    const accepted = matchesDocument(after) && after.id === before.id && after.status === 'success'
+    traceOtaBootstrap(accepted ? 'native-ready-confirmed' : 'native-ready-rejected', { version: after.version, status: after.status })
+    if (!accepted) return false
+    // Version UI refresh belongs to the post-restore update check. Once native
+    // accepted this document, a metadata read must not strand the boot shell.
+    return true
+  })().catch(() => {
+    traceOtaBootstrap('bootstrap-failed')
+    update({ status: 'error', message: 'Проверка обновлений недоступна. Локальные данные не изменялись.' })
+    return false
+  })
   return bootstrap
 }
 

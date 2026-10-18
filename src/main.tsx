@@ -10,8 +10,9 @@ markAppStage('app-start')
 async function startApp(): Promise<void> {
   if (isNativeAndroid()) {
     const ota = await import('./androidOta')
-    try { await ota.activateOtaOnColdStart() } catch {
-      console.error('Не удалось активировать подготовленное обновление. Используется локальная версия.')
+    try { if (!await ota.activateOtaOnColdStart()) return } catch {
+      console.error('Не удалось активировать подготовленное обновление. Повторите запуск приложения.')
+      return
     }
     try {
       const { installNativeAdapters } = await import('./nativeAdapters')

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { registerSW } from 'virtual:pwa-register'
 import {
   createBackupData,
@@ -63,6 +63,8 @@ import type {
 } from './appNavigation'
 import { HealthScreen } from './HealthScreen'
 import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
+import { createEmptyHealthState } from './healthModel'
+import { traceOtaBootstrap } from './otaBootstrapTrace'
 import type { HealthState } from './healthTypes'
 import {
   createDefaultHealthSettings,
@@ -169,8 +171,8 @@ function App() {
   const [financeState, setFinanceState] = useState<FinanceState | null>(null)
   const [dailySalesState, setDailySalesState] =
     useState<DailySalesState | null>(null)
-  const [healthState, setHealthState] = useState<HealthState>(() => loadStoredHealthState().state)
-  const [healthSettings, setHealthSettings] = useState<HealthSettings>(loadStoredHealthSettings)
+  const [healthState, setHealthState] = useState<HealthState>(createEmptyHealthState)
+  const [healthSettings, setHealthSettings] = useState<HealthSettings>(createDefaultHealthSettings)
   const [cashAtHome, setCashAtHome] = useState(createEmptyCashAtHomeState)
   const [paymentNotificationSettings, setPaymentNotificationSettings] =
     useState(createDefaultPaymentNotificationSettings)
@@ -256,49 +258,57 @@ function App() {
     [currentMonth],
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
     let timer: number | undefined
-    const frame = window.requestAnimationFrame(() => {
-      timer = window.setTimeout(() => {
-        markAppStage('storage-restore-start')
-        const nextInitialState = loadInitialState()
-        const nextFinanceState = loadStoredFinanceState()
-        const nextDailySalesState = loadStoredDailySalesState()
-        const nextCashAtHome = loadStoredCashAtHomeState()
-        const nextNotificationSettings = loadStoredPaymentNotificationSettings()
-        const nextStorageMessage = [
-          ...nextInitialState.storageIssues,
-          ...consumeFinanceStorageIssues(),
-          ...consumeDailySalesStorageIssues(),
-          ...consumeCashAtHomeStorageIssues(),
-        ].join(' ')
-        markAppStage('storage-restore-ready')
+    const restore = () => {
+      if (cancelled) return
+      traceOtaBootstrap('state-restore-start')
+      markAppStage('storage-restore-start')
+      const nextInitialState = loadInitialState()
+      const nextFinanceState = loadStoredFinanceState()
+      const nextDailySalesState = loadStoredDailySalesState()
+      const nextCashAtHome = loadStoredCashAtHomeState()
+      const nextNotificationSettings = loadStoredPaymentNotificationSettings()
+      const nextStorageMessage = [
+        ...nextInitialState.storageIssues,
+        ...consumeFinanceStorageIssues(),
+        ...consumeDailySalesStorageIssues(),
+        ...consumeCashAtHomeStorageIssues(),
+      ].join(' ')
+      markAppStage('storage-restore-ready')
 
-        if (cancelled) return
-        setInitialState(nextInitialState)
-        setMonths(nextInitialState.months)
-        setSelectedMonthId(nextInitialState.selectedMonthId)
-        setFinanceState(nextFinanceState)
-        setDailySalesState(nextDailySalesState)
-        setCashAtHome(nextCashAtHome)
-        setPaymentNotificationSettings(nextNotificationSettings)
-        setStorageMessage(nextStorageMessage)
-        setIsBooting(false)
-      }, 0)
-    })
+      if (cancelled) return
+      setInitialState(nextInitialState)
+      setMonths(nextInitialState.months)
+      setSelectedMonthId(nextInitialState.selectedMonthId)
+      setFinanceState(nextFinanceState)
+      setDailySalesState(nextDailySalesState)
+      setCashAtHome(nextCashAtHome)
+      setPaymentNotificationSettings(nextNotificationSettings)
+      setHealthState(loadStoredHealthState().state)
+      setHealthSettings(loadStoredHealthSettings())
+      setStorageMessage(nextStorageMessage)
+      setIsBooting(false)
+      traceOtaBootstrap('state-restore-complete')
+    }
+    let frame: number | undefined
+    if (isNativeAndroid()) {
+      void import('./androidOta').then(async (ota) => {
+        if (!await ota.confirmOtaBootstrapReady() || cancelled) return
+        restore()
+        void ota.checkOtaUpdates()
+      })
+    } else {
+      frame = window.requestAnimationFrame(() => { timer = window.setTimeout(restore, 0) })
+    }
 
     return () => {
       cancelled = true
-      window.cancelAnimationFrame(frame)
+      if (frame !== undefined) window.cancelAnimationFrame(frame)
       window.clearTimeout(timer)
     }
   }, [])
-
-  useEffect(() => {
-    if (isBooting || !isNativeAndroid()) return
-    void import('./androidOta').then((ota) => ota.confirmOtaBootstrapReady())
-  }, [isBooting])
 
   useEffect(() => {
     if (isBooting || !shouldRegisterServiceWorker()) return

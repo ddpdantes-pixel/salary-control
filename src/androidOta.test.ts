@@ -16,6 +16,7 @@ const release = { version: '1.1.1-qa.64.1', buildId: 'qa64-first', url: 'https:/
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  document.querySelectorAll('meta[name="moyritm-ota-version"]').forEach((node) => node.remove())
   mocks.native = true
   mocks.state.pending = ''
   mocks.state.attemptedBuild = ''
@@ -173,5 +174,79 @@ describe('Android manual OTA control', () => {
     ota.markNativeAdaptersReady()
     await Promise.all([ota.confirmOtaBootstrapReady(), ota.confirmOtaBootstrapReady()])
     expect(mocks.updater.notifyAppReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('acknowledges a committed document even when animation frames never run, without fetching data or network', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    document.body.innerHTML = '<div id="root"><main>Boot shell</main></div>'
+    const ota = await import('./androidOta')
+    ota.markNativeAdaptersReady()
+    expect(await ota.confirmOtaBootstrapReady()).toBe(true)
+    expect(mocks.updater.notifyAppReady).toHaveBeenCalledTimes(1)
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('never lets a retiring document acknowledge its replacement, even if set resolves', async () => {
+    document.body.innerHTML = '<div id="root"><main>Old document</main></div>'
+    mocks.control.takePending.mockResolvedValue({ id: 'replacement' })
+    let finishSet!: () => void
+    mocks.updater.set.mockImplementationOnce(() => new Promise<void>((resolve) => { finishSet = resolve }))
+    const ota = await import('./androidOta')
+    ota.markNativeAdaptersReady()
+    const activation = ota.activateOtaOnColdStart()
+    await vi.waitFor(() => expect(mocks.updater.set).toHaveBeenCalled())
+    expect(await ota.confirmOtaBootstrapReady()).toBe(false)
+    finishSet()
+    expect(await activation).toBe(false)
+    expect(mocks.updater.notifyAppReady).not.toHaveBeenCalled()
+  })
+
+  it('does not gate accepted bootstrap on optional version metadata, but reports its later failure', async () => {
+    document.body.innerHTML = '<div id="root"><main>Boot shell</main></div>'
+    mocks.control.readState.mockRejectedValue(new Error('METADATA_UNAVAILABLE'))
+    const ota = await import('./androidOta')
+    ota.markNativeAdaptersReady()
+    expect(await ota.confirmOtaBootstrapReady()).toBe(true)
+    expect(mocks.control.readState).not.toHaveBeenCalled()
+    await ota.checkOtaUpdates()
+    expect(ota.getOtaView().status).toBe('error')
+    expect(mocks.updater.notifyAppReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a late readiness continuation when replacement begins during a bridge response', async () => {
+    document.body.innerHTML = '<div id="root"><main>Old document</main></div>'
+    let finishCurrent!: (value: unknown) => void
+    mocks.updater.current.mockImplementationOnce(() => new Promise((resolve) => { finishCurrent = resolve }))
+    mocks.control.takePending.mockResolvedValue({ id: 'replacement' })
+    const ota = await import('./androidOta')
+    ota.markNativeAdaptersReady()
+    const confirmation = ota.confirmOtaBootstrapReady()
+    await ota.activateOtaOnColdStart()
+    finishCurrent({ bundle: { id: 'builtin', version: '1.1.0', status: 'success' } })
+    expect(await confirmation).toBe(false)
+    expect(mocks.updater.notifyAppReady).not.toHaveBeenCalled()
+  })
+
+  it('rejects a native bundle that does not match this document metadata', async () => {
+    document.head.insertAdjacentHTML('beforeend', '<meta name="moyritm-ota-version" content="1.1.1-qa.document">')
+    document.body.innerHTML = '<div id="root"><main>Old document</main></div>'
+    mocks.updater.current.mockResolvedValue({ bundle: { id: 'other', version: '1.1.1-qa.other', status: 'pending' } })
+    const ota = await import('./androidOta')
+    ota.markNativeAdaptersReady()
+    expect(await ota.confirmOtaBootstrapReady()).toBe(false)
+    expect(mocks.updater.notifyAppReady).not.toHaveBeenCalled()
+  })
+
+  it('does not mistake a resolved but rejected native notification for acceptance', async () => {
+    document.head.insertAdjacentHTML('beforeend', '<meta name="moyritm-ota-version" content="1.1.1-qa.document">')
+    document.body.innerHTML = '<div id="root"><main>New document</main></div>'
+    mocks.updater.current.mockResolvedValue({ bundle: { id: 'new', version: '1.1.1-qa.document', status: 'pending' } })
+    mocks.updater.notifyAppReady.mockResolvedValue({ bundle: { id: 'new', status: 'pending' } })
+    const ota = await import('./androidOta')
+    ota.markNativeAdaptersReady()
+    expect(await ota.confirmOtaBootstrapReady()).toBe(false)
+    expect(mocks.updater.notifyAppReady).toHaveBeenCalledTimes(1)
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
