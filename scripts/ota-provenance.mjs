@@ -50,7 +50,8 @@ export function freshBuild(root) {
   try {
     const archive = join(workspace, 'source.tar'), checkout = join(workspace, 'source')
     mkdirSync(checkout)
-    run('git', ['archive', '--format=tar', '-o', archive, source.commit], root)
+    // Windows git archive otherwise applies the user's autocrlf conversion.
+    run('git', ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'archive', '--format=tar', '-o', archive, source.commit], root)
     run('tar', ['-xf', archive, '-C', checkout], root)
     // Do not inherit VITE_*, NODE_OPTIONS, BASE_PATH, credentials or custom build settings.
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|COMSPEC|TEMP|TMP|USERPROFILE|APPDATA|LOCALAPPDATA|PROGRAMFILES|PROGRAMFILES\(X86\))$/i.test(key)))
