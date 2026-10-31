@@ -70,19 +70,12 @@ describe('автоматическое завершение таймеров з�
     expect(window.localStorage.getItem('moi-ritm.health-state.v1')).toBe(firstSaved)
   })
 
-  it('полные 14 минут отмечают весь существующий комплекс расслабления', () => {
+  it('полные 14 минут не отмечают упражнения и не создают запись здоровья', () => {
     const timer = finishGymTimer('2026-07-21')
 
     const result = completeHealthTimer(timer, new Date('2026-07-21T22:00:00').getTime())
-    const relaxation = loadStoredHealthState().state.entries['2026-07-21'].relaxation
-
-    expect(result.status).toBe('completed')
-    expect(relaxation).toEqual({
-      ninetyNinety: true,
-      childPose: true,
-      butterfly: true,
-      figureFour: true,
-    })
+    expect(result.status).toBe('manual')
+    expect(loadStoredHealthState().state.entries['2026-07-21']).toBeUndefined()
   })
 
   it('остановка на 13:59 не считается завершением и ничего не отмечает', () => {
@@ -95,23 +88,22 @@ describe('автоматическое завершение таймеров з�
     expect(loadStoredHealthState().state.entries['2026-07-21']).toBeUndefined()
   })
 
-  it('при переходе через полночь сохраняет дату запуска и фактическое время завершения', () => {
+  it('при переходе через полночь не создаёт записи ни на одну дату', () => {
     const timer = finishGymTimer('2026-07-21')
     const completedAt = new Date('2026-07-22T00:03:00').getTime()
 
     completeHealthTimer(timer, completedAt)
     const saved = loadStoredHealthState().state
 
-    expect(saved.entries['2026-07-21']).toBeDefined()
+    expect(saved.entries['2026-07-21']).toBeUndefined()
     expect(saved.entries['2026-07-22']).toBeUndefined()
-    expect(saved.entries['2026-07-21'].updatedAt).toBe(new Date(completedAt).toISOString())
   })
 
   it('не перезаписывает повреждённые данные здоровья пустым состоянием', () => {
     window.localStorage.setItem('moi-ritm.health-state.v1', '{damaged')
     const timer = finishGymTimer('2026-07-21')
 
-    expect(completeHealthTimer(timer, 840_000).status).toBe('save-failed')
+    expect(completeHealthTimer(timer, 840_000).status).toBe('manual')
     expect(window.localStorage.getItem('moi-ritm.health-state.v1')).toBe('{damaged')
   })
 })

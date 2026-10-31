@@ -45,6 +45,7 @@ describe('устойчивые таймеры здоровья', () => {
 
   it('использует этапы 5 / 1 / 1 / 2 / 5 минут, всего 14 минут', () => {
     expect(GYM_TIMER_STAGES.map((stage) => stage.seconds)).toEqual([300, 60, 60, 120, 300])
+    expect(GYM_TIMER_STAGES.map(stage => stage.title)).toEqual(['Поза ребёнка', 'Фигура «4», левая нога', 'Фигура «4», правая нога', 'Бабочка', '90/90'])
     expect(GYM_TIMER_STAGES.reduce((total, stage) => total + stage.seconds, 0)).toBe(840)
   })
 
@@ -99,5 +100,11 @@ describe('устойчивые таймеры здоровья', () => {
     saveActiveHealthTimer(createActiveTimer('face', 0))
     clearActiveHealthTimer()
     expect(window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)).toBeNull()
+  })
+  it('не повторяет завершение и сохраняет действительную границу при запоздавшем обновлении',()=>{
+    const result=advanceActiveTimer(createActiveTimer('gym',0),900000)
+    expect(result.timer.completedAt).toBe(840000)
+    expect(result.event).toMatchObject({final:true,late:true})
+    expect(advanceActiveTimer(result.timer,1000000).event).toBeNull()
   })
 })

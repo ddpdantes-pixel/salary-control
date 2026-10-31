@@ -8,14 +8,13 @@ import {
 } from './cosmetology'
 import {
   createHealthEntry,
-  markAllRelaxation,
   updateHealthEntry,
   upsertHealthEntry,
 } from './healthModel'
 import { loadStoredHealthSettings } from './healthSettings'
 import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
 import type { ActiveHealthTimer } from './healthTimer'
-import type { HealthEntry, HealthState } from './healthTypes'
+import type { HealthState } from './healthTypes'
 
 export const HEALTH_TIMER_COMPLETION_EVENT = 'moi-ritm:health-timer-completed'
 
@@ -25,6 +24,7 @@ export type HealthTimerCompletionStatus =
   | 'incomplete'
   | 'not-found'
   | 'save-failed'
+  | 'manual'
 
 export interface HealthTimerCompletionResult {
   status: HealthTimerCompletionStatus
@@ -43,6 +43,9 @@ export function completeHealthTimer(
       entryDate: null,
     }
   }
+  if (timer.kind === 'gym') {
+    return { status: 'manual', message: 'Отметьте выполненные упражнения вручную.', entryDate: null }
+  }
   const stored = loadStoredHealthState()
   const settings = loadStoredHealthSettings()
   const completionDate = getLocalDateId(completedAt)
@@ -52,24 +55,6 @@ export function completeHealthTimer(
       message: 'Таймер завершён, но отметку здоровья сохранить не удалось',
       entryDate: null,
     }
-  }
-
-  if (timer.kind === 'gym') {
-    const currentEntry = stored.state.entries[timer.dateId] ?? createHealthEntry(timer.dateId)
-    const markedEntry = markAllRelaxation(currentEntry, settings)
-    if (sameRelaxation(currentEntry, markedEntry)) {
-      return {
-        status: 'already-completed',
-        message: 'Вечерняя гимнастика отмечена в здоровье',
-        entryDate: timer.dateId,
-      }
-    }
-    const nextEntry = updateHealthEntry(currentEntry, () => markedEntry, toIsoString(completedAt))
-    return persistCompletion(
-      upsertHealthEntry(stored.state, nextEntry),
-      'Вечерняя гимнастика отмечена в здоровье',
-      timer.dateId,
-    )
   }
 
   let state = reconcileCosmetologyDebts(stored.state, settings, completionDate)
@@ -147,13 +132,6 @@ function persistCompletion(
     detail: { entryDate },
   }))
   return { status: 'completed', message, entryDate }
-}
-
-function sameRelaxation(left: HealthEntry, right: HealthEntry): boolean {
-  return Object.keys(left.relaxation).every((key) =>
-    left.relaxation[key as keyof HealthEntry['relaxation']] ===
-      right.relaxation[key as keyof HealthEntry['relaxation']],
-  )
 }
 
 function getLocalDateId(timestamp: number): string {

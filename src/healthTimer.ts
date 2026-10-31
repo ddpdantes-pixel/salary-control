@@ -29,11 +29,11 @@ export interface TimerAdvanceEvent {
 }
 
 export const GYM_TIMER_STAGES = [
-  { title: '90/90', seconds: 300, totalSeconds: 300 },
-  { title: 'Переход', seconds: 60, totalSeconds: 360 },
-  { title: 'Бабочка', seconds: 60, totalSeconds: 420 },
-  { title: 'Фигура 4', seconds: 120, totalSeconds: 540 },
-  { title: 'Поза ребёнка', seconds: 300, totalSeconds: 840 },
+  { title: 'Поза ребёнка', seconds: 300, totalSeconds: 300 },
+  { title: 'Фигура «4», левая нога', seconds: 60, totalSeconds: 360 },
+  { title: 'Фигура «4», правая нога', seconds: 60, totalSeconds: 420 },
+  { title: 'Бабочка', seconds: 120, totalSeconds: 540 },
+  { title: '90/90', seconds: 300, totalSeconds: 840 },
 ] as const
 
 const FACE_APPROACH_SECONDS = 20
@@ -99,9 +99,9 @@ export function advanceActiveTimer(
           completedStages: GYM_TIMER_STAGES.length,
           stageEndTimestamp: null,
           pausedRemainingMs: null,
-          completedAt: now,
+          completedAt: stageEndTimestamp,
         },
-        event: { kind: 'gym', completedStages, final: true, late: completedStages > 1 },
+        event: { kind: 'gym', completedStages, final: true, late: completedStages > 1 || now - stageEndTimestamp > 2000 },
       }
     }
     stageIndex += 1
@@ -110,7 +110,7 @@ export function advanceActiveTimer(
 
   return {
     timer: { ...timer, stageIndex, completedStages: timer.completedStages + completedStages, stageEndTimestamp },
-    event: { kind: 'gym', completedStages, final: false, late: completedStages > 1 },
+    event: { kind: 'gym', completedStages, final: false, late: completedStages > 1 || now - (stageEndTimestamp - getStageSeconds('gym', stageIndex) * 1000) > 2000 },
   }
 }
 
@@ -145,7 +145,7 @@ export function startNextFaceApproach(timer: ActiveHealthTimer, now = Date.now()
 }
 
 export function getTimerTitle(kind: HealthTimerKind): string {
-  return kind === 'face' ? 'Лицо в холодную воду' : 'Вечерняя гимнастика'
+  return kind === 'face' ? 'Лицо в холодную воду' : 'Растяжка — 14 минут'
 }
 
 export function getTimerDisplayRemaining(timer: ActiveHealthTimer, now = Date.now()): number {

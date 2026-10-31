@@ -1791,6 +1791,14 @@
 .health-timer-remaining { color: var(--accent); font-size: clamp(34px, 12vw, 48px); font-weight: 850; line-height: 1; font-variant-numeric: tabular-nums; }
 .health-timer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .health-timer-actions button { flex: 1 1 130px; }
+.health-stretch-timer { margin-top: 12px; }
+.health-stretch-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.health-stretch-times > span { display: grid; gap: 3px; color: var(--muted); font-size: 12px; }
+.health-stretch-times output { font-size: 24px; font-weight: 750; color: var(--text); font-variant-numeric: tabular-nums; }
+.health-stretch-options { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.health-stretch-options label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 13px; }
+.health-stretch-timer button { min-height: 44px; }
+.health-stretch-timer small { line-height: 1.4; }
 
 .health-screen .section-tabs button {
   display: inline-flex;

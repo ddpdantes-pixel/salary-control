@@ -38,6 +38,7 @@ import type { HealthHistoryNavigationState } from './healthHistory'
 import type { HealthAttachment } from './healthAttachments'
 import { getTimerDisplayRemaining, getTimerTitle } from './healthTimer'
 import type { HealthTimerController } from './useHealthTimer'
+import StretchTimer from './StretchTimer'
 import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
 import { shareHealthReport, shareHealthReportForChatGpt } from './healthShare'
 import type { HealthShareResult } from './healthShare'
@@ -791,6 +792,7 @@ function HealthToday({
         >
           Отметить всё выполненным
         </button>
+        {timerController && <StretchTimer controller={timerController} />}
       </HealthBlock>
 
       <HealthBlock icon="pulse" title="Симптомы" className="health-symptoms-block">
@@ -1423,7 +1425,7 @@ function FaceCoolWaterTimer({ timer }: { timer: HealthTimerController }) {
     {faceTimer?.status === 'completed' ? <><p>Все 3 подхода завершены</p><button type="button" onClick={() => timer.restart('face')}>Начать заново</button></> : faceTimer?.status === 'paused' ? <div className="health-timer-actions"><button type="button" onClick={timer.nextFaceApproach}>Следующий подход</button><button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button></div> : faceTimer?.status === 'running' ? <button type="button" className="secondary" onClick={() => setStopConfirmation(true)}>Остановить</button> : <button type="button" onClick={() => timer.requestStart('face')}>Начать 20 секунд</button>}
     {timer.notice && <div className="health-timer-notice" role="status"><span>{timer.notice}</span><button type="button" aria-label="Закрыть сообщение таймера" onClick={timer.dismissNotice}>Закрыть</button></div>}
     {timer.audioWarning && <div className="health-timer-audio-warning" role="alert"><span>{timer.audioWarning}</span><button type="button" aria-label="Закрыть предупреждение о звуке" onClick={timer.dismissAudioWarning}>Закрыть</button></div>}
-    {timer.pendingStart && timer.timer && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="timer-start-title"><h2 id="timer-start-title">Сейчас уже работает таймер «{getTimerTitle(timer.timer.kind)}». Остановить его и запустить новый?</h2><div className="dialog-actions"><button type="button" className="primary-action" onClick={timer.confirmStart}>Остановить и запустить</button><button type="button" onClick={timer.cancelStart}>Отмена</button></div></section></div>}
+    {timer.pendingStart === 'face' && timer.timer && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="timer-start-title"><h2 id="timer-start-title">Сейчас уже работает таймер «{getTimerTitle(timer.timer.kind)}». Остановить его и запустить новый?</h2><div className="dialog-actions"><button type="button" className="primary-action" onClick={timer.confirmStart}>Остановить и запустить</button><button type="button" onClick={timer.cancelStart}>Отмена</button></div></section></div>}
     {stopConfirmation && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="timer-stop-title"><h2 id="timer-stop-title">Остановить таймер? Текущий прогресс будет сброшен</h2><div className="dialog-actions"><button type="button" className="primary-action" onClick={() => { timer.stop(); setStopConfirmation(false) }}>Остановить</button><button type="button" onClick={() => setStopConfirmation(false)}>Отмена</button></div></section></div>}
   </div>
 }

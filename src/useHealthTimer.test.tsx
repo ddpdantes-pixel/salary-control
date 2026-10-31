@@ -3,6 +3,11 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ACTIVE_TIMER_STORAGE_KEY } from './healthTimer'
 import { useHealthTimer } from './useHealthTimer'
+import { acquireTimerScreen } from './timerScreenAwake'
+
+vi.mock('./timerScreenAwake',()=>({acquireTimerScreen:vi.fn(async()=>async()=>{})}))
+vi.mock('./stretchAudio',()=>({prepareStretchAudio:vi.fn(async()=>true),signalStretchTimer:vi.fn(async()=>true),cancelStretchSignal:vi.fn()}))
+import { prepareStretchAudio, signalStretchTimer, cancelStretchSignal } from './stretchAudio'
 
 const mocks = vi.hoisted(() => ({
   completeHealthTimer: vi.fn(() => ({
@@ -35,6 +40,9 @@ describe('контроллер таймеров здоровья', () => {
     mocks.signalHealthTimer.mockClear()
     mocks.unlockTimerAudio.mockClear()
     mocks.resumeTimerAudio.mockClear()
+    vi.mocked(signalStretchTimer).mockClear()
+    vi.mocked(prepareStretchAudio).mockClear()
+    vi.mocked(cancelStretchSignal).mockClear()
     vi.useFakeTimers()
     vi.setSystemTime(startedAt)
     Object.defineProperty(document, 'visibilityState', {
@@ -93,12 +101,14 @@ describe('контроллер таймеров здоровья', () => {
       await moveTo(startedAt + seconds * 1_000)
     }
 
-    expect(mocks.signalHealthTimer).toHaveBeenCalledTimes(5)
-    expect(mocks.signalHealthTimer.mock.calls.map(([final]) => final)).toEqual([
+    expect(signalStretchTimer).toHaveBeenCalledTimes(5)
+    expect(vi.mocked(signalStretchTimer).mock.calls.map(([final]) => final)).toEqual([
       false, false, false, false, true,
     ])
     expect(mocks.completeHealthTimer).toHaveBeenCalledOnce()
-    expect(result.current.notice).toContain('Вечерняя гимнастика завершена')
+    expect(result.current.notice).toContain('Растяжка завершена')
+    expect(prepareStretchAudio).toHaveBeenCalledOnce()
+    expect(mocks.unlockTimerAudio).not.toHaveBeenCalled()
   })
 
   it('после позднего возврата не проигрывает очередь пропущенных сигналов', async () => {
@@ -107,7 +117,7 @@ describe('контроллер таймеров здоровья', () => {
 
     await moveTo(startedAt + 430_000)
 
-    expect(mocks.signalHealthTimer).toHaveBeenCalledOnce()
+    expect(signalStretchTimer).not.toHaveBeenCalled()
     expect(result.current.timer).toMatchObject({ stageIndex: 3, status: 'running' })
   })
 
@@ -134,12 +144,62 @@ describe('контроллер таймеров здоровья', () => {
       'Safari не разрешил воспроизведение. Нажмите кнопку ещё раз и проверьте громкость мультимедиа',
     )
   })
+  it('пауза/продолжение сохраняют остаток, остановка отменяет звук, повторный старт идёт с начала',async()=>{
+    const {result}=renderHook(()=>useHealthTimer())
+    act(()=>result.current.requestStart('gym'));await moveTo(startedAt+120000)
+    act(()=>result.current.pause());expect(result.current.timer?.pausedRemainingMs).toBe(180000)
+    vi.setSystemTime(startedAt+600000);act(()=>result.current.resume())
+    expect(result.current.timer?.stageEndTimestamp).toBe(startedAt+780000)
+    act(()=>result.current.stop());expect(result.current.timer).toBeNull();expect(cancelStretchSignal).toHaveBeenCalled()
+    act(()=>result.current.restart('gym'));expect(result.current.timer?.stageIndex).toBe(0)
+  })
+  it('не заменяет другой таймер без подтверждения',()=>{
+    const {result}=renderHook(()=>useHealthTimer())
+    act(()=>result.current.requestStart('face'));act(()=>result.current.requestStart('gym'))
+    expect(result.current.timer?.kind).toBe('face');expect(result.current.pendingStart).toBe('gym')
+    act(()=>result.current.confirmStart());expect(result.current.timer?.kind).toBe('gym')
+  })
+  it('после фона восстанавливает этап без ретроспективного сигнала',async()=>{
+    const {result}=renderHook(()=>useHealthTimer())
+    act(()=>result.current.requestStart('gym'))
+    vi.setSystemTime(startedAt+430000)
+    await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve()})
+    expect(result.current.timer?.stageIndex).toBe(3);expect(signalStretchTimer).not.toHaveBeenCalled()
+  })
+  it('освобождает экран на паузе и после остановки',async()=>{
+    const release=vi.fn(async()=>{})
+    vi.mocked(acquireTimerScreen).mockResolvedValue(release)
+    const {result}=renderHook(()=>useHealthTimer())
+    await act(async()=>result.current.requestStart('gym'))
+    expect(result.current.screenAwake).toBe('active')
+    await act(async()=>result.current.pause());expect(release).toHaveBeenCalledOnce()
+    await act(async()=>result.current.resume());await act(async()=>result.current.stop())
+    expect(release).toHaveBeenCalledTimes(2)
+  })
+  it('освобождает поздно полученную блокировку уже остановленного таймера',async()=>{
+    let resolve!:(release:()=>Promise<void>)=>void
+    vi.mocked(acquireTimerScreen).mockImplementationOnce(()=>new Promise(done=>{resolve=done}))
+    const release=vi.fn(async()=>{}),{result}=renderHook(()=>useHealthTimer())
+    act(()=>result.current.requestStart('gym'));act(()=>result.current.stop())
+    await act(async()=>resolve(release));expect(release).toHaveBeenCalledOnce();expect(result.current.screenAwake).toBe('off')
+  })
+  it('держит экран до окончания финального звука, затем освобождает',async()=>{
+    let finish!:(played:boolean)=>void
+    vi.mocked(signalStretchTimer).mockImplementation(async final=>final?new Promise(resolve=>{finish=resolve}):true)
+    const release=vi.fn(async()=>{});vi.mocked(acquireTimerScreen).mockResolvedValue(release)
+    const {result}=renderHook(()=>useHealthTimer())
+    await act(async()=>result.current.requestStart('gym'))
+    for(const second of [300,360,420,540,840])await moveTo(startedAt+second*1000)
+    expect(result.current.timer?.status).toBe('completed');expect(release).not.toHaveBeenCalled()
+    await act(async()=>finish(true));expect(release).toHaveBeenCalledOnce()
+    vi.mocked(signalStretchTimer).mockResolvedValue(true)
+  })
 })
 
 async function moveTo(timestamp: number): Promise<void> {
-  vi.setSystemTime(timestamp)
+  vi.setSystemTime(timestamp-250)
   await act(async () => {
-    document.dispatchEvent(new Event('visibilitychange'))
+    vi.advanceTimersByTime(250)
     await Promise.resolve()
   })
 }
