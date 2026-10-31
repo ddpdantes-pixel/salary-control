@@ -40,6 +40,7 @@ const previous = existing.ok ? await existing.json() : null
 const oldEnvelope = previous ? JSON.parse(Buffer.from(previous.content, 'base64').toString('utf8')) : null
 const privateKey = createPrivateKey(readFileSync(join(homedir(), 'AndroidKeys/MoyRitmOTA/moyritm-ota.private.pem')))
 const finalEnvelope = prepareChannel(raw, oldEnvelope, keys.capgo, privateKey)
+const finalPayloadSha256 = sha256(Buffer.from(finalEnvelope.payload))
 const reference = await request(`https://api.github.com/repos/${repo}/git/ref/heads/${channelBranch}`)
 if (reference.status === 404) {
   const branch = spawnSync('git', ['push', 'origin', `HEAD:refs/heads/${channelBranch}`], { cwd: root, encoding: 'utf8' })
@@ -50,7 +51,7 @@ else if (!previous) throw new Error('Existing channel branch has no authenticate
 // A release tag/asset is never overwritten. The channel pointer is published LAST.
 const release = await api('/releases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
   tag_name: build.tag, target_commitish: channelBranch, name: `Android OTA ${build.channel}: ${build.version}`, draft: false, prerelease: !stable,
-  body: `Immutable Android web-only bundle. Channel ${build.channel}. Build ${raw.release.buildId}. Payload SHA-256 ${build.payloadSha256}. No APK or user data.`,
+  body: `Immutable Android web-only bundle. Channel ${build.channel}. Build ${raw.release.buildId}. Final channel payload SHA-256 ${finalPayloadSha256}. No APK or user data.`,
 }) })
 const upload = await request(`https://uploads.github.com/repos/${repo}/releases/${release.id}/assets?name=web.zip`, {
   method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: bytes,
@@ -70,6 +71,7 @@ await api('/contents/channel.json', { method: 'PUT', headers: { 'Content-Type': 
   message: `ota(${build.channel}): promote verified ${build.version}`, branch: channelBranch,
   content: Buffer.from(JSON.stringify(finalEnvelope, null, 2) + '\n').toString('base64'), ...(previous ? { sha: previous.sha } : {}),
 }) })
+writeFileSync(join(directory, 'published-channel.json'), JSON.stringify(finalEnvelope, null, 2) + '\n')
 writeFileSync(join(directory, 'publication.json'), JSON.stringify({ release: release.html_url, asset: asset.browser_download_url,
-  channel: `https://raw.githubusercontent.com/${repo}/${channelBranch}/channel.json`, verifiedSha256: build.encryptedSha256 }, null, 2) + '\n')
+  channel: `https://raw.githubusercontent.com/${repo}/${channelBranch}/channel.json`, finalPayloadSha256, verifiedSha256: build.encryptedSha256 }, null, 2) + '\n')
 console.log(`Published isolated ${build.channel} bundle and then channel. Main/Pages unchanged. ${release.html_url}`)
