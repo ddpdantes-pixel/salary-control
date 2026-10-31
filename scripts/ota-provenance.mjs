@@ -13,8 +13,10 @@ function run(command, args, cwd, env = process.env) {
 export function sourceIdentity(root) {
   if (run('git', ['status', '--porcelain', '--untracked-files=all'], root)) throw new Error('OTA requires a clean committed source tree')
   if (run('git', ['ls-files', '--stage'], root).split('\n').some(line => /^(120000|160000) /.test(line))) throw new Error('Source symlinks/submodules are not supported')
+  const lock = spawnSync('git', ['show', 'HEAD:pnpm-lock.yaml'], { cwd: root, maxBuffer: 16 * 1024 * 1024 })
+  if (lock.status !== 0) throw new Error('Cannot read committed dependency lock')
   return { commit: run('git', ['rev-parse', 'HEAD'], root), tree: run('git', ['rev-parse', 'HEAD^{tree}'], root),
-    lockSha256: sha256(readFileSync(join(root, 'pnpm-lock.yaml'))) }
+    lockSha256: sha256(lock.stdout) }
 }
 export function assetHashes(directory) {
   const result = {}
@@ -53,17 +55,19 @@ export function freshBuild(root) {
     // Do not inherit VITE_*, NODE_OPTIONS, BASE_PATH, credentials or custom build settings.
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|COMSPEC|TEMP|TMP|USERPROFILE|APPDATA|LOCALAPPDATA|PROGRAMFILES|PROGRAMFILES\(X86\))$/i.test(key)))
     run(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['install', '--frozen-lockfile', '--ignore-scripts', '--offline'], checkout, env)
+    if (sha256(readFileSync(join(checkout, 'pnpm-lock.yaml'))) !== source.lockSha256) throw new Error('Build lock differs from committed source')
+    const pnpm = run(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['--version'], checkout, env)
     run(process.execPath, ['node_modules/typescript/bin/tsc', '-b'], checkout, env)
     run(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--mode', 'android'], checkout, env)
     if (JSON.stringify(sourceIdentity(root)) !== JSON.stringify(source)) throw new Error('Source changed during build')
     const assets = join(checkout, 'dist-android')
     const originalAssets = assetHashes(assets)
     if (originalAssets['ota-provenance.json']) throw new Error('Source assets use reserved OTA provenance filename')
-    return { source, workspace, assets, originalAssets, cleanup: () => rmSync(workspace, { recursive: true, force: true }) }
+    return { source, workspace, assets, originalAssets, pnpm, cleanup: () => rmSync(workspace, { recursive: true, force: true }) }
   } catch (error) { rmSync(workspace, { recursive: true, force: true }); throw error }
 }
 export function provenanceFor(build, version, fault) {
-  return { protocol: 1, source: build.source, toolchain: { node: process.version, platform: process.platform, arch: process.arch },
+  return { protocol: 1, source: build.source, toolchain: { node: process.version, pnpm: build.pnpm, platform: process.platform, arch: process.arch },
     command: 'tsc -b && vite build --mode android', version, fault: fault ?? null,
     originalAssets: build.originalAssets, packagedAssets: assetHashes(build.assets) }
 }
