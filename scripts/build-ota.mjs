@@ -1,10 +1,11 @@
-import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, readdirSync, lstatSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { homedir } from 'node:os'
 import { createPrivateKey } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { protectBundle, publicKeys, sha256, signChannel, verifyChannel } from './ota-crypto.mjs'
 import { verifyCompatibility } from './ota-compatibility.mjs'
+import { freshBuild, transformAssets, provenanceFor, createZip } from './ota-provenance.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const compatibility = verifyCompatibility(root)
@@ -25,36 +26,18 @@ const buildId = args.id ?? `${Date.now()}-${version}`
 if (!/^[A-Za-z0-9._-]{1,100}$/.test(buildId) || buildId.includes('..')) throw new Error('Invalid build id')
 const output = resolve(root, 'ota-output', channel, buildId)
 if (existsSync(output)) throw new Error('Immutable output already exists; choose a new build id')
-const source = resolve(root, args.assets ?? 'android/app/src/main/assets/public')
-if (!existsSync(join(source, 'index.html'))) throw new Error('Build and sync Android assets before packaging')
-function checkAssets(directory) {
-  for (const name of readdirSync(directory)) {
-    const path = join(directory, name)
-    const info = lstatSync(path)
-    if (info.isSymbolicLink() || (!info.isFile() && !info.isDirectory())) throw new Error('Symlinks and special files are not OTA web assets')
-    if (info.isDirectory()) checkAssets(path)
-    else if (!/\.(?:html|css|js|json|svg|png|jpg|jpeg|webp|ico|wav|woff2?|ttf|txt|webmanifest)$/.test(name) ||
-      /(?:^sw\.js$|workbox-|\.private\.|\.env)/i.test(name)) throw new Error(`Disallowed Android web asset: ${name}`)
-  }
-}
-checkAssets(source)
-mkdirSync(output, { recursive: true })
-const assets = join(output, 'web')
-cpSync(source, assets, { recursive: true })
-// Bind the executing document to the authenticated manifest version, without a fetch.
-const htmlPath = join(assets, 'index.html')
-let html = readFileSync(htmlPath, 'utf8')
-if (html.includes('name="moyritm-ota-version"') || !html.includes('<head>')) throw new Error('Missing head or already packaged OTA assets')
-html = html.replace('<head>', `<head><meta name="moyritm-ota-version" content="${version}">`)
-writeFileSync(htmlPath, html)
-if (fault === 'crash') writeFileSync(join(assets, 'index.html'), '<!doctype html><html><body><script>throw new Error("QA64_BOOTSTRAP_CRASH")</script></body></html>')
-if (fault === 'no-ready') writeFileSync(join(assets, 'index.html'), '<!doctype html><html><body>QA64: no readiness acknowledgement</body></html>')
+if (args.assets) throw new Error('External assets are forbidden; OTA builds from committed source only')
+const fresh = freshBuild(root)
+let provenance
+try {
+  transformAssets(fresh.assets, version, fault)
+  provenance = provenanceFor(fresh, version, fault)
+  writeFileSync(join(fresh.assets, 'ota-provenance.json'), JSON.stringify(provenance) + '\n')
+  mkdirSync(output, { recursive: true })
+  cpSync(fresh.assets, join(output, 'web'), { recursive: true })
+  createZip(fresh.assets, join(output, 'web-plain.zip'))
+} finally { fresh.cleanup() }
 const plainZip = join(output, 'web-plain.zip')
-// Use the platform ZIP implementation, not a hand-written archive encoder.
-const zip = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-  '$ErrorActionPreference="Stop"; Add-Type -AssemblyName System.IO.Compression,System.IO.Compression.FileSystem; $z=[IO.Compression.ZipFile]::Open($env:OTA_ZIP_TARGET,[IO.Compression.ZipArchiveMode]::Create); try { Get-ChildItem -LiteralPath $env:OTA_ZIP_SOURCE -Recurse -File | Sort-Object FullName | ForEach-Object { $name=$_.FullName.Substring($env:OTA_ZIP_SOURCE.Length+1).Replace([char]92,[char]47); [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z,$_.FullName,$name,[IO.Compression.CompressionLevel]::Optimal) | Out-Null } } finally { $z.Dispose() }'],
-{ cwd: root, env: { ...process.env, OTA_ZIP_SOURCE: assets, OTA_ZIP_TARGET: plainZip }, stdio: 'pipe' })
-if (zip.status !== 0) throw new Error(`Cannot create OTA ZIP: ${String(zip.stderr).slice(0, 800)}`)
 const privateFile = join(homedir(), 'AndroidKeys', 'MoyRitmOTA', 'moyritm-ota.private.pem')
 const key = createPrivateKey(readFileSync(privateFile))
 const expected = JSON.parse(readFileSync(join(root, 'ota', 'public-key.json'), 'utf8'))
@@ -88,6 +71,7 @@ if (!fault) verifyChannel(envelope, expected.capgo)
 writeFileSync(join(output, 'web.zip'), protectedBundle.bytes, { flag: 'wx' })
 writeFileSync(join(output, 'channel.json'), JSON.stringify(envelope, null, 2) + '\n', { flag: 'wx' })
 writeFileSync(join(output, 'build.json'), JSON.stringify({ channel, tag, version, sequence, fault: fault ?? null,
-  baseCommit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(),
+  baseCommit: provenance.source.commit, sourceTree: provenance.source.tree,
+  provenanceSha256: sha256(Buffer.from(JSON.stringify(provenance) + '\n')),
   payloadSha256: sha256(Buffer.from(envelope.payload)), encryptedSha256: protectedBundle.encryptedSha256 }, null, 2) + '\n', { flag: 'wx' })
 console.log(`Prepared ${channel} bundle: ${output}. Nothing published.`)

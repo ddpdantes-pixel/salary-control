@@ -34,6 +34,6 @@ describe('OTA native and data compatibility gate', () => {
     expect(script).toContain("!== 'main'")
     expect(script.indexOf('Published bundle verification failed')).toBeGreaterThan(0)
     expect(script.indexOf('Published bundle verification failed')).toBeLessThan(script.indexOf("await api('/contents/channel.json'"))
-    expect(source('scripts/build-ota.mjs')).toContain('.Replace([char]92,[char]47)')
+    expect(source('scripts/ota-provenance.mjs')).toContain('.Replace([char]92,[char]47)')
   })
 })

@@ -4,7 +4,9 @@ import { homedir } from 'node:os'
 import { createPrivateKey } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { githubClient } from './ota-github.mjs'
-import { signChannel, verifyChannel, sha256 } from './ota-crypto.mjs'
+import { verifyChannel, sha256 } from './ota-crypto.mjs'
+import { prepareChannel, validateChannel } from './ota-channel-policy.mjs'
+import { verifyPackage } from './ota-provenance.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const [channel, action, target] = process.argv.slice(2)
@@ -16,11 +18,17 @@ const privateKey = createPrivateKey(readFileSync(join(homedir(), 'AndroidKeys/Mo
 const { api } = githubClient(root)
 const branch = `android-ota-${channel}`
 const previous = await api(`/contents/channel.json?ref=${branch}`)
-const old = verifyChannel(JSON.parse(Buffer.from(previous.content, 'base64').toString('utf8')), keys.capgo)
+const oldEnvelope = JSON.parse(Buffer.from(previous.content, 'base64').toString('utf8'))
+const old = validateChannel(verifyChannel(oldEnvelope, keys.capgo), channel)
 let value = old
 if (action === 'promote-existing') {
   value = verifyChannel(JSON.parse(readFileSync(join(resolve(target), 'channel.json'), 'utf8')), keys.capgo)
-  if (value.channel !== channel) throw new Error('Channel mismatch')
+  validateChannel(value, channel)
+  const build = JSON.parse(readFileSync(join(resolve(target), 'build.json'), 'utf8'))
+  if (build.fault) throw new Error('Cannot promote QA fault fixtures')
+  verifyPackage(root, resolve(target), build, value, keys.capgo)
+  // Reject revoked releases before even fetching their immutable asset.
+  prepareChannel(value, oldEnvelope, keys.capgo, privateKey, { renew: true })
   const download = await fetch(value.release.url, { signal: AbortSignal.timeout(60000) })
   if (!download.ok || sha256(Buffer.from(await download.arrayBuffer())) !== value.release.encryptedSha256) throw new Error('Existing immutable asset verification failed; pointer unchanged')
 } else {
@@ -31,9 +39,7 @@ if (action === 'promote-existing') {
   }
   delete value.release
 }
-const now = Date.now()
-value = { ...value, sequence: Math.max(now, old.sequence + 1), issuedAt: new Date(now).toISOString(), expiresAt: new Date(now + 7 * 86400000).toISOString() }
-const envelope = signChannel(value, privateKey)
+const envelope = prepareChannel(value, oldEnvelope, keys.capgo, privateKey, { renew: true })
 verifyChannel(envelope, keys.capgo)
 await api('/contents/channel.json', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
   message: `ota(${channel}): ${action}`, branch, sha: previous.sha, content: Buffer.from(JSON.stringify(envelope, null, 2) + '\n').toString('base64'),
