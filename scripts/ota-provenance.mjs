@@ -58,6 +58,7 @@ export function freshBuild(root) {
     if (JSON.stringify(sourceIdentity(root)) !== JSON.stringify(source)) throw new Error('Source changed during build')
     const assets = join(checkout, 'dist-android')
     const originalAssets = assetHashes(assets)
+    if (originalAssets['ota-provenance.json']) throw new Error('Source assets use reserved OTA provenance filename')
     return { source, workspace, assets, originalAssets, cleanup: () => rmSync(workspace, { recursive: true, force: true }) }
   } catch (error) { rmSync(workspace, { recursive: true, force: true }); throw error }
 }

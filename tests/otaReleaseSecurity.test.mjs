@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync, mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { readFileSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, utimesSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -124,7 +124,9 @@ describe('source and ZIP provenance barriers', () => {
   it('creates byte-identical ZIPs despite changed input timestamps and rejects alien assets', () => {
     const assets = join(temp, 'assets'); mkdirSync(assets); writeFileSync(join(assets, 'index.html'), '<head></head>')
     const first = join(temp, 'first.zip'), second = join(temp, 'second.zip')
-    createZip(assets, first); createZip(assets, second)
+    createZip(assets, first)
+    utimesSync(join(assets, 'index.html'), new Date('2010-01-01'), new Date('2026-01-01'))
+    createZip(assets, second)
     expect(readFileSync(first)).toEqual(readFileSync(second))
     writeFileSync(join(assets, 'credential.env'), 'forbidden')
     expect(() => assetHashes(assets)).toThrow('Disallowed')
