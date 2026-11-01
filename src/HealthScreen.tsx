@@ -10,6 +10,7 @@ import { CompactStepper } from './CompactStepper'
 import { IconQuantityPicker } from './IconQuantityPicker'
 import {
   FACE_COOL_WATER_PROCEDURE_ID,
+  FACE_SCRUB_PROCEDURE_ID,
   activateCosmetologyDebt,
   getCosmetologyDebtProcedures,
   getCosmetologyForDate,
@@ -1238,6 +1239,7 @@ function HealthToday({
                   }} />
                   <span><strong>{procedure.durationLabel ? `${procedure.title} — ${procedure.durationLabel}` : procedure.title}</strong></span>
                 </label>
+                {procedure.id === FACE_SCRUB_PROCEDURE_ID && <small className="health-muted">{procedure.instruction}</small>}
                 {procedure.id === FACE_COOL_WATER_PROCEDURE_ID && timerController && <FaceCoolWaterTimer timer={timerController} />}
               </div>
             })}

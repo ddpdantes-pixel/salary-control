@@ -24,6 +24,21 @@ vi.mock('./healthChatGptShare', () => ({
 }))
 
 describe('экран здоровья сегодня', () => {
+  it('keeps the Thursday face scrub manual and restores its checkbox without changing Friday', async () => {
+    const first = render(<HealthScreen />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-11-05' } })
+    const scrub = await screen.findByRole('checkbox', { name: 'Скраб для лица' }) as HTMLInputElement
+    expect(scrub.checked).toBe(false)
+    expect(screen.getByText('Не использовать при раздражении кожи или до восстановления после пилинга')).toBeTruthy()
+    fireEvent.click(scrub)
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(HEALTH_STATE_KEY) ?? '{}').entries?.['2026-11-05']?.cosmetology?.['face-scrub']).toBe(true))
+    first.unmount()
+    render(<HealthScreen />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-11-05' } })
+    expect((await screen.findByRole('checkbox', { name: 'Скраб для лица' }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-11-06' } })
+    expect(screen.queryByRole('checkbox', { name: 'Скраб для лица' })).toBeNull()
+  })
   beforeEach(() => {
     window.localStorage.clear()
     window.history.replaceState(null, '', '/')

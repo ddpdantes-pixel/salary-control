@@ -219,6 +219,7 @@ function App() {
     return false
   })
   const healthTimer = useHealthTimer()
+  const [bootstrapFailed, setBootstrapFailed] = useState(false)
   const didMountRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
   const financeDidMountRef = useRef(false)
@@ -298,6 +299,8 @@ function App() {
         if (!await ota.confirmOtaBootstrapReady() || cancelled) return
         restore()
         void ota.checkOtaUpdates()
+      }).catch(() => {
+        if (!cancelled) setBootstrapFailed(true)
       })
     } else {
       frame = window.requestAnimationFrame(() => { timer = window.setTimeout(restore, 0) })
@@ -450,6 +453,11 @@ function App() {
   }, [financeState, isBooting, paymentNotificationSettings])
 
   if (isBooting || !dailySalesState) {
+    if (bootstrapFailed) return <main className="app"><section role="alert">
+      <h1>Не удалось открыть сохранённые данные</h1>
+      <p>Запись данных остановлена. Попробуйте открыть приложение снова. Сохранённые данные не очищались.</p>
+      <button type="button" onClick={() => window.location.reload()}>Повторить открытие</button>
+    </section></main>
     return <AppLoadingShell openingOperation={calendarNavigationTarget !== null} />
   }
 

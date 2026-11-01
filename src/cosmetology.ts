@@ -17,6 +17,15 @@ export interface CosmetologyDebtCandidate {
 }
 
 export const FACE_COOL_WATER_PROCEDURE_ID = 'face-cool-water'
+export const FACE_SCRUB_PROCEDURE_ID = 'face-scrub'
+export const FACE_SCRUB_INSTRUCTION = 'Не использовать при раздражении кожи или до восстановления после пилинга'
+
+// A fixed manual checklist item, not a new persisted settings schema. Keeping it
+// outside settings prevents the APK 3 normalizer from dropping its configuration.
+function faceScrubPlanned(): PlannedCosmeticProcedure {
+  return { id: FACE_SCRUB_PROCEDURE_ID, title: 'Скраб для лица', instruction: FACE_SCRUB_INSTRUCTION,
+    durationLabel: '', timerSeconds: null, overdue: false }
+}
 
 export function getCosmetologyForDate(
   settings: HealthSettings,
@@ -28,6 +37,8 @@ export function getCosmetologyForDate(
       ? isClayMaskScheduled(settings, item, dateId)
       : isCosmeticScheduled(item, dateId))
     .map(toPlanned))
+  if (getWeekdayForDate(dateId) === 'thursday' &&
+      !settings.cosmetology.procedures.some(item => item.id === FACE_SCRUB_PROCEDURE_ID)) scheduled.push(faceScrubPlanned())
   const intervals = settings.cosmetology.intervals
     .filter((item) => item.active && item.nextDate !== null && item.nextDate <= dateId)
     .map((item) => intervalPlanned(item, dateId))
@@ -35,6 +46,7 @@ export function getCosmetologyForDate(
     .filter((id) => !HIDDEN_LEGACY_PROCEDURE_IDS.has(id))
     .filter((id) => !scheduled.some((item) => item.id === id) && !intervals.some((item) => item.id === id))
     .map((id) => {
+      if (id === FACE_SCRUB_PROCEDURE_ID) return faceScrubPlanned()
       const known = settings.cosmetology.procedures.find((item) => item.id === id)
         ?? settings.cosmetology.intervals.find((item) => item.id === id)
       return { id, title: known?.title ?? id, instruction: 'Сохранённая отметка', durationLabel: '', timerSeconds: null, overdue: false }
@@ -61,7 +73,7 @@ function simplifyCosmetologyProcedures(
       if (item.id === 'neutralizer-timer') {
         return { ...item, title: 'Нейтрализатор', instruction: '', durationLabel: '4 минуты' }
       }
-      return { ...item, instruction: '' }
+      return { ...item, instruction: item.id === FACE_SCRUB_PROCEDURE_ID ? FACE_SCRUB_INSTRUCTION : '' }
     })
 
   if (!simplified.some((item) => item.id === 'blood-peel-timer')) {
@@ -172,6 +184,8 @@ export function getCosmetologyDebtCandidates(
   }
 
   const candidates = procedures
+    // Do not invent historical overdue obligations for the newly added manual item.
+    .filter((item) => item.id !== FACE_SCRUB_PROCEDURE_ID)
     .filter((item) => !HIDDEN_LEGACY_PROCEDURE_IDS.has(item.id))
     .filter((item) => !bloodPeel || !bloodPeelIds.includes(item.id) || item.id === 'blood-peel-timer')
     .map((item) => ({ procedureId: item.id, title: item.title, procedureIds: [item.id] }))

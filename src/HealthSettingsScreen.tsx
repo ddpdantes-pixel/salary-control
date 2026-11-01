@@ -360,6 +360,7 @@ export function HealthSettingsScreen({
       </SettingsGroup>
 
       <SettingsGroup title="Косметология">
+        <p className="health-muted">Скраб для лица — по четвергам, ручная отметка в чек-листе. Не использовать при раздражении кожи или до восстановления после пилинга.</p>
         <p className="health-muted">Расписание не создаёт отметки задним числом. Выполнение остаётся в истории выбранного дня.</p>
         <div className="health-settings-workouts">
           {draft.cosmetology.procedures.map((item) => (
