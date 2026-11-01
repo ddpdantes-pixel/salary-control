@@ -126,6 +126,7 @@ import { useHealthTimer } from './useHealthTimer'
 import { useModalScrollLock } from './useModalScrollLock'
 
 import './App.css'
+import './aurora-wellness.css'
 import { isNativeAndroid, shouldRegisterServiceWorker } from './platform'
 import { useNativeBack } from './nativeBack'
 
