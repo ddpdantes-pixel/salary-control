@@ -2,6 +2,7 @@ import { registerPlugin } from '@capacitor/core'
 import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater'
 import { isNativeAndroid } from './platform'
 import { otaDiagnosticsEnabled, traceOtaBootstrap } from './otaBootstrapTrace'
+import { prepareHealthTimerForBuiltinRollback } from './healthTimer'
 
 export interface OtaNativeState {
   nativeVersion: string
@@ -95,6 +96,7 @@ export async function activateOtaOnColdStart(): Promise<boolean> {
   retiringDocument = true
   traceOtaBootstrap('document-retiring', { target: id })
   if (id === 'builtin') {
+    prepareHealthTimerForBuiltinRollback()
     await CapacitorUpdater.reset({ toLastSuccessful: false })
   } else {
     await CapacitorUpdater.set({ id })

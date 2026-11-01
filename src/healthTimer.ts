@@ -1,4 +1,6 @@
 export const ACTIVE_TIMER_STORAGE_KEY = 'moi-ritm.active-timer.v1'
+// Official 1.1.0 reads only v1 and would otherwise reinterpret the new plan.
+export const GYM_TIMER_V2_STORAGE_KEY = 'moi-ritm.active-gym-timer.v2'
 export const TIMER_PREFERENCES_STORAGE_KEY = 'moi-ritm.timer-preferences.v1'
 
 export type HealthTimerKind = 'face' | 'gym'
@@ -184,7 +186,9 @@ export function loadActiveHealthTimer(): ActiveHealthTimer | null {
 export function loadHealthTimerSession(): { timer: ActiveHealthTimer | null; notice: string | null } {
   const stopped = { timer: null, notice: 'Сохранённый сеанс таймера остановлен: его состояние не удалось восстановить. Отметки здоровья не изменены.' }
   try {
-    const raw = window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)
+    // A session created by builtin after a downgrade takes precedence.
+    const raw = window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY) ??
+      window.localStorage.getItem(GYM_TIMER_V2_STORAGE_KEY)
     if (!raw) return { timer: null, notice: null }
     const timer = normalizeTimer(JSON.parse(raw))
     return timer ? { timer, notice: null } : stopped
@@ -195,7 +199,11 @@ export function loadHealthTimerSession(): { timer: ActiveHealthTimer | null; not
 
 export function saveActiveHealthTimer(timer: ActiveHealthTimer): boolean {
   try {
-    window.localStorage.setItem(ACTIVE_TIMER_STORAGE_KEY, JSON.stringify(timer))
+    const currentKey = timer.kind === 'gym' && timer.gymPlanVersion === 2
+      ? GYM_TIMER_V2_STORAGE_KEY : ACTIVE_TIMER_STORAGE_KEY
+    const otherKey = currentKey === ACTIVE_TIMER_STORAGE_KEY ? GYM_TIMER_V2_STORAGE_KEY : ACTIVE_TIMER_STORAGE_KEY
+    window.localStorage.setItem(currentKey, JSON.stringify(timer))
+    window.localStorage.removeItem(otherKey)
     return true
   } catch {
     return false
@@ -205,8 +213,18 @@ export function saveActiveHealthTimer(timer: ActiveHealthTimer): boolean {
 export function clearActiveHealthTimer(): void {
   try {
     window.localStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY)
+    window.localStorage.removeItem(GYM_TIMER_V2_STORAGE_KEY)
   } catch {
     // Timer state is an optional convenience and must not break the checklist.
+  }
+}
+
+// Only the cold-start document retiring to builtin calls this. A background
+// revocation check must not pause an exercise or interrupt the current screen.
+export function prepareHealthTimerForBuiltinRollback(now = Date.now()): void {
+  const { timer } = loadHealthTimerSession()
+  if (timer?.kind === 'gym' && timer.gymPlanVersion === 2) {
+    saveActiveHealthTimer(pauseActiveTimer(timer, now))
   }
 }
 

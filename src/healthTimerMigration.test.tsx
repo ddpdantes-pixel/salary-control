@@ -5,6 +5,7 @@ import {
   ACTIVE_TIMER_STORAGE_KEY, advanceActiveTimer, createActiveTimer, getGymTimerStages,
   getTimerDisplayRemaining, getTimerTotalRemaining, loadHealthTimerSession,
   pauseActiveTimer, resumeActiveTimer, saveActiveHealthTimer,
+  GYM_TIMER_V2_STORAGE_KEY, prepareHealthTimerForBuiltinRollback, clearActiveHealthTimer,
 } from './healthTimer'
 import { useHealthTimer } from './useHealthTimer'
 import StretchTimer from './StretchTimer'
@@ -32,6 +33,40 @@ beforeEach(() => { localStorage.clear(); vi.useFakeTimers(); vi.setSystemTime(st
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe('legacy plan migration', () => {
+  it('keeps the new plan outside the only timer key understood by official builtin', () => {
+    store(fixture(2, true))
+    const fresh = createActiveTimer('gym', start)
+    expect(saveActiveHealthTimer(fresh)).toBe(true)
+    expect(localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)).toBeNull()
+    expect(JSON.parse(localStorage.getItem(GYM_TIMER_V2_STORAGE_KEY)!)).toEqual(fresh)
+    expect(loadHealthTimerSession().timer).toEqual(fresh)
+    prepareHealthTimerForBuiltinRollback(start + 15_000)
+    expect(loadHealthTimerSession().timer).toEqual({ ...fresh, status: 'paused', stageEndTimestamp: null, pausedRemainingMs: 285_000 })
+    expect(localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)).toBeNull()
+  })
+
+  it('gives a subsequent builtin session priority and never merges the plans', () => {
+    saveActiveHealthTimer(createActiveTimer('gym', start))
+    store(fixture(3, true))
+    const legacy = loadHealthTimerSession().timer!
+    expect(legacy.gymPlanVersion).toBe(1)
+    expect(getGymTimerStages(legacy)[3].title).toBe('Фигура 4')
+    saveActiveHealthTimer(legacy)
+    expect(localStorage.getItem(GYM_TIMER_V2_STORAGE_KEY)).toBeNull()
+    prepareHealthTimerForBuiltinRollback()
+    expect(loadHealthTimerSession().timer).toEqual(legacy)
+  })
+
+  it('migrates a prepublication version-2 session out of v1 without changing its fields', () => {
+    const fresh = createActiveTimer('gym', start)
+    store(fresh)
+    saveActiveHealthTimer(loadHealthTimerSession().timer!)
+    expect(localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)).toBeNull()
+    expect(loadHealthTimerSession().timer).toEqual(fresh)
+    clearActiveHealthTimer()
+    expect(localStorage.getItem(GYM_TIMER_V2_STORAGE_KEY)).toBeNull()
+  })
+
   for (const paused of [false, true]) for (let index = 0; index < 5; index++) {
     it(`preserves ${paused ? 'paused' : 'running'} legacy stage ${index} across reload and midnight`, () => {
       const old = fixture(index, paused); store(old)

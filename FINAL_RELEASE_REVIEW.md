@@ -3,6 +3,10 @@
 Состав: Android/OTA №62–64, security/provenance, versioned timer sessions,
 новый 14-минутный комплекс и фиксированный ручной «Скраб для лица» по четвергам.
 
+Новый план таймера использует отдельный optional v2-ключ, недоступный старому builtin.
+Перед штатным cold rollback он приостанавливается; legacy/face используют прежний ключ.
+Это устраняет переименование сохранённого этапа при downgrade без изменения business schema.
+
 Git-история всех доступных refs не содержит прежнего face-scrub/«Скраб для лица».
 Используется один новый ID face-scrub в существующей карте cosmetology отметок.
 Схема HealthState/backup/HealthSettings и pinned native baseline не меняются.

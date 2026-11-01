@@ -16,6 +16,7 @@ const release = { version: '1.1.1-qa.64.1', buildId: 'qa64-first', url: 'https:/
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  localStorage.clear()
   document.querySelectorAll('meta[name="moyritm-ota-version"]').forEach((node) => node.remove())
   mocks.native = true
   mocks.state.pending = ''
@@ -157,6 +158,23 @@ describe('Android manual OTA control', () => {
     await ota.checkOtaUpdates()
     expect(mocks.control.queue).toHaveBeenCalledWith({ id: 'builtin' })
     expect(mocks.updater.reset).not.toHaveBeenCalled()
+  })
+
+  it('pauses only a new-plan timer at cold builtin activation, not while queueing a revoke', async () => {
+    const timer = await import('./healthTimer')
+    timer.saveActiveHealthTimer(timer.createActiveTimer('gym'))
+    mocks.updater.current.mockResolvedValue({ bundle: { id: 'bad-active', version: 'revoked', status: 'success' } })
+    mocks.control.verifyManifest.mockResolvedValue({ enabled: false, revokedVersions: ['revoked'] })
+    const ota = await import('./androidOta')
+    await ota.checkOtaUpdates()
+    expect(timer.loadActiveHealthTimer()?.status).toBe('running')
+    mocks.control.takePending.mockResolvedValue({ id: 'builtin' })
+    mocks.updater.reset.mockImplementation(async () => {
+      expect(timer.loadActiveHealthTimer()?.status).toBe('paused')
+      expect(localStorage.getItem(timer.ACTIVE_TIMER_STORAGE_KEY)).toBeNull()
+    })
+    await ota.activateOtaOnColdStart()
+    expect(mocks.updater.reset).toHaveBeenCalledWith({ toLastSuccessful: false })
   })
 
   it('does not acknowledge readiness until adapters and a committed screen are ready', async () => {
