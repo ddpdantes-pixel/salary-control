@@ -1,4 +1,4 @@
-import { GYM_TIMER_STAGES, getTimerDisplayRemaining, getTimerTitle, getTimerTotalRemaining } from './healthTimer'
+import { getGymTimerStages, getTimerDisplayRemaining, getTimerTitle, getTimerTotalRemaining } from './healthTimer'
 import type { HealthTimerController } from './useHealthTimer'
 import { HealthIcon } from './HealthIcon'
 
@@ -8,7 +8,7 @@ export default function StretchTimer({ controller }: { controller: HealthTimerCo
   return <div className={`health-inline-timer health-stretch-timer ${active && !complete ? 'is-active' : ''}`} aria-label="Таймер растяжки">
     <div className="health-inline-timer-heading"><HealthIcon name="timer" /><span>Таймер растяжки — 14 минут</span></div>
     {active && !complete && <>
-      <strong>{GYM_TIMER_STAGES[active.stageIndex].title}</strong>
+      <strong>{getGymTimerStages(active)[active.stageIndex].title}</strong>
       <span className="health-muted">Этап {active.stageIndex + 1} из 5{active.status === 'paused' ? ' · Пауза' : ''}</span>
       <div className="health-stretch-times">
         <span>Осталось в этапе<output aria-label="Осталось в этапе">{formatTime(getTimerDisplayRemaining(active, controller.now))}</output></span>

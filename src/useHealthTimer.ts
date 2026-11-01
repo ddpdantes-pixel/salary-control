@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   advanceActiveTimer,
-  GYM_TIMER_STAGES,
+  getGymTimerStages,
   getTimerTotalRemaining,
   clearActiveHealthTimer,
   createActiveTimer,
-  loadActiveHealthTimer,
+  loadHealthTimerSession,
   loadTimerPreferences,
   pauseActiveTimer,
   resumeActiveTimer,
@@ -45,12 +45,13 @@ export interface HealthTimerController {
 }
 
 export function useHealthTimer(): HealthTimerController {
-  const [timer, setTimer] = useState<ActiveHealthTimer | null>(loadActiveHealthTimer)
+  const [session] = useState(loadHealthTimerSession)
+  const [timer, setTimer] = useState<ActiveHealthTimer | null>(session.timer)
   const [now, setNow] = useState(Date.now())
   const [preferences, setPreferences] = useState<TimerPreferences>(loadTimerPreferences)
   const [audioReady, setAudioReady] = useState(false)
   const [audioWarning, setAudioWarning] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(session.notice)
   const [pendingStart, setPendingStart] = useState<HealthTimerKind | null>(null)
   const [screenAwake, setScreenAwake] = useState<'off' | 'requesting' | 'active' | 'unavailable'>('off')
   const [visibilityRevision, setVisibilityRevision] = useState(0)
@@ -92,7 +93,7 @@ export function useHealthTimer(): HealthTimerController {
       setNotice(`Во время отсутствия завершено этапов: ${result.event.completedStages}.`)
     } else if (result.event.kind === 'gym') {
       const nextStageTitle = result.timer.kind === 'gym'
-        ? GYM_TIMER_STAGES[result.timer.stageIndex].title
+        ? getGymTimerStages(result.timer)[result.timer.stageIndex].title
         : null
       setNotice(`Этап завершён. Далее: ${nextStageTitle ?? 'следующий этап'}.`)
     } else {

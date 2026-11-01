@@ -5,6 +5,7 @@ export type HealthTimerKind = 'face' | 'gym'
 export type HealthTimerStatus = 'idle' | 'running' | 'paused' | 'completed'
 
 export interface ActiveHealthTimer {
+  gymPlanVersion?: 1 | 2
   kind: HealthTimerKind
   status: Exclude<HealthTimerStatus, 'idle'>
   startedAt: number
@@ -36,6 +37,19 @@ export const GYM_TIMER_STAGES = [
   { title: '90/90', seconds: 300, totalSeconds: 840 },
 ] as const
 
+export const LEGACY_GYM_TIMER_STAGES = [
+  { title: '90/90', seconds: 300, totalSeconds: 300 },
+  { title: 'Переход', seconds: 60, totalSeconds: 360 },
+  { title: 'Бабочка', seconds: 60, totalSeconds: 420 },
+  { title: 'Фигура 4', seconds: 120, totalSeconds: 540 },
+  { title: 'Поза ребёнка', seconds: 300, totalSeconds: 840 },
+] as const
+
+// Unversioned persisted sessions come from the official pre-OTA plan.
+export function getGymTimerStages(timer: Pick<ActiveHealthTimer, 'gymPlanVersion'>) {
+  return timer.gymPlanVersion === 2 ? GYM_TIMER_STAGES : LEGACY_GYM_TIMER_STAGES
+}
+
 const FACE_APPROACH_SECONDS = 20
 
 export function createActiveTimer(
@@ -44,6 +58,7 @@ export function createActiveTimer(
   dateId = getLocalDateId(now),
 ): ActiveHealthTimer {
   return {
+    ...(kind === 'gym' ? { gymPlanVersion: 2 as const } : {}),
     kind,
     status: 'running',
     startedAt: now,
@@ -86,17 +101,18 @@ export function advanceActiveTimer(
   }
 
   let stageIndex = timer.stageIndex
+  const stages = getGymTimerStages(timer)
   let stageEndTimestamp = timer.stageEndTimestamp
   let completedStages = 0
   while (now >= stageEndTimestamp) {
     completedStages += 1
-    if (stageIndex === GYM_TIMER_STAGES.length - 1) {
+    if (stageIndex === stages.length - 1) {
       return {
         timer: {
           ...timer,
           status: 'completed',
           stageIndex,
-          completedStages: GYM_TIMER_STAGES.length,
+          completedStages: stages.length,
           stageEndTimestamp: null,
           pausedRemainingMs: null,
           completedAt: stageEndTimestamp,
@@ -105,12 +121,12 @@ export function advanceActiveTimer(
       }
     }
     stageIndex += 1
-    stageEndTimestamp += getStageSeconds('gym', stageIndex) * 1000
+    stageEndTimestamp += stages[stageIndex].seconds * 1000
   }
 
   return {
     timer: { ...timer, stageIndex, completedStages: timer.completedStages + completedStages, stageEndTimestamp },
-    event: { kind: 'gym', completedStages, final: false, late: completedStages > 1 || now - (stageEndTimestamp - getStageSeconds('gym', stageIndex) * 1000) > 2000 },
+    event: { kind: 'gym', completedStages, final: false, late: completedStages > 1 || now - (stageEndTimestamp - stages[stageIndex].seconds * 1000) > 2000 },
   }
 }
 
@@ -129,7 +145,7 @@ export function resumeActiveTimer(timer: ActiveHealthTimer, now = Date.now()): A
   return {
     ...timer,
     status: 'running',
-    stageEndTimestamp: now + (timer.pausedRemainingMs ?? getStageSeconds(timer.kind, timer.stageIndex) * 1000),
+    stageEndTimestamp: now + (timer.pausedRemainingMs ?? getGymTimerStages(timer)[timer.stageIndex].seconds * 1000),
     pausedRemainingMs: null,
   }
 }
@@ -158,16 +174,22 @@ export function getTimerDisplayRemaining(timer: ActiveHealthTimer, now = Date.no
 export function getTimerTotalRemaining(timer: ActiveHealthTimer, now = Date.now()): number {
   const current = getTimerDisplayRemaining(timer, now)
   if (timer.kind === 'face') return current
-  return current + GYM_TIMER_STAGES.slice(timer.stageIndex + 1).reduce((total, stage) => total + stage.seconds, 0)
+  return current + getGymTimerStages(timer).slice(timer.stageIndex + 1).reduce((total, stage) => total + stage.seconds, 0)
 }
 
 export function loadActiveHealthTimer(): ActiveHealthTimer | null {
+  return loadHealthTimerSession().timer
+}
+
+export function loadHealthTimerSession(): { timer: ActiveHealthTimer | null; notice: string | null } {
+  const stopped = { timer: null, notice: 'Сохранённый сеанс таймера остановлен: его состояние не удалось восстановить. Отметки здоровья не изменены.' }
   try {
     const raw = window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY)
-    if (!raw) return null
-    return normalizeTimer(JSON.parse(raw))
+    if (!raw) return { timer: null, notice: null }
+    const timer = normalizeTimer(JSON.parse(raw))
+    return timer ? { timer, notice: null } : stopped
   } catch {
-    return null
+    return stopped
   }
 }
 
@@ -218,17 +240,22 @@ function getStageSeconds(kind: HealthTimerKind, stageIndex: number): number {
 function normalizeTimer(value: unknown): ActiveHealthTimer | null {
   if (!isRecord(value) || (value.kind !== 'face' && value.kind !== 'gym')) return null
   if (value.status !== 'running' && value.status !== 'paused') return null
+  if (value.kind === 'gym' && value.gymPlanVersion !== undefined && value.gymPlanVersion !== 1 && value.gymPlanVersion !== 2) return null
   const stageIndex = integer(value.stageIndex)
   const completedStages = integer(value.completedStages)
   const startedAt = number(value.startedAt)
-  if (stageIndex === null || completedStages === null || startedAt === null) return null
+  if (stageIndex === null || completedStages === null || startedAt === null || startedAt < 0 || !Number.isFinite(new Date(startedAt).getTime())) return null
   const maxStages = value.kind === 'face' ? 3 : GYM_TIMER_STAGES.length
   if (stageIndex < 0 || stageIndex >= maxStages || completedStages < 0 || completedStages >= maxStages) return null
+  if (stageIndex !== completedStages) return null
+  if (value.dateId !== undefined && !isDateId(value.dateId)) return null
   const stageEndTimestamp = value.stageEndTimestamp === null ? null : number(value.stageEndTimestamp)
   const pausedRemainingMs = value.pausedRemainingMs === null ? null : number(value.pausedRemainingMs)
-  if (value.status === 'running' && stageEndTimestamp === null) return null
-  if (value.status === 'paused' && pausedRemainingMs === null) return null
+  if (value.status === 'running' && (stageEndTimestamp === null || !Number.isFinite(new Date(stageEndTimestamp).getTime()) || stageEndTimestamp < startedAt || pausedRemainingMs !== null)) return null
+  const stageSeconds = value.kind === 'face' ? FACE_APPROACH_SECONDS : GYM_TIMER_STAGES[stageIndex].seconds
+  if (value.status === 'paused' && (pausedRemainingMs === null || pausedRemainingMs < 0 || pausedRemainingMs > stageSeconds * 1000 || stageEndTimestamp !== null)) return null
   return {
+    ...(value.kind === 'gym' ? { gymPlanVersion: value.gymPlanVersion === 2 ? 2 as const : 1 as const } : {}),
     kind: value.kind,
     status: value.status,
     startedAt,
@@ -247,7 +274,9 @@ function getLocalDateId(timestamp: number): string {
 }
 
 function isDateId(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T12:00:00`)
+  return Number.isFinite(date.getTime()) && getLocalDateId(date.getTime()) === value
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
