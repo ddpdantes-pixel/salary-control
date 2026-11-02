@@ -67,7 +67,7 @@ describe('permanent Android release safeguards', () => {
   })
 
   it('excludes signing files, local credentials and APK output from Git', () => {
-    const paths = ['private.jks', 'private.keystore', 'private.p12', 'private.pfx', 'android/keystore.properties', 'android/signing.local.properties', 'android/app/build/outputs/apk/release/app-release.apk']
+    const paths = ['private.jks', 'private.keystore', 'private.p12', 'private.pfx', 'private.signing.dpapi.json', 'android/keystore.properties', 'android/signing.local.properties', 'android/app/build/outputs/apk/release/app-release.apk']
     const result = spawnSync('git', ['check-ignore', '--stdin'], { cwd: root, input: paths.join('\n') + '\n', encoding: 'utf8' })
     expect(result.status).toBe(0)
     expect(result.stdout.trim().split(/\r?\n/)).toEqual(paths)
@@ -77,7 +77,12 @@ describe('permanent Android release safeguards', () => {
     const script = read('scripts/build-android-release.ps1')
     expect(script).toContain('-AsSecureString')
     expect(script).toContain('$start.EnvironmentVariables[$name] = $signingEnvironment[$name]')
-    expect(script).toContain("'-storepass:env', 'MOYRITM_STORE_PASSWORD'")
+    const verifier = read('scripts/VerifyReleaseKey.java')
+    expect(verifier).toContain('System.getenv("MOYRITM_STORE_PASSWORD")')
+    expect(verifier).toContain('System.getenv("MOYRITM_KEY_PASSWORD")')
+    expect(verifier).toContain('store.load(input, storePassword)')
+    expect(verifier).toContain('store.getKey(alias, keyPassword)')
+    expect(verifier).toContain('c06c1844b6d30f5eb7015f2489efe9000325096e4c4b98f722b8f8d6e1a549d2')
     expect(script).toContain('$signingEnvironment.Clear()')
     expect(script).toContain('ZeroFreeBSTR')
     expect(script).not.toMatch(/\$env:MOYRITM_[A-Z_]+\s*=/)
@@ -91,6 +96,17 @@ describe('permanent Android release safeguards', () => {
     expect(script).toContain("'SIGNED_BUILDS_ONLY_RUNTIME_CHECK_PENDING'")
     expect(script).toContain('$receipt | ConvertTo-Json')
     expect(script).not.toMatch(/\$(?:signingEnvironment|plainPassword|secret)\s*\|\s*(?:ConvertTo-Json|Set-Content|Out-File)/)
+  })
+
+  it('requires explicit one-time enrollment and protects saved access with Windows CurrentUser DPAPI', () => {
+    const script = read('scripts/build-android-release.ps1')
+    const local = read('scripts/local-signing-credential.ps1')
+    expect(script.indexOf('if (!$EnrollLocalCredential)')).toBeLessThan(script.indexOf('Read-Host'))
+    expect(script.indexOf('Save-MoyRitmSigningCredential')).toBeGreaterThan(script.indexOf("$keyProof.status -ne 'ORIGINAL_RELEASE_KEY_VERIFIED'"))
+    expect(local).toContain('DataProtectionScope]::CurrentUser')
+    expect(local).toContain('[IO.FileMode]::CreateNew')
+    expect(local).toContain('LOCAL_CREDENTIAL_SCOPE_MISMATCH')
+    expect(local).not.toContain('DataProtectionScope]::LocalMachine')
   })
 
   it('prepares separate QA artifacts before rebuilding the official configured version', () => {

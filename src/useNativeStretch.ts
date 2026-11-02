@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ACTIVE_TIMER_STORAGE_KEY, GYM_TIMER_V2_STORAGE_KEY, loadHealthTimerSession, saveActiveHealthTimer, type TimerPreferences } from './healthTimer'
+import { ACTIVE_TIMER_STORAGE_KEY, GYM_TIMER_V2_STORAGE_KEY, loadHealthTimerSession, loadTimerPreferences, saveActiveHealthTimer, type TimerPreferences } from './healthTimer'
 import { nativeStretch, nativeStretchTimer, type NativeStretchState } from './nativeStretch'
 
 export function useNativeStretch(supported: boolean) {
@@ -24,7 +24,7 @@ export function useNativeStretch(supported: boolean) {
     if (!supported) return
     let disposed = false
     let remove: (() => Promise<void>) | undefined
-    ready.current = nativeStretch.read(legacy?.kind === 'gym' ? { legacy } : {}).then(next => { if (!disposed) apply(next) })
+    ready.current = nativeStretch.read(legacy?.kind === 'gym' ? { legacy, preferences: loadTimerPreferences() } : {}).then(next => { if (!disposed) apply(next) })
       .catch((caught: unknown) => { if (!disposed) { setError(message(caught)); setState({ protocol: 1, backend: 'android', status: 'stopped', exactAlarmGranted: false }) } })
     void nativeStretch.addListener('state', next => { if (!disposed) apply(next) }).then(handle => {
       if (disposed) void handle.remove(); else remove = () => handle.remove()

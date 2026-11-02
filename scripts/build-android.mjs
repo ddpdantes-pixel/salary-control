@@ -1,4 +1,7 @@
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const cwd = fileURLToPath(new URL('../android/', import.meta.url))
@@ -10,6 +13,19 @@ if (process.argv.length > 3 || !['debug', 'release'].includes(mode)) {
 }
 if (mode === 'release') {
   const names = ['MOYRITM_KEYSTORE_PATH', 'MOYRITM_KEY_ALIAS', 'MOYRITM_STORE_PASSWORD', 'MOYRITM_KEY_PASSWORD']
+  if (names.some((name) => process.env[name]) && names.some((name) => !process.env[name])) {
+    console.error('Release signing is not configured: the explicit credential set is incomplete. No release APK is ready.')
+    process.exit(1)
+  }
+  if (windows) {
+    const shell = [join(process.env.ProgramFiles ?? 'C:/Program Files', 'PowerShell/7/pwsh.exe'),
+      join(homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/pwsh.exe')].find(existsSync)
+    if (!shell) throw new Error('PowerShell 7 is required for protected local signing')
+    const result = spawnSync(shell, ['-NoLogo', '-NoProfile', '-File', fileURLToPath(new URL('./build-android-release.ps1', import.meta.url))], {
+      cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: 'inherit',
+    })
+    process.exit(result.status ?? 1)
+  }
   if (names.some((name) => !process.env[name])) {
     console.error('Release signing is not configured. See ANDROID_RELEASE_MIGRATION.md. No release APK is ready.')
     process.exit(1)

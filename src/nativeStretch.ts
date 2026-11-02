@@ -13,7 +13,7 @@ export interface NativeStretchState {
 }
 
 interface NativeStretchPlugin {
-  read(input?: { legacy?: ActiveHealthTimer }): Promise<NativeStretchState>
+  read(input?: { legacy?: ActiveHealthTimer; preferences?: TimerPreferences }): Promise<NativeStretchState>
   start(input: TimerPreferences): Promise<NativeStretchState>
   resume(): Promise<NativeStretchState>
   pause(): Promise<NativeStretchState>

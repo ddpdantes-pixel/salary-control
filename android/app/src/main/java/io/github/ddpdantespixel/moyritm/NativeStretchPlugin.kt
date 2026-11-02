@@ -29,7 +29,7 @@ class NativeStretchPlugin : Plugin() {
 
     @PluginMethod fun read(call: PluginCall) {
         activity.runOnUiThread {
-            try { controller().importLegacy(call.getObject("legacy")); call.resolve(result()) }
+            try { controller().importLegacy(call.getObject("legacy"), call.getObject("preferences")); call.resolve(result()) }
             catch (e: RuntimeException) { call.reject("Состояние системного таймера недоступно", e) }
         }
     }

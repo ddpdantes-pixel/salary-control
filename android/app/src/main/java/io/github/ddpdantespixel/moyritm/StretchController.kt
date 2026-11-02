@@ -72,7 +72,7 @@ internal class StretchController private constructor(private val context: Contex
         return json
     }
 
-    @Synchronized fun importLegacy(value: JSONObject?) {
+    @Synchronized fun importLegacy(value: JSONObject?, preferences: JSONObject?) {
         if (state != null || value == null || value.optString("kind") != "gym") return
         val stage = value.optInt("stageIndex", -1)
         val plan = value.optInt("gymPlanVersion", 1)
@@ -89,7 +89,8 @@ internal class StretchController private constructor(private val context: Contex
         val elapsed = (bounds[stage] - remaining).coerceIn(0, StretchSession.TOTAL)
         state = StretchSession(UUID.randomUUID().toString(), plan, if (elapsed == StretchSession.TOTAL) "completed" else "paused",
             elapsed, now(), value.optLong("startedAt", System.currentTimeMillis()).coerceAtLeast(0), date,
-            bounds.count { elapsed >= it }, boot = boot())
+            bounds.count { elapsed >= it }, sound = preferences?.optBoolean("soundEnabled", true) ?: true,
+            vibration = preferences?.optBoolean("vibrationEnabled", true) ?: true, boot = boot())
         warning = if (status == "running") "Сохранённая растяжка приостановлена. Нажмите «Продолжить», чтобы запустить системный таймер." else null
         persist(); publish()
     }

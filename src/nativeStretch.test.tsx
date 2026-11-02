@@ -51,9 +51,10 @@ describe('native stretch bridge and shared face controller', () => {
   it('passes a legacy session for paused adoption without automatically starting a service', async () => {
     const legacy = pauseActiveTimer(createActiveTimer('gym')); delete legacy.gymPlanVersion
     localStorage.setItem(ACTIVE_TIMER_STORAGE_KEY, JSON.stringify(legacy))
+    localStorage.setItem('moi-ritm.timer-preferences.v1', '{"soundEnabled":false,"vibrationEnabled":false}')
     mocks.current = state('paused', 0, 1)
     const { result } = renderHook(() => useHealthTimer()); await flush()
-    expect(mocks.api.read).toHaveBeenCalledWith({ legacy: expect.objectContaining({ gymPlanVersion: 1, status: 'paused' }) })
+    expect(mocks.api.read).toHaveBeenCalledWith({ legacy: expect.objectContaining({ gymPlanVersion: 1, status: 'paused' }), preferences: { soundEnabled: false, vibrationEnabled: false } })
     expect(mocks.api.start).not.toHaveBeenCalled(); expect(mocks.api.resume).not.toHaveBeenCalled()
     expect(result.current.timer?.gymPlanVersion).toBe(1)
   })
