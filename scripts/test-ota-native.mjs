@@ -26,8 +26,9 @@ if (jars.some((jar) => !jar)) throw new Error('Missing compiled test dependencie
 // Avoid the Windows Java @argfile encoding problem for the repository's Cyrillic path.
 const classpath = [join(android, 'app/build/intermediates/javac/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes'),
   join(android, 'app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes'),
-  join(android, 'app/build/tmp/kotlin-classes/debug'), join(android, 'app/build/tmp/kotlin-classes/debugUnitTest'), ...jars].join(process.platform === 'win32' ? ';' : ':')
+  join(android, 'app/build/tmp/kotlin-classes/debug'), join(android, 'app/build/tmp/kotlin-classes/debugUnitTest'),
+  ...jars, join(process.env.ANDROID_HOME ?? join(homedir(), 'AppData/Local/Android/Sdk'), 'platforms/android-36/android.jar')].join(process.platform === 'win32' ? ';' : ':')
 const run = spawnSync(join(javaHome, 'bin', process.platform === 'win32' ? 'java.exe' : 'java'),
   ['-cp', classpath, 'org.junit.runner.JUnitCore', 'io.github.ddpdantespixel.moyritm.OtaManifestPolicyTest',
-    'io.github.ddpdantespixel.moyritm.StretchClockTest'], { cwd: root, stdio: 'inherit' })
+    'io.github.ddpdantespixel.moyritm.StretchClockTest', 'io.github.ddpdantespixel.moyritm.NativeOtaBootstrapTest'], { cwd: root, stdio: 'inherit' })
 process.exit(run.status ?? 1)

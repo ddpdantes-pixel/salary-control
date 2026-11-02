@@ -6,6 +6,7 @@ import android.os.Bundle;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        if (NativeOtaBootstrap.prepare(this)) savedInstanceState = null;
         registerPlugin(NativeExportPlugin.class);
         registerPlugin(MoyRitmOtaPlugin.class);
         registerPlugin(NativeStretchPlugin.class);

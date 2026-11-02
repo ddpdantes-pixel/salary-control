@@ -22,6 +22,8 @@ describe('OTA native and data compatibility gate', () => {
   it('pins mandatory native encryption, disables hosted endpoints and keeps manual mode', () => {
     const updater = config.plugins?.CapacitorUpdater
     expect(updater?.autoUpdate).toBe(false)
+    expect(updater?.resetWhenUpdate).toBe(false)
+    expect(source('android/app/src/main/java/io/github/ddpdantespixel/moyritm/MainActivity.java')).toContain('NativeOtaBootstrap.prepare(this)')
     expect(updater?.publicKey).toContain('BEGIN RSA PUBLIC KEY')
     expect(updater?.appReadyTimeout).toBe(30000)
     expect(updater?.statsUrl).toBe('')

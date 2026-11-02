@@ -21,7 +21,7 @@ const config: CapacitorConfig = {
       responseTimeout: 20,
       autoDeleteFailed: false,
       autoDeletePrevious: false,
-      resetWhenUpdate: true,
+      resetWhenUpdate: false,
       publicKey: otaKeys.capgo,
       statsUrl: '',
       updateUrl: '',
