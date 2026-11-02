@@ -20,11 +20,14 @@ function findJar(directory, name) {
 const cache = join(homedir(), '.gradle', 'caches', 'modules-2', 'files-2.1')
 const jars = [findJar(join(cache, 'junit', 'junit', '4.13.2'), 'junit-4.13.2.jar'),
   findJar(join(cache, 'org.hamcrest', 'hamcrest-core', '1.3'), 'hamcrest-core-1.3.jar'),
-  findJar(join(cache, 'org.json', 'json', '20250517'), 'json-20250517.jar')]
+  findJar(join(cache, 'org.json', 'json', '20250517'), 'json-20250517.jar'),
+  findJar(join(cache, 'org.jetbrains.kotlin', 'kotlin-stdlib', '2.3.0'), 'kotlin-stdlib-2.3.0.jar')]
 if (jars.some((jar) => !jar)) throw new Error('Missing compiled test dependencies')
 // Avoid the Windows Java @argfile encoding problem for the repository's Cyrillic path.
 const classpath = [join(android, 'app/build/intermediates/javac/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes'),
-  join(android, 'app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes'), ...jars].join(process.platform === 'win32' ? ';' : ':')
+  join(android, 'app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes'),
+  join(android, 'app/build/tmp/kotlin-classes/debug'), join(android, 'app/build/tmp/kotlin-classes/debugUnitTest'), ...jars].join(process.platform === 'win32' ? ';' : ':')
 const run = spawnSync(join(javaHome, 'bin', process.platform === 'win32' ? 'java.exe' : 'java'),
-  ['-cp', classpath, 'org.junit.runner.JUnitCore', 'io.github.ddpdantespixel.moyritm.OtaManifestPolicyTest'], { cwd: root, stdio: 'inherit' })
+  ['-cp', classpath, 'org.junit.runner.JUnitCore', 'io.github.ddpdantespixel.moyritm.OtaManifestPolicyTest',
+    'io.github.ddpdantespixel.moyritm.StretchClockTest'], { cwd: root, stdio: 'inherit' })
 process.exit(run.status ?? 1)

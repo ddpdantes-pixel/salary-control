@@ -211,6 +211,10 @@ export function checkOtaUpdates(manual = false): Promise<void> {
       update({ status: 'pending', message: '' })
     } catch (error) {
       const code = error instanceof Error ? error.message : ''
+      if (code.includes('NATIVE_VERSION_NEWER')) {
+        update({ status: 'current', message: 'Установлена новая версия приложения. Обновление для предыдущей APK не требуется.' })
+        return
+      }
       const needsNative = code.includes('NATIVE_UPDATE_REQUIRED') || code.includes('SCHEMA_REVIEW_REQUIRED')
       update({ status: needsNative ? 'native-required' : 'error',
         message: needsNative ? 'Нужна более новая версия APK. Текущая версия продолжает работать.' : code.includes('NOT_ENOUGH_SPACE') ? 'Недостаточно места для обновления.' :

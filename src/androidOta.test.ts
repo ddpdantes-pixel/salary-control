@@ -59,6 +59,15 @@ describe('Android manual OTA control', () => {
     expect(mocks.updater.download).not.toHaveBeenCalled()
   })
 
+  it('keeps a newer native APK without downloading an older APK-only bundle', async () => {
+    mocks.control.verifyManifest.mockRejectedValue(new Error('NATIVE_VERSION_NEWER'))
+    const ota = await import('./androidOta')
+    await ota.checkOtaUpdates()
+    expect(ota.getOtaView().status).toBe('current')
+    expect(mocks.updater.download).not.toHaveBeenCalled()
+    expect(mocks.control.queue).not.toHaveBeenCalled()
+  })
+
   it.each(['offline', 'server'])('keeps the local version on %s failure', async () => {
     vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'))
     const ota = await import('./androidOta')

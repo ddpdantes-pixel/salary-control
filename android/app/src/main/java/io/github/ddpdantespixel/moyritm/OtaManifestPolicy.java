@@ -39,7 +39,8 @@ public final class OtaManifestPolicy {
         if (sequence <= 0 || sequence < lastSequence) throw new SecurityException("REPLAYED_MANIFEST");
         if (!value.getBoolean("enabled") || !value.has("release")) return value;
         JSONObject release = value.getJSONObject("release");
-        if (nativeCode < release.getLong("nativeMin") || nativeCode > release.getLong("nativeMax")) throw new SecurityException("NATIVE_UPDATE_REQUIRED");
+        if (nativeCode < release.getLong("nativeMin")) throw new SecurityException("NATIVE_UPDATE_REQUIRED");
+        if (nativeCode > release.getLong("nativeMax")) throw new SecurityException("NATIVE_VERSION_NEWER");
         if (!CONTRACT.equals(release.getString("contract")) ||
             !contractFingerprint.equals(release.optString("contractFingerprint", ""))) throw new SecurityException("SCHEMA_REVIEW_REQUIRED");
         if (!release.getString("version").matches("[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?") ||

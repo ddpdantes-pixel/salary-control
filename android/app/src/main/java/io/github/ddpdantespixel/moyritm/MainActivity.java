@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NativeExportPlugin.class);
         registerPlugin(MoyRitmOtaPlugin.class);
+        registerPlugin(NativeStretchPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

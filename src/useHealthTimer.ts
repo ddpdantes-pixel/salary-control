@@ -20,6 +20,8 @@ import { resumeTimerAudio, signalHealthTimer, unlockTimerAudio } from './timerAu
 import { completeHealthTimer } from './healthTimerCompletion'
 import { cancelStretchSignal, prepareStretchAudio, signalStretchTimer } from './stretchAudio'
 import { acquireTimerScreen } from './timerScreenAwake'
+import { nativeStretchAvailable } from './nativeStretch'
+import { useNativeStretch } from './useNativeStretch'
 
 export interface HealthTimerController {
   timer: ActiveHealthTimer | null
@@ -28,6 +30,8 @@ export interface HealthTimerController {
   audioReady: boolean
   audioWarning: string | null
   screenAwake?: 'off' | 'requesting' | 'active' | 'unavailable'
+  nativeBackend?: boolean
+  nativeBusy?: boolean
   notice: string | null
   pendingStart: HealthTimerKind | null
   requestStart: (kind: HealthTimerKind) => void
@@ -44,9 +48,9 @@ export interface HealthTimerController {
   dismissAudioWarning: () => void
 }
 
-export function useHealthTimer(): HealthTimerController {
+function useWebHealthTimer(nativeGym: boolean): HealthTimerController {
   const [session] = useState(loadHealthTimerSession)
-  const [timer, setTimer] = useState<ActiveHealthTimer | null>(session.timer)
+  const [timer, setTimer] = useState<ActiveHealthTimer | null>(nativeGym && session.timer?.kind === 'gym' ? null : session.timer)
   const [now, setNow] = useState(Date.now())
   const [preferences, setPreferences] = useState<TimerPreferences>(loadTimerPreferences)
   const [audioReady, setAudioReady] = useState(false)
@@ -62,12 +66,13 @@ export function useHealthTimer(): HealthTimerController {
 
   useEffect(() => {
     timerRef.current = timer
+    if (nativeGym && !timer) return // Native adapter owns gym mirroring; never clear its record from the face hook.
     if (!timer || timer.status === 'completed') {
       clearActiveHealthTimer()
       return
     }
     saveActiveHealthTimer(timer)
-  }, [timer])
+  }, [nativeGym, timer])
 
   useEffect(() => {
     preferencesRef.current = preferences
@@ -216,11 +221,12 @@ export function useHealthTimer(): HealthTimerController {
 
   const stop = useCallback(() => {
     signalGeneration.current++; cancelStretchSignal(); setFinishingSignal(false)
+    if (nativeGym && timerRef.current?.kind === 'face') clearActiveHealthTimer()
     timerRef.current = null
     setTimer(null)
     setPendingStart(null)
     setNotice(null)
-  }, [])
+  }, [nativeGym])
 
   const restart = useCallback((kind: HealthTimerKind) => {
     requestStart(kind)
@@ -263,5 +269,55 @@ export function useHealthTimer(): HealthTimerController {
     setPreference,
     dismissNotice: () => setNotice(null),
     dismissAudioWarning: () => setAudioWarning(null),
+  }
+}
+
+/** One shared UI/controller: Android owns gym time/audio; the existing face path remains web-owned. */
+export function useHealthTimer(): HealthTimerController {
+  const supported = nativeStretchAvailable()
+  const web = useWebHealthTimer(supported)
+  const native = useNativeStretch(supported)
+  const [pending, setPending] = useState<HealthTimerKind | null>(null)
+  const timer = native.timer ?? web.timer
+  const pauseWeb = web.pause
+
+  useEffect(() => {
+    if (native.timer?.status === 'running' && web.timer?.kind === 'face' && web.timer.status === 'running') pauseWeb()
+  }, [native.timer?.status, web.timer?.kind, web.timer?.status, pauseWeb])
+
+  if (!supported) return web
+
+  const begin = async (kind: HealthTimerKind) => {
+    if (kind === 'gym') {
+      // Preserve a face session as paused if Android denies a permission/start.
+      if (web.timer?.status === 'running') web.pause()
+      if (native.timer && native.timer.status !== 'completed' && !await native.stop()) return
+      if (await native.start(web.preferences)) web.stop()
+    } else {
+      if (native.timer && !await native.stop()) return
+      web.stop()
+      web.requestStart('face')
+    }
+  }
+  const requestStart = (kind: HealthTimerKind) => {
+    if (native.busy) return
+    if (timer && (timer.status === 'running' || timer.status === 'paused')) setPending(kind)
+    else void begin(kind)
+  }
+
+  return {
+    ...web, timer, now: native.timer ? native.now : web.now, nativeBackend: true, nativeBusy: native.busy,
+    audioWarning: native.warning ?? web.audioWarning,
+    notice: native.timer?.status === 'completed' ? 'Растяжка завершена. Галочки отмечаются вручную.' : web.notice,
+    pendingStart: pending,
+    requestStart, restart: requestStart,
+    confirmStart: () => { const kind = pending; setPending(null); if (kind) void begin(kind) },
+    cancelStart: () => setPending(null),
+    pause: () => { if (native.timer) void native.pause(); else web.pause() },
+    resume: () => { if (native.timer) void native.resume(); else web.resume() },
+    stop: () => { if (native.timer) void native.stop(); else web.stop(); setPending(null) },
+    testSound: async (kind = 'face') => { if (kind === 'gym') { await native.testSound() } else await web.testSound(kind) },
+    setPreference: (name, value) => { web.setPreference(name, value); native.preferences({ ...web.preferences, [name]: value }) },
+    dismissAudioWarning: () => { native.dismissWarning(); web.dismissAudioWarning() },
   }
 }

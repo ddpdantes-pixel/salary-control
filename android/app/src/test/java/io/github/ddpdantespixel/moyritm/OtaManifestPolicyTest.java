@@ -51,6 +51,7 @@ public class OtaManifestPolicyTest {
     }
     @Test public void wrongChecksum() throws Exception { manifest.getJSONObject("release").put("bundleSha256", "1".repeat(64)); denied("INVALID_CHECKSUM"); }
     @Test public void incompatibleNative() throws Exception { manifest.getJSONObject("release").put("nativeMin", 4); denied("NATIVE_UPDATE_REQUIRED"); }
+    @Test public void oldBundleCannotDowngradeNewerNative() throws Exception { manifest.getJSONObject("release").put("nativeMin", 2).put("nativeMax", 2); denied("NATIVE_VERSION_NEWER"); }
     @Test public void schemaChange() throws Exception { manifest.getJSONObject("release").put("contract", "migration-v2"); denied("SCHEMA_REVIEW_REQUIRED"); }
     @Test public void differentNativeContract() throws Exception { manifest.getJSONObject("release").put("contractFingerprint", "3".repeat(64)); denied("SCHEMA_REVIEW_REQUIRED"); }
     @Test public void replay() throws Exception { manifest.put("sequence", 0); denied("REPLAYED_MANIFEST"); }

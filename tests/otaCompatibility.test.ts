@@ -11,7 +11,7 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 describe('OTA native and data compatibility gate', () => {
   it('matches the source baseline embedded in the native APK configuration', () => {
     const policy = verifyCompatibility(root)
-    expect(policy.nativeCode).toBe(3)
+    expect(policy.nativeCode).toBe(4)
     expect(config.plugins?.MoyRitmOta.contractFingerprint).toBe(policy.fingerprint)
   })
   it('covers business storage, backup contracts, native plugins and signing config', () => {

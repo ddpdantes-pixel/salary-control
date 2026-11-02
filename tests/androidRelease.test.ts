@@ -51,11 +51,19 @@ describe('permanent Android release safeguards', () => {
     expect(gradle).toContain('applicationId "io.github.ddpdantespixel.moyritm"')
   })
 
-  it('does not add permissions and explicitly rejects cleartext traffic', () => {
+  it('limits native timer permissions to the reviewed set and rejects cleartext traffic', () => {
     const manifest = read('android/app/src/main/AndroidManifest.xml')
     expect(manifest).toContain('android:usesCleartextTraffic="false"')
-    expect(manifest.match(/<uses-permission /g)).toHaveLength(1)
-    expect(manifest).toContain('android.permission.INTERNET')
+    const permissions = [...manifest.matchAll(/<uses-permission android:name="([^"]+)"/g)].map(match => match[1]).sort()
+    expect(permissions).toEqual([
+      'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
+      'android.permission.INTERNET', 'android.permission.POST_NOTIFICATIONS', 'android.permission.SCHEDULE_EXACT_ALARM',
+      'android.permission.VIBRATE', 'android.permission.WAKE_LOCK',
+    ].sort())
+    expect(manifest).toContain('android:foregroundServiceType="mediaPlayback"')
+    expect(manifest).not.toMatch(/USE_EXACT_ALARM|REQUEST_IGNORE_BATTERY_OPTIMIZATIONS|SHORT_SERVICE|BOOT_COMPLETED/)
+    expect(manifest).toMatch(/android:name="\.StretchService"[\s\S]*?android:exported="false"/)
+    expect(manifest).toContain('android:name=".StretchReceiver" android:exported="false"')
   })
 
   it('excludes signing files, local credentials and APK output from Git', () => {

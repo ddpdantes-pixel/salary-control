@@ -15,19 +15,19 @@ export default function StretchTimer({ controller }: { controller: HealthTimerCo
         <span>До завершения<output aria-label="Общее оставшееся время">{formatTime(getTimerTotalRemaining(active, controller.now))}</output></span>
       </div>
       <div className="health-timer-actions">
-        {active.status === 'running' ? <button type="button" onClick={controller.pause}>Пауза</button> : <button type="button" onClick={controller.resume}>Продолжить</button>}
-        <button type="button" className="secondary" onClick={controller.stop}>Остановить</button>
+        {active.status === 'running' ? <button type="button" disabled={controller.nativeBusy} onClick={controller.pause}>Пауза</button> : <button type="button" disabled={controller.nativeBusy} onClick={controller.resume}>Продолжить</button>}
+        <button type="button" className="secondary" disabled={controller.nativeBusy} onClick={controller.stop}>Остановить</button>
       </div>
     </>}
-    {complete ? <><p role="status">Растяжка завершена</p><button type="button" onClick={() => controller.restart('gym')}>Начать заново</button></> : !active && <button type="button" onClick={() => controller.requestStart('gym')}>Начать растяжку</button>}
+    {complete ? <><p role="status">Растяжка завершена</p><button type="button" disabled={controller.nativeBusy} onClick={() => controller.restart('gym')}>Начать заново</button></> : !active && <button type="button" disabled={controller.nativeBusy} onClick={() => controller.requestStart('gym')}>Начать растяжку</button>}
     <div className="health-stretch-options">
       <label><input type="checkbox" checked={controller.preferences.soundEnabled} onChange={e => controller.setPreference('soundEnabled', e.target.checked)} />Звук</label>
       <label><input type="checkbox" checked={controller.preferences.vibrationEnabled} onChange={e => controller.setPreference('vibrationEnabled', e.target.checked)} />Вибрация</label>
       <button type="button" className="secondary" disabled={!controller.preferences.soundEnabled || active?.status === 'running'} onClick={() => void controller.testSound('gym')}>Проверить звук</button>
     </div>
-    <small className="health-muted">Сигналы при блокировке экрана или в фоне не гарантируются. Галочки отмечаются вручную.</small>
-    {active?.status === 'running' && <small className="health-muted">{controller.screenAwake === 'active' ? 'Экран остаётся включённым на время растяжки.' : controller.screenAwake === 'unavailable' ? 'Удержание экрана недоступно. Проверьте автоблокировку телефона.' : 'Подготовка удержания экрана…'}</small>}
-    {active && controller.audioWarning && <div role="alert" className="health-timer-audio-warning">{controller.audioWarning}</div>}
+    <small className="health-muted">{controller.nativeBackend ? 'Системный таймер работает с выключенным экраном. Для точных сигналов Android один раз запросит уведомления и «Будильники и напоминания». Громкость будильника, «Не беспокоить» и Bluetooth влияют на слышимость. Галочки отмечаются вручную.' : 'Сигналы при блокировке экрана или в фоне не гарантируются. Галочки отмечаются вручную.'}</small>
+    {!controller.nativeBackend && active?.status === 'running' && <small className="health-muted">{controller.screenAwake === 'active' ? 'Экран остаётся включённым на время растяжки.' : controller.screenAwake === 'unavailable' ? 'Удержание экрана недоступно. Проверьте автоблокировку телефона.' : 'Подготовка удержания экрана…'}</small>}
+    {(active || controller.nativeBackend) && controller.audioWarning && <div role="alert" className="health-timer-audio-warning">{controller.audioWarning}</div>}
     {controller.pendingStart === 'gym' && controller.timer && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="stretch-replace-title"><h2 id="stretch-replace-title">Сейчас уже работает таймер «{getTimerTitle(controller.timer.kind)}». Остановить его и запустить новый?</h2><div className="dialog-actions"><button type="button" className="primary-action" onClick={controller.confirmStart}>Остановить и запустить</button><button type="button" onClick={controller.cancelStart}>Отмена</button></div></section></div>}
   </div>
 }

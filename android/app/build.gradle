@@ -1,4 +1,9 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+kotlin {
+    compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21 }
+}
 
 def appVersion = new Properties()
 rootProject.file('version.properties').withInputStream { appVersion.load(it) }
