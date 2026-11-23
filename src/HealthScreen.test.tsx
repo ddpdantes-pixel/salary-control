@@ -24,6 +24,15 @@ vi.mock('./healthChatGptShare', () => ({
 }))
 
 describe('экран здоровья сегодня', () => {
+  it('сохраняет последнюю галочку при немедленном pagehide, не ожидая debounce', () => {
+    render(<HealthScreen />)
+    fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-11-05' } })
+    const checkbox = screen.getByRole('checkbox', { name: 'Скраб для лица' })
+    fireEvent.click(checkbox)
+    window.dispatchEvent(new Event('pagehide'))
+    expect(JSON.parse(localStorage.getItem(HEALTH_STATE_KEY)!).entries['2026-11-05'].cosmetology['face-scrub']).toBe(true)
+  })
+
   it('сохраняет сегодняшнее интервальное назначение после выполнения старого и пересчитывает nextDate от факта', async () => {
     const user = userEvent.setup(), today = getLocalDateId(), settings = createDefaultHealthSettings()
     const nails = settings.cosmetology.intervals.find(item => item.id === 'nails')!

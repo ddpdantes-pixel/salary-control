@@ -185,6 +185,8 @@ export function HealthScreen({
   const initialStatePersistedRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
   const persistenceDisabledRef = useRef(false)
+  const latestStateRef = useRef(state)
+  latestStateRef.current = state
   const [restoreOriginalOpen, setRestoreOriginalOpen] = useState(false)
   const [recoveryUndoKey] = useState(getCosmetologyRecoveryUndoKey)
   const recoveryTargetRef = useRef<string | null>(null)
@@ -221,6 +223,22 @@ export function HealthScreen({
     window.addEventListener('beforeunload', warnBeforeUnload)
     return () => window.removeEventListener('beforeunload', warnBeforeUnload)
   }, [settingsDirty])
+  useEffect(() => {
+    const flush = () => {
+      if (loaded.repairBlocked || persistenceDisabledRef.current) return
+      window.clearTimeout(saveTimerRef.current)
+      saveStoredHealthState(latestStateRef.current)
+    }
+    const flushWhenHidden = () => { if (document.visibilityState === 'hidden') flush() }
+    window.addEventListener('pagehide', flush)
+    window.addEventListener('beforeunload', flush)
+    document.addEventListener('visibilitychange', flushWhenHidden)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      window.removeEventListener('beforeunload', flush)
+      document.removeEventListener('visibilitychange', flushWhenHidden)
+    }
+  }, [loaded.repairBlocked])
 
   const entry = useMemo(
     () => state.entries[selectedDate] ?? createHealthEntry(selectedDate),
