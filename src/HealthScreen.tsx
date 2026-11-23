@@ -13,10 +13,15 @@ import {
   FACE_SCRUB_PROCEDURE_ID,
   activateCosmetologyDebt,
   getCosmetologyDebtProcedures,
+  getCosmetologyDebtCheckKey,
+  hasCosmetologyDebtChecks,
+  toggleCosmetologyDebtCheck,
+  type PlannedCosmeticProcedure,
   getCosmetologyForDate,
   getOverdueCosmetologyDebts,
   nextIntervalDate,
   reconcileCosmetologyDebts,
+  rememberCosmeticIntervalPlan,
   skipCosmetologyDebt,
   syncCosmetologyDebtsForEntry,
   toggleCosmetologyCompletion,
@@ -66,7 +71,8 @@ import {
   updateHealthEntry,
   upsertHealthEntry,
 } from './healthModel'
-import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
+import { saveCosmetologyHealthState as saveStoredHealthState, loadCosmetologyHealthState, readCosmetologyRecovery, restoreCosmetologyRecovery, getCosmetologyRecoveryUndoKey } from './cosmetologyIntegrity'
+import { exportFile } from './fileExport'
 import {
   getRelaxationMinutes,
   getRelaxationSettings,
@@ -161,7 +167,7 @@ export function HealthScreen({
   onStateChange?: (state: HealthState) => void
   onSettingsChange?: (settings: HealthSettings) => void
 } = {}) {
-  const [loaded] = useState(loadStoredHealthState)
+  const [loaded] = useState(loadCosmetologyHealthState)
   const [state, setState] = useState(loaded.state)
   const [activeTab, setActiveTab] = useState<VisibleHealthView>(() =>
     getVisibleHealthView(initialTab),
@@ -178,6 +184,11 @@ export function HealthScreen({
   const initialStateRef = useRef(state)
   const initialStatePersistedRef = useRef(false)
   const saveTimerRef = useRef<number | undefined>(undefined)
+  const persistenceDisabledRef = useRef(false)
+  const [restoreOriginalOpen, setRestoreOriginalOpen] = useState(false)
+  const [recoveryUndoKey] = useState(getCosmetologyRecoveryUndoKey)
+  const recoveryTargetRef = useRef<string | null>(null)
+  const [recoveryIssue, setRecoveryIssue] = useState<string | null>(null)
 
   useEffect(() => {
     onSettingsDirtyChange?.(settingsDirty)
@@ -217,6 +228,7 @@ export function HealthScreen({
   )
 
   useEffect(() => {
+    if (loaded.repairBlocked || persistenceDisabledRef.current) return
     if (state === initialStateRef.current) {
       if (loaded.needsSave && !initialStatePersistedRef.current) {
         initialStatePersistedRef.current = true
@@ -228,18 +240,18 @@ export function HealthScreen({
     setSaveState('saving')
     window.clearTimeout(saveTimerRef.current)
     saveTimerRef.current = window.setTimeout(() => {
-      setSaveState(saveStoredHealthState(state) ? 'saved' : 'error')
+      if (!persistenceDisabledRef.current) setSaveState(saveStoredHealthState(state) ? 'saved' : 'error')
     }, SAVE_DELAY_MS)
 
     return () => {
       window.clearTimeout(saveTimerRef.current)
-      saveStoredHealthState(state)
+      if (!persistenceDisabledRef.current) saveStoredHealthState(state)
     }
-  }, [loaded.needsSave, state])
+  }, [loaded.needsSave, loaded.repairBlocked, state])
 
   useEffect(() => {
     const refreshCompletedTimerEntry = () => {
-      const refreshed = loadStoredHealthState()
+      const refreshed = loadCosmetologyHealthState()
       initialStateRef.current = refreshed.state
       setState(refreshed.state)
       setSaveState('saved')
@@ -252,6 +264,7 @@ export function HealthScreen({
   }, [])
 
   useEffect(() => {
+    if (loaded.repairBlocked) return
     const reconcile = () => {
       const todayId = getLocalDateId()
       setState((current) => reconcileHealthTaskDebts(
@@ -269,7 +282,7 @@ export function HealthScreen({
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', reconcileWhenVisible)
     }
-  }, [settings])
+  }, [settings, loaded.repairBlocked])
 
   function changeEntry(updater: (current: HealthEntry) => HealthEntry): void {
     setState((currentState) => {
@@ -328,13 +341,19 @@ export function HealthScreen({
 
   function saveSettings(nextSettings: HealthSettings): boolean {
     if (!saveStoredHealthSettings(nextSettings)) return false
+    // Finish the old schedule through today before applying the edited schedule.
+    setState(current => reconcileCosmetologyDebts(current, settings, getLocalDateId()))
     setSettings(nextSettings)
     setSettingsDirty(false)
     return true
   }
 
-  function completeInterval(id: string, completed: boolean): void {
+  function completeInterval(id: string, completed: boolean, debtId?: string): void {
     if (!completed || !settings.cosmetology.intervals.some((item) => item.id === id)) return
+    if (debtId) setState(current => {
+      const item = settings.cosmetology.intervals.find(interval => interval.id === id)!
+      return current.cosmetologyDebts[debtId]?.plannedDate !== item.nextDate ? rememberCosmeticIntervalPlan(current, item) : current
+    })
     saveSettings({
       ...settings,
       cosmetology: {
@@ -350,7 +369,31 @@ export function HealthScreen({
     <section className="health-screen">
       <HealthTabs activeTab={activeTab} onChange={changeHealthTab} />
 
-      <div className="health-tab-content" key={activeTab}>
+      {loaded.repairBlocked && <p role="alert" className="health-muted">{loaded.issue}</p>}
+      {loaded.integrityIssues.length > 0 && <p role="status" className="health-muted">Есть неоднозначные записи задолженностей. История сохранена для проверки.
+      </p>}
+      {loaded.snapshotKey && Object.keys(state.cosmetologyDebts).length > 0 && <details className="health-muted">
+        <summary>Исходная копия до проверки задолженностей</summary>
+        <button type="button" onClick={() => {
+          void exportFile('moyritm-cosmetology-original.json', new Blob([JSON.stringify(readCosmetologyRecovery(loaded.snapshotKey!), null, 2)], { type: 'application/json' }))
+        }}>Сохранить исходные записи</button>
+        <button type="button" onClick={() => { recoveryTargetRef.current = loaded.snapshotKey; setRestoreOriginalOpen(true) }}>Восстановить исходные записи</button>
+      </details>}
+      {recoveryUndoKey && <button type="button" onClick={() => { recoveryTargetRef.current = recoveryUndoKey; setRestoreOriginalOpen(true) }}>Отменить восстановление здоровья</button>}
+      {recoveryIssue && <p role="alert">{recoveryIssue}</p>}
+      {restoreOriginalOpen && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="cosmetology-recovery-title">
+        <h2 id="cosmetology-recovery-title">Восстановить здоровье и настройки из выбранной копии?</h2>
+        <p>Записи здоровья и расписание вернутся к выбранной копии. Текущее состояние будет сохранено отдельно для отмены. Финансы и фотографии остаются на месте.</p>
+        <div className="dialog-actions"><button type="button" onClick={() => setRestoreOriginalOpen(false)}>Отмена</button><button type="button" onClick={() => {
+          window.clearTimeout(saveTimerRef.current)
+          persistenceDisabledRef.current = true
+          try { restoreCosmetologyRecovery(recoveryTargetRef.current!); window.location.reload() }
+          catch (error) { persistenceDisabledRef.current = false; setRecoveryIssue(error instanceof Error ? error.message : 'Не удалось восстановить исходные записи.') }
+          setRestoreOriginalOpen(false)
+        }}>Восстановить</button></div>
+      </section></div>}
+
+      <div className="health-tab-content" key={activeTab} inert={loaded.repairBlocked}>
         {activeTab === 'today' ? (
           <HealthToday
           entry={entry}
@@ -474,7 +517,7 @@ function HealthToday({
   storageIssue: string | null
   onDateChange: (date: string) => void
   onChange: (updater: (current: HealthEntry) => HealthEntry) => void
-  onIntervalCompletion: (id: string, completed: boolean) => void
+  onIntervalCompletion: (id: string, completed: boolean, debtId?: string) => void
   onActivateDebt: (debtId: string) => void
   onSkipDebt: (debtId: string) => void
   onCompleteTaskDebt: (debtId: string) => void
@@ -495,17 +538,25 @@ function HealthToday({
   const visibleRelaxation = getRelaxationSettings(settings).filter(
     (item) => item.enabled || entry.relaxation[item.field],
   )
-  const overdueDebts = getOverdueCosmetologyDebts({ cosmetologyDebts })
+  const overdueDebts = getOverdueCosmetologyDebts({ cosmetologyDebts }).filter(debt => debt.plannedDate < getLocalDateId())
   const overdueTasks = getOpenHealthTaskDebts({ taskDebts })
   const scheduledTasks = getHealthTasksForDate(selectedDate).filter(
     (task) => !overdueTasks.some((debt) => debt.taskId === task.id),
   )
-  const activeDebts = overdueDebts.filter((debt) => debt.activeDate === selectedDate)
-  const activeProcedureIds = new Set(activeDebts.flatMap((debt) => debt.procedureIds))
-  const cosmeticProcedures = [
-    ...getCosmetologyForDate(settings, selectedDate, entry).filter((item) => !activeProcedureIds.has(item.id)),
-    ...activeDebts.flatMap((debt) => getCosmetologyDebtProcedures(settings, debt)),
+  const activeDebts = Object.values(cosmetologyDebts).filter(debt => !debt.skippedDate && (
+    debt.activeDate === selectedDate || (debt.completedDate === selectedDate && hasCosmetologyDebtChecks(entry, debt))
+  ))
+  const cosmeticProcedures: (PlannedCosmeticProcedure & { debt?: CosmetologyDebt })[] = [
+    ...getCosmetologyForDate(settings, selectedDate, entry),
+    ...activeDebts.flatMap((debt) => getCosmetologyDebtProcedures(settings, debt).map(procedure => ({ ...procedure, debt }))),
   ]
+  // A late completion can advance nextDate while another genuine appointment
+  // remains due on the selected day. Its stored plan still owns its daily row.
+  for (const debt of Object.values(cosmetologyDebts).filter(item => item.plannedDate === selectedDate && !item.skippedDate && !hasCosmetologyDebtChecks(entry, item))) {
+    for (const procedure of getCosmetologyDebtProcedures(settings, debt)) {
+      if (!cosmeticProcedures.some(item => item.id === procedure.id && !item.debt)) cosmeticProcedures.push(procedure)
+    }
+  }
   const [skipConfirmation, setSkipConfirmation] = useState<CosmetologyDebt | null>(null)
   const [openLearningDirection, setOpenLearningDirection] = useState<'speech' | 'cavist' | 'porcelain' | null>(null)
   const [scalpNotesOpen, setScalpNotesOpen] = useState(false)
@@ -1229,18 +1280,21 @@ function HealthToday({
         )}
         {cosmeticProcedures.length === 0 ? <p className="health-muted">На этот день косметологических процедур нет</p> : (
           <div className="health-cosmetology-list">
-            {cosmeticProcedures.map((procedure) => {
-              const checked = entry.cosmetology[procedure.id] === true
-              return <div className="health-cosmetology-procedure" key={procedure.id}>
+            {cosmeticProcedures.map((procedure, index) => {
+              const debt = procedure.debt
+              const checkKey = debt ? getCosmetologyDebtCheckKey(debt.id, procedure.id) : procedure.id
+              const checked = entry.cosmetology[checkKey] === true
+              return <div className="health-cosmetology-procedure" key={checkKey}>
                 <label className="health-cosmetology-row">
-                  <input type="checkbox" checked={checked} onChange={() => {
-                    onChange((current) => toggleCosmetologyCompletion(current, procedure.id))
-                    onIntervalCompletion(procedure.id, !checked)
+                  <input type="checkbox" checked={checked} aria-label={debt ? `${procedure.title} · долг за ${formatCosmetologyPlanDate(debt.plannedDate)}` : undefined} onChange={() => {
+                    onChange((current) => debt ? toggleCosmetologyDebtCheck(current, debt, procedure.id) : toggleCosmetologyCompletion(current, procedure.id))
+                    if (!debt || debt.procedureIds.every(id => id === procedure.id ? !checked : entry.cosmetology[getCosmetologyDebtCheckKey(debt.id, id)] === true)) onIntervalCompletion(procedure.id, !checked, debt?.id)
                   }} />
                   <span><strong>{procedure.durationLabel ? `${procedure.title} — ${procedure.durationLabel}` : procedure.title}</strong></span>
                 </label>
+                {debt && <small className="health-muted">По плану: {formatCosmetologyPlanDate(debt.plannedDate)} · {debt.completedDate ? 'Выполнено' : 'Долг'}</small>}
                 {procedure.id === FACE_SCRUB_PROCEDURE_ID && <small className="health-muted">{procedure.instruction}</small>}
-                {procedure.id === FACE_COOL_WATER_PROCEDURE_ID && timerController && <FaceCoolWaterTimer timer={timerController} />}
+                {procedure.id === FACE_COOL_WATER_PROCEDURE_ID && timerController && cosmeticProcedures.findIndex(item => item.id === FACE_COOL_WATER_PROCEDURE_ID) === index && <FaceCoolWaterTimer timer={timerController} />}
               </div>
             })}
           </div>

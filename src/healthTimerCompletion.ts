@@ -1,6 +1,9 @@
 import {
   FACE_COOL_WATER_PROCEDURE_ID,
   activateCosmetologyDebt,
+  getCosmetologyDebtCheckKey,
+  getCosmetologyTimerCompletionKey,
+  hasCosmetologyDebtChecks,
   getCosmetologyForDate,
   reconcileCosmetologyDebts,
   resolveActiveCosmetologyDebts,
@@ -12,7 +15,7 @@ import {
   upsertHealthEntry,
 } from './healthModel'
 import { loadStoredHealthSettings } from './healthSettings'
-import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
+import { loadCosmetologyHealthState as loadStoredHealthState, saveCosmetologyHealthState as saveStoredHealthState } from './cosmetologyIntegrity'
 import type { ActiveHealthTimer } from './healthTimer'
 import type { HealthState } from './healthTypes'
 
@@ -58,22 +61,36 @@ export function completeHealthTimer(
   }
 
   let state = reconcileCosmetologyDebts(stored.state, settings, completionDate)
+  const timerIdentity = `${timer.kind}:${timer.startedAt}:${timer.dateId}:${timer.completedAt}`
+  const marker = getCosmetologyTimerCompletionKey(timerIdentity)
+  const manualMarker = getCosmetologyTimerCompletionKey(`${timerIdentity}:manual`)
+  const manualMessage = 'Таймер завершён. Отметьте конкретное назначение лица вручную.'
+  if (Object.values(state.entries).some(entry => entry.cosmetology[manualMarker])) return { status: 'manual', message: manualMessage, entryDate: null }
+  const completedEntry = Object.values(state.entries).find(entry => entry.cosmetology[marker])
+  if (completedEntry) return { status: 'already-completed', message: 'Отмечено в косметологии: Лицо в холодную воду', entryDate: completedEntry.date }
   const existingEntry = state.entries[timer.dateId]
-  const unresolvedDebt = Object.values(state.cosmetologyDebts)
+  const selected = Object.values(state.cosmetologyDebts)
     .filter((debt) =>
       debt.procedureId === FACE_COOL_WATER_PROCEDURE_ID &&
-      debt.plannedDate <= timer.dateId &&
+      debt.activeDate === completionDate &&
+      hasCosmetologyDebtChecks(state.entries[completionDate] ?? createHealthEntry(completionDate), debt) &&
       debt.completedDate === null &&
       debt.skippedDate === null,
     )
-    .sort((left, right) => left.plannedDate.localeCompare(right.plannedDate))[0]
+  if (selected.length > 1) {
+    const entry = state.entries[completionDate] ?? createHealthEntry(completionDate)
+    const result = persistCompletion(upsertHealthEntry(state, setCosmetologyCompletion(entry, manualMarker, true)), manualMessage, completionDate)
+    return result.status === 'completed' ? { ...result, status: 'manual' } : result
+  }
+  const unresolvedDebt = selected[0] ?? Object.values(state.cosmetologyDebts).find(debt =>
+    debt.procedureId === FACE_COOL_WATER_PROCEDURE_ID && debt.plannedDate === timer.dateId && !debt.completedDate && !debt.skippedDate)
 
   if (unresolvedDebt) {
     state = activateCosmetologyDebt(state, unresolvedDebt.id, completionDate)
     const currentEntry = state.entries[completionDate] ?? createHealthEntry(completionDate)
     const nextEntry = updateHealthEntry(
       currentEntry,
-      (entry) => setCosmetologyCompletion(entry, FACE_COOL_WATER_PROCEDURE_ID, true),
+      (entry) => setCosmetologyCompletion(setCosmetologyCompletion(entry, getCosmetologyDebtCheckKey(unresolvedDebt.id, FACE_COOL_WATER_PROCEDURE_ID), true), marker, true),
       toIsoString(completedAt),
     )
     state = upsertHealthEntry(state, nextEntry)
@@ -86,6 +103,8 @@ export function completeHealthTimer(
   }
 
   if (existingEntry?.cosmetology[FACE_COOL_WATER_PROCEDURE_ID] === true) {
+    const result = persistCompletion(upsertHealthEntry(state, setCosmetologyCompletion(existingEntry, marker, true)), 'Отмечено в косметологии: Лицо в холодную воду', timer.dateId)
+    if (result.status !== 'completed') return result
     return {
       status: 'already-completed',
       message: 'Отмечено в косметологии: Лицо в холодную воду',
@@ -106,7 +125,7 @@ export function completeHealthTimer(
   const currentEntry = existingEntry ?? createHealthEntry(timer.dateId)
   const nextEntry = updateHealthEntry(
     currentEntry,
-    (entry) => setCosmetologyCompletion(entry, FACE_COOL_WATER_PROCEDURE_ID, true),
+    (entry) => setCosmetologyCompletion(setCosmetologyCompletion(entry, FACE_COOL_WATER_PROCEDURE_ID, true), marker, true),
     toIsoString(completedAt),
   )
   return persistCompletion(

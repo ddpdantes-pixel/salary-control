@@ -24,6 +24,79 @@ vi.mock('./healthChatGptShare', () => ({
 }))
 
 describe('экран здоровья сегодня', () => {
+  it('сохраняет сегодняшнее интервальное назначение после выполнения старого и пересчитывает nextDate от факта', async () => {
+    const user = userEvent.setup(), today = getLocalDateId(), settings = createDefaultHealthSettings()
+    const nails = settings.cosmetology.intervals.find(item => item.id === 'nails')!
+    nails.nextDate = today
+    const earlier = new Date(`${today}T12:00:00`); earlier.setDate(earlier.getDate() - 21)
+    const plannedDate = getLocalDateId(earlier), id = `nails:${plannedDate}`
+    const state = createEmptyHealthState()
+    state.cosmetologyDebts[id] = { id, procedureId: 'nails', title: nails.title, plannedDate, procedureIds: ['nails'], activeDate: null, completedDate: null, skippedDate: null }
+    localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state)); localStorage.setItem(HEALTH_SETTINGS_KEY, JSON.stringify(settings))
+    render(<HealthScreen />)
+    await user.click(screen.getByRole('button', { name: /Подстричь ногти.*По плану/ }))
+    await user.click(screen.getByRole('button', { name: 'Выполнить сегодня' }))
+    await user.click(screen.getByRole('checkbox', { name: /Подстричь ногти · долг за/ }))
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(HEALTH_STATE_KEY)!).cosmetologyDebts[`nails:${today}`]).toMatchObject({ plannedDate: today, completedDate: null }))
+    expect((screen.getByRole('checkbox', { name: 'Подстричь ногти' }) as HTMLInputElement).checked).toBe(false)
+    const next = new Date(`${today}T12:00:00`); next.setDate(next.getDate() + nails.intervalWeeks * 7)
+    const savedSettings = JSON.parse(localStorage.getItem(HEALTH_SETTINGS_KEY)!).cosmetology.intervals.find((item: { id: string }) => item.id === 'nails')
+    expect(savedSettings.nextDate).toBe(getLocalDateId(next))
+    expect(savedSettings.intervalWeeks).toBe(nails.intervalWeeks)
+  }, 15_000)
+
+  it('изолирует выбранный старый долг от сегодняшней галочки и сохраняет выбор после перезагрузки', async () => {
+    const user = userEvent.setup()
+    const today = getLocalDateId()
+    const settings = createDefaultHealthSettings()
+    for (const item of settings.cosmetology.procedures) {
+      item.active = item.id === 'toplash'
+      if (item.id === 'toplash') { item.title = 'Toplash'; item.days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] }
+    }
+    const state = createEmptyHealthState()
+    for (let offset = 4; offset >= 1; offset--) {
+      const date = new Date(`${today}T12:00:00`); date.setDate(date.getDate() - offset)
+      const plannedDate = getLocalDateId(date), id = `toplash:${plannedDate}`
+      state.cosmetologyDebts[id] = { id, procedureId: 'toplash', title: 'Toplash', plannedDate, procedureIds: ['toplash'], activeDate: null, completedDate: null, skippedDate: null }
+    }
+    localStorage.setItem(HEALTH_STATE_KEY, JSON.stringify(state))
+    localStorage.setItem(HEALTH_SETTINGS_KEY, JSON.stringify(settings))
+    const mounted = render(<HealthScreen />)
+    await user.click(screen.getByRole('checkbox', { name: 'Toplash' }))
+    await user.click(screen.getAllByRole('button', { name: /Toplash.*По плану/ })[0])
+    await user.click(screen.getByRole('button', { name: 'Выполнить сегодня' }))
+    const oldCheckbox = screen.getByRole('checkbox', { name: /Toplash · долг за/ }) as HTMLInputElement
+    expect(oldCheckbox.checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: 'Toplash' }) as HTMLInputElement).checked).toBe(true)
+    await user.click(oldCheckbox)
+    const chosen = Object.keys(state.cosmetologyDebts)[0]
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(HEALTH_STATE_KEY)!).cosmetologyDebts[chosen].completedDate).toBe(today))
+    const persisted = JSON.parse(localStorage.getItem(HEALTH_STATE_KEY)!)
+    expect(Object.values(persisted.cosmetologyDebts).filter(value => (value as { completedDate: string | null }).completedDate === null)).toHaveLength(3)
+    mounted.unmount()
+    render(<HealthScreen />)
+    const restored = screen.getByRole('checkbox', { name: /Toplash · долг за/ }) as HTMLInputElement
+    expect(restored.checked).toBe(true)
+    await user.click(restored)
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(HEALTH_STATE_KEY)!).cosmetologyDebts[chosen].completedDate).toBeNull())
+    expect((screen.getByRole('checkbox', { name: 'Toplash' }) as HTMLInputElement).checked).toBe(true)
+    expect(Object.keys(JSON.parse(localStorage.getItem(HEALTH_STATE_KEY)!).cosmetologyDebts)).toHaveLength(4)
+  })
+
+  it('не исправляет и не перезаписывает здоровье, если исходная копия не помещается', async () => {
+    const raw = JSON.stringify(createEmptyHealthState())
+    localStorage.setItem(HEALTH_STATE_KEY, raw)
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError') })
+    try {
+      const { container } = render(<HealthScreen />)
+      expect(screen.getByRole('alert').textContent).toContain('Изменения остановлены')
+      expect(container.querySelector('.health-tab-content')?.hasAttribute('inert')).toBe(true)
+      await new Promise(resolve => setTimeout(resolve, 400))
+      expect(localStorage.getItem(HEALTH_STATE_KEY)).toBe(raw)
+      expect(spy.mock.calls.filter(([key]) => key === HEALTH_STATE_KEY)).toHaveLength(0)
+    } finally { spy.mockRestore() }
+  })
+
   it('keeps the Thursday face scrub manual and restores its checkbox without changing Friday', async () => {
     const first = render(<HealthScreen />)
     fireEvent.change(screen.getByLabelText('Выбрать дату'), { target: { value: '2026-11-05' } })
@@ -563,7 +636,7 @@ describe('экран здоровья сегодня', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Не выполнено' })).toBeNull())
     await user.click(screen.getByLabelText(/Кровавый пилинг ART&FACT/))
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Не выполнено' })).not.toBeNull())
-    expect(screen.getByText(/По плану: 17 июля/)).not.toBeNull()
+    expect(screen.getAllByText(/По плану: 17 июля/)).toHaveLength(5)
     expect(screen.getAllByText('Кровавый пилинг ART&FACT')).toHaveLength(1)
   })
 

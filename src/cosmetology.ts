@@ -1,5 +1,6 @@
 import { getWeekdayForDate, type CosmeticIntervalSetting, type CosmeticProcedureSetting, type HealthSettings } from './healthSettings'
 import type { CosmetologyDebt, HealthEntry, HealthState } from './healthTypes'
+import { createHealthEntry } from './healthModel'
 
 export interface PlannedCosmeticProcedure {
   id: string
@@ -19,6 +20,26 @@ export interface CosmetologyDebtCandidate {
 export const FACE_COOL_WATER_PROCEDURE_ID = 'face-cool-water'
 export const FACE_SCRUB_PROCEDURE_ID = 'face-scrub'
 export const FACE_SCRUB_INSTRUCTION = 'Не использовать при раздражении кожи или до восстановления после пилинга'
+
+// These keys exist in the working view only. cosmetologyIntegrity separates them
+// before persistence so the old builtin never renders internal ids as procedures.
+const DEBT_CHECK_PREFIX = '__cosmetology_debt__:'
+export function isCosmetologyAssignmentKey(key: string): boolean { return key.startsWith(DEBT_CHECK_PREFIX) }
+export function getCosmetologyDebtCheckKey(debtId: string, procedureId: string): string {
+  return `${DEBT_CHECK_PREFIX}${encodeURIComponent(debtId)}:${encodeURIComponent(procedureId)}`
+}
+export function getCosmetologyTimerCompletionKey(timerId: string): string {
+  return `${DEBT_CHECK_PREFIX}$timer:${encodeURIComponent(timerId)}`
+}
+export function hasCosmetologyDebtChecks(entry: HealthEntry, debt: CosmetologyDebt): boolean {
+  return entry.cosmetology[getCosmetologyDebtCheckKey(debt.id, '$selected')] === true
+}
+export function toggleCosmetologyDebtCheck(entry: HealthEntry, debt: CosmetologyDebt, procedureId: string): HealthEntry {
+  if (debt.skippedDate || !debt.procedureIds.includes(procedureId)) return entry
+  const key = getCosmetologyDebtCheckKey(debt.id, procedureId)
+  const next = setCosmetologyCompletion(entry, key, entry.cosmetology[key] !== true)
+  return setCosmetologyCompletion(next, getCosmetologyDebtCheckKey(debt.id, '$selected'), true)
+}
 
 // A fixed manual checklist item, not a new persisted settings schema. Keeping it
 // outside settings prevents the APK 3 normalizer from dropping its configuration.
@@ -40,9 +61,10 @@ export function getCosmetologyForDate(
   if (getWeekdayForDate(dateId) === 'thursday' &&
       !settings.cosmetology.procedures.some(item => item.id === FACE_SCRUB_PROCEDURE_ID)) scheduled.push(faceScrubPlanned())
   const intervals = settings.cosmetology.intervals
-    .filter((item) => item.active && item.nextDate !== null && item.nextDate <= dateId)
+    .filter((item) => item.active && item.nextDate === dateId)
     .map((item) => intervalPlanned(item, dateId))
   const saved = Object.keys(entry?.cosmetology ?? {})
+    .filter((id) => !id.startsWith(DEBT_CHECK_PREFIX))
     .filter((id) => !HIDDEN_LEGACY_PROCEDURE_IDS.has(id))
     .filter((id) => !scheduled.some((item) => item.id === id) && !intervals.some((item) => item.id === id))
     .map((id) => {
@@ -184,6 +206,8 @@ export function getCosmetologyDebtCandidates(
   }
 
   const candidates = procedures
+    // Interval appointments are reconciled once from their explicit nextDate below.
+    .filter((item) => !settings.cosmetology.intervals.some((interval) => interval.id === item.id))
     // Do not invent historical overdue obligations for the newly added manual item.
     .filter((item) => item.id !== FACE_SCRUB_PROCEDURE_ID)
     .filter((item) => !HIDDEN_LEGACY_PROCEDURE_IDS.has(item.id))
@@ -204,9 +228,15 @@ export function getCosmetologyDebtProcedures(
     const setting = settingsById.get(id)
     return setting
       ? toPlanned(setting)
-      : { id, title: id, instruction: '', durationLabel: '', timerSeconds: null, overdue: false }
+      : { id, title: settings.cosmetology.intervals.find(item => item.id === id)?.title ?? (id === debt.procedureId ? debt.title : id), instruction: '', durationLabel: '', timerSeconds: null, overdue: false }
   })
   return simplifyCosmetologyProcedures(planned)
+}
+
+export function rememberCosmeticIntervalPlan(state: HealthState, item: CosmeticIntervalSetting): HealthState {
+  if (!item.nextDate || Object.values(state.cosmetologyDebts).some(debt => debt.procedureId === item.id && debt.plannedDate === item.nextDate)) return state
+  const debt = createCosmetologyDebt({ procedureId: item.id, title: item.title, procedureIds: [item.id] }, item.nextDate)
+  return { ...state, cosmetologyDebts: { ...state.cosmetologyDebts, [debt.id]: debt } }
 }
 
 export function reconcileCosmetologyDebts(
@@ -215,15 +245,27 @@ export function reconcileCosmetologyDebts(
   todayId: string,
 ): HealthState {
   const checkedThrough = state.cosmetologyDebtCheckedThrough
-  if (!checkedThrough || checkedThrough >= todayId) return state
-
   const debts = { ...state.cosmetologyDebts }
+  let changed = false
+  // Never turn each elapsed day into another interval appointment. Also pick up an
+  // explicit overdue nextDate even when the daily cursor has already passed it.
+  for (const interval of settings.cosmetology.intervals) {
+    const dateId = interval.nextDate
+    if (!interval.active || !dateId || dateId >= todayId) continue
+    const candidate = { procedureId: interval.id, title: interval.title, procedureIds: [interval.id] }
+    const id = `${interval.id}:${dateId}`
+    if (!Object.values(debts).some(debt => debt.procedureId === interval.id && debt.plannedDate === dateId) && !state.entries[dateId]?.cosmetology[interval.id]) {
+      debts[id] = createCosmetologyDebt(candidate, dateId)
+      changed = true
+    }
+  }
+  if (!checkedThrough || checkedThrough >= todayId) return changed ? { ...state, cosmetologyDebts: debts } : state
   for (let dateId = checkedThrough; dateId < todayId; dateId = nextDate(dateId)) {
     const entry = state.entries[dateId]
     getCosmetologyDebtCandidates(settings, dateId).forEach((candidate) => {
       const completedOnPlanDate = candidate.procedureIds.every((id) => entry?.cosmetology[id] === true)
       const id = `${candidate.procedureId}:${dateId}`
-      if (!completedOnPlanDate && !debts[id]) {
+      if (!completedOnPlanDate && !Object.values(debts).some(debt => debt.procedureId === candidate.procedureId && debt.plannedDate === dateId)) {
         debts[id] = {
           id,
           procedureId: candidate.procedureId,
@@ -248,15 +290,11 @@ export function activateCosmetologyDebt(
 ): HealthState {
   const debt = state.cosmetologyDebts[debtId]
   if (!debt || debt.completedDate || debt.skippedDate) return state
-  const debts = Object.fromEntries(Object.entries(state.cosmetologyDebts).map(([id, candidate]) => [
-    id,
-    id !== debtId && candidate.procedureId === debt.procedureId && candidate.activeDate === dateId
-      ? { ...candidate, activeDate: null }
-      : candidate,
-  ])) as Record<string, CosmetologyDebt>
+  const entry = state.entries[dateId] ?? createHealthEntry(dateId)
   return {
     ...state,
-    cosmetologyDebts: { ...debts, [debtId]: { ...debt, activeDate: dateId } },
+    entries: { ...state.entries, [dateId]: setCosmetologyCompletion(entry, getCosmetologyDebtCheckKey(debtId, '$selected'), true) },
+    cosmetologyDebts: { ...state.cosmetologyDebts, [debtId]: { ...debt, activeDate: dateId } },
   }
 }
 
@@ -279,14 +317,17 @@ export function resolveActiveCosmetologyDebts(
 ): HealthState {
   let changed = false
   const debts = Object.fromEntries(Object.entries(state.cosmetologyDebts).map(([id, debt]) => {
-    const complete = debt.activeDate === entry.date && debt.procedureIds.every((procedureId) => entry.cosmetology[procedureId] === true)
+    // Old day-wide flags are not proof that this particular assignment was done.
+    if (debt.skippedDate || !hasCosmetologyDebtChecks(entry, debt)) return [id, debt]
+    const checked = debt.procedureIds.every((procedureId) => entry.cosmetology[getCosmetologyDebtCheckKey(debt.id, procedureId)] === true)
+    const complete = debt.activeDate === entry.date && checked
     if (complete && !debt.completedDate && !debt.skippedDate) {
       changed = true
       return [id, { ...debt, completedDate: entry.date, activeDate: null }]
     }
     const completionWasCancelled = debt.completedDate === entry.date &&
       !debt.skippedDate &&
-      !debt.procedureIds.every((procedureId) => entry.cosmetology[procedureId] === true)
+      !checked
     if (completionWasCancelled) {
       changed = true
       return [id, { ...debt, completedDate: null, activeDate: entry.date }]
@@ -303,18 +344,35 @@ export function syncCosmetologyDebtsForEntry(
   todayId: string,
 ): HealthState {
   const resolved = resolveActiveCosmetologyDebts(state, entry)
-  if (entry.date >= todayId) return resolved
+  if (entry.date > todayId) return resolved
 
   let changed = false
   const debts = { ...resolved.cosmetologyDebts }
-  getCosmetologyDebtCandidates(settings, entry.date).forEach((candidate) => {
-    const id = `${candidate.procedureId}:${entry.date}`
+  const candidates = entry.date < todayId ? getCosmetologyDebtCandidates(settings, entry.date) : []
+  for (const interval of settings.cosmetology.intervals.filter(item => item.active && item.nextDate === entry.date)) {
+    candidates.push({ procedureId: interval.id, title: interval.title, procedureIds: [interval.id] })
+  }
+  // Existing legitimate history remains editable after later schedule changes.
+  for (const debt of Object.values(debts).filter(item => item.plannedDate === entry.date)) {
+    if (!candidates.some(item => item.procedureId === debt.procedureId)) candidates.push(debt)
+  }
+  candidates.forEach((candidate) => {
+    const matching = Object.values(debts).filter(debt => debt.procedureId === candidate.procedureId && debt.plannedDate === entry.date)
+    // Conflicting same-date histories require an explicit per-record action.
+    if (matching.length > 1) return
+    const id = matching[0]?.id ?? `${candidate.procedureId}:${entry.date}`
     const completedOnPlanDate = candidate.procedureIds.every(
       (procedureId) => entry.cosmetology[procedureId] === true,
     )
     const existing = debts[id]
+    if (existing && hasCosmetologyDebtChecks(entry, existing)) return
 
-    if (!existing && !completedOnPlanDate) {
+    if (!existing && completedOnPlanDate && settings.cosmetology.intervals.some(item => item.id === candidate.procedureId)) {
+      debts[id] = { ...createCosmetologyDebt(candidate, entry.date), completedDate: entry.date }
+      changed = true
+      return
+    }
+    if (!existing && !completedOnPlanDate && entry.date < todayId) {
       debts[id] = createCosmetologyDebt(candidate, entry.date)
       changed = true
       return
@@ -326,6 +384,10 @@ export function syncCosmetologyDebtsForEntry(
       !existing.skippedDate
     ) {
       debts[id] = { ...existing, completedDate: entry.date, activeDate: null }
+      changed = true
+    }
+    if (existing?.completedDate === entry.date && !existing.skippedDate && !completedOnPlanDate) {
+      debts[id] = { ...existing, completedDate: null, activeDate: null }
       changed = true
     }
   })

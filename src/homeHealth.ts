@@ -47,10 +47,17 @@ export function buildHomeHealthPreview(
     reconcileCosmetologyDebts(state, settings, todayIsoDate),
     todayIsoDate,
   )
-  const overdue = getOverdueCosmetologyDebts(effective)
+  const overdue = getOverdueCosmetologyDebts(effective).filter(debt => debt.plannedDate < todayIsoDate)
   const currentEntry = effective.entries[todayIsoDate]
-  const scheduled = getCosmetologyDebtCandidates(settings, todayIsoDate)
-    .filter((candidate) => !overdue.some((debt) => debt.procedureId === candidate.procedureId))
+  const candidates = getCosmetologyDebtCandidates(settings, todayIsoDate)
+  for (const item of settings.cosmetology.intervals.filter(item => item.active && item.nextDate === todayIsoDate)) {
+    candidates.push({ procedureId: item.id, title: item.title, procedureIds: [item.id] })
+  }
+  for (const debt of Object.values(effective.cosmetologyDebts).filter(debt => debt.plannedDate === todayIsoDate && !debt.completedDate && !debt.skippedDate)) {
+    if (!candidates.some(item => item.procedureId === debt.procedureId)) candidates.push(debt)
+  }
+  const scheduled = candidates
+    .filter(candidate => !Object.values(effective.cosmetologyDebts).some(debt => debt.procedureId === candidate.procedureId && debt.plannedDate === todayIsoDate && (debt.completedDate || debt.skippedDate)))
     .filter((candidate) => !candidate.procedureIds.every((id) => currentEntry?.cosmetology[id] === true))
   const allProcedures: HomeScheduledLine[] = [
     ...overdue.map((debt) => ({

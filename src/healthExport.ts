@@ -84,7 +84,8 @@ export function buildHealthChecklistText(
   const cosmetology = getCosmetologyForDate(settings, entry.date, entry)
   const overdueCosmetology = getOverdueCosmetologyDebts({ cosmetologyDebts })
     .filter((debt) => debt.plannedDate < entry.date)
-  if (cosmetology.length > 0 || overdueCosmetology.length > 0) {
+  const completedCosmetology = Object.values(cosmetologyDebts).filter(debt => debt.completedDate === entry.date && debt.plannedDate !== entry.date && !debt.skippedDate)
+  if (cosmetology.length > 0 || overdueCosmetology.length > 0 || completedCosmetology.length > 0) {
     lines.push(
       '',
       'Косметология:',
@@ -92,6 +93,7 @@ export function buildHealthChecklistText(
       ...overdueCosmetology.map((debt) =>
         `- Просрочено: ${debt.title} (по плану ${formatChecklistDate(debt.plannedDate)}): нет`,
       ),
+      ...completedCosmetology.map(debt => `- Выполнено: ${debt.title} (по плану ${formatChecklistDate(debt.plannedDate)}): да`),
     )
   }
 

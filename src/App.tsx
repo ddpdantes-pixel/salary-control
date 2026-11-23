@@ -1,9 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { registerSW } from 'virtual:pwa-register'
-import {
-  createBackupData,
-  parseBackupData,
-} from './backup'
+import { createBackupWithCosmetologyIntegrity as createBackupData, parseBackupWithCosmetologyIntegrity as parseBackupData, loadCosmetologyHealthState, saveCosmetologyHealthState as saveStoredHealthState } from './cosmetologyIntegrity'
 import {
   calculateArtkeraProgress,
   calculateLaparetProgress,
@@ -62,7 +59,6 @@ import type {
   TabId,
 } from './appNavigation'
 import { HealthScreen } from './HealthScreen'
-import { loadStoredHealthState, saveStoredHealthState } from './healthStorage'
 import { createEmptyHealthState } from './healthModel'
 import { traceOtaBootstrap } from './otaBootstrapTrace'
 import type { HealthState } from './healthTypes'
@@ -288,7 +284,7 @@ function App() {
       setDailySalesState(nextDailySalesState)
       setCashAtHome(nextCashAtHome)
       setPaymentNotificationSettings(nextNotificationSettings)
-      setHealthState(loadStoredHealthState().state)
+      setHealthState(loadCosmetologyHealthState().state)
       setHealthSettings(loadStoredHealthSettings())
       setStorageMessage(nextStorageMessage)
       setIsBooting(false)

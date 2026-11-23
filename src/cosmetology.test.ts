@@ -9,6 +9,8 @@ import {
   skipCosmetologyDebt,
   syncCosmetologyDebtsForEntry,
   toggleCosmetologyCompletion,
+  toggleCosmetologyDebtCheck,
+  getCosmetologyDebtCheckKey,
 } from './cosmetology'
 import { createEmptyHealthState, createHealthEntry, upsertHealthEntry } from './healthModel'
 import { createDefaultHealthSettings } from './healthSettings'
@@ -120,12 +122,15 @@ describe('косметология', () => {
     )
     const debt = getOverdueCosmetologyDebts(initial)[0]
     const active = activateCosmetologyDebt(initial, debt.id, '2026-07-20')
-    const partialEntry = createHealthEntry('2026-07-20')
-    partialEntry.cosmetology = { 'blood-peel-timer': true, 'neutralizer-timer': true }
+    const partialEntry = { ...active.entries['2026-07-20'], cosmetology: {
+      ...active.entries['2026-07-20'].cosmetology,
+      [getCosmetologyDebtCheckKey(debt.id, 'blood-peel-timer')]: true,
+      [getCosmetologyDebtCheckKey(debt.id, 'neutralizer-timer')]: true,
+    } }
     const partial = resolveActiveCosmetologyDebts(upsertHealthEntry(active, partialEntry), partialEntry)
     expect(getOverdueCosmetologyDebts(partial)).toHaveLength(1)
 
-    const fullEntry = { ...partialEntry, cosmetology: Object.fromEntries(debt.procedureIds.map((id) => [id, true])) }
+    const fullEntry = { ...partialEntry, cosmetology: { ...partialEntry.cosmetology, ...Object.fromEntries(debt.procedureIds.map((id) => [getCosmetologyDebtCheckKey(debt.id, id), true])) } }
     const resolved = resolveActiveCosmetologyDebts(upsertHealthEntry(partial, fullEntry), fullEntry)
     expect(getOverdueCosmetologyDebts(resolved)).toHaveLength(0)
     expect(resolved.cosmetologyDebts[debt.id]?.completedDate).toBe('2026-07-20')
@@ -141,10 +146,7 @@ describe('косметология', () => {
     const debt = getOverdueCosmetologyDebts(initial)
       .find((item) => item.procedureId === 'body-scrub')!
     const active = activateCosmetologyDebt(initial, debt.id, '2026-08-23')
-    const completedEntry = {
-      ...createHealthEntry('2026-08-23'),
-      cosmetology: { 'body-scrub': true },
-    }
+    const completedEntry = toggleCosmetologyDebtCheck(active.entries['2026-08-23'], debt, 'body-scrub')
     const completed = syncCosmetologyDebtsForEntry(
       upsertHealthEntry(active, completedEntry),
       settings,
@@ -157,7 +159,7 @@ describe('косметология', () => {
       activeDate: null,
     })
 
-    const undoneEntry = toggleCosmetologyCompletion(completedEntry, 'body-scrub')
+    const undoneEntry = toggleCosmetologyDebtCheck(completedEntry, debt, 'body-scrub')
     const undone = syncCosmetologyDebtsForEntry(
       upsertHealthEntry(completed, undoneEntry),
       settings,
