@@ -18,6 +18,7 @@ import {
   saveCloudBackupSafely,
   withBackupDeadline,
   MAX_CLOUD_BACKUPS,
+  CLOUD_BACKUP_KEY_STORAGE,
   saveCloudBackupKey,
   type CloudBackupMetadata,
 } from './cloudBackupService'
@@ -103,6 +104,9 @@ export function CloudBackupSection({
   }
 
   function getOrCreateKey(): string {
+    if (!key && window.localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE) !== null) {
+      throw new CloudBackupError('Сохранённый ключ подключения повреждён. Он не заменён; используйте сохранённый файл ключа.', 'invalid-key')
+    }
     const next = key ?? ensureCloudBackupKey()
     if (next !== key) setKey(next)
     return next

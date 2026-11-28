@@ -228,6 +228,15 @@ describe('подтверждение облачного сохранения', (
     expect(localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE)).toBe('A'.repeat(43))
   })
 
+  it('не заменяет повреждённую существующую запись ключа новым хранилищем', async () => {
+    localStorage.setItem(CLOUD_BACKUP_KEY_STORAGE, 'old-damaged-key-record')
+    renderSection()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Сохранить в облако' }))
+    await screen.findByText(/Сохранённый ключ подключения повреждён/)
+    expect(localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE)).toBe('old-damaged-key-record')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('локальный экспорт доступен во время ожидания облака', async () => {
     const pending = deferred<Response>()
     vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST' ? pending.promise : Response.json({ backups: [] }))
