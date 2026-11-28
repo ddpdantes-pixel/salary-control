@@ -217,6 +217,48 @@ function trackedContext() {
   return context
 }
 
+describe('безопасная ротация и идемпотентность', () => {
+  it('сохраняет шестую копию при будущих старых датах и одинаковом серверном времени', async () => {
+    const context = trackedContext()
+    const owner = await sha256(OWNER_KEY)
+    for (let n = 1; n <= 5; n++) await context.store.save(owner, await createEnvelope(
+      `00000000-0000-4000-8000-00000000000${n}`, '2030-01-01T00:00:00.000Z'), NOW)
+    const newest = await createEnvelope('00000000-0000-4000-8000-000000000000', '2020-01-01T00:00:00.000Z')
+    expect((await call(context, request('POST', newest))).status).toBe(201)
+    const found = await call(context, request('GET', undefined, OWNER_KEY, newest.backupId))
+    expect(found.status).toBe(200)
+    expect((await found.json() as { createdAt: string }).createdAt).toBe(NOW)
+    const list = await context.store.list(owner, 5)
+    expect(list).toHaveLength(5)
+    expect(list[0].backupId).toBe(newest.backupId)
+    expect(list.some(item => item.backupId === '00000000-0000-4000-8000-000000000001')).toBe(false)
+  })
+
+  it('повторяет точный запрос без ротации и не перезаписывает другой payload с тем же id', async () => {
+    const context = trackedContext(), envelope = await createEnvelope('00000000-0000-4000-8000-000000000011', NOW)
+    const first = await call(context, request('POST', envelope))
+    const again = await call(context, request('POST', envelope))
+    expect(await again.json()).toEqual(await first.json())
+    const otherPayload = JSON.stringify({ app: 'kontrol-zarplaty', altered: true })
+    const conflict = await call(context, request('POST', { ...envelope, payload: otherPayload, payloadSize: new TextEncoder().encode(otherPayload).byteLength, payloadChecksum: await sha256(otherPayload) }))
+    expect(conflict.status).toBe(409)
+    expect(context.database.rows('SELECT * FROM cloud_backups')).toHaveLength(1)
+    const stored = await call(context, request('GET', undefined, OWNER_KEY, envelope.backupId))
+    expect((await stored.json() as { payload: string }).payload).toBe(envelope.payload)
+  })
+
+  it('ошибка записи chunks откатывает транзакцию без удаления пяти рабочих копий', async () => {
+    const context = trackedContext(), owner = await sha256(OWNER_KEY)
+    for (let n = 1; n <= 5; n++) await context.store.save(owner, await createEnvelope(`00000000-0000-4000-8000-00000000000${n}`, NOW), NOW)
+    const before = await context.store.list(owner, 5)
+    context.database.exec("CREATE TRIGGER fail_chunk BEFORE INSERT ON cloud_backup_chunks BEGIN SELECT RAISE(ABORT, 'synthetic write failure'); END;")
+    const response = await call(context, request('POST', await createEnvelope('00000000-0000-4000-8000-000000000099', NOW)))
+    expect(response.status).toBe(503)
+    expect(await context.store.list(owner, 5)).toEqual(before)
+    for (const item of before) expect((await context.store.load(owner, item.backupId))?.payload).toContain('kontrol-zarplaty')
+  })
+})
+
 function createContext() {
   const database = new TestD1Database([migrationPath])
   const repository = new NoopRepository()

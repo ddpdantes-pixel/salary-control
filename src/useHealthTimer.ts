@@ -21,7 +21,7 @@ import { completeHealthTimer } from './healthTimerCompletion'
 import { cancelStretchSignal, prepareStretchAudio, signalStretchTimer } from './stretchAudio'
 import { acquireTimerScreen } from './timerScreenAwake'
 import { nativeStretchAvailable } from './nativeStretch'
-import { useNativeStretch } from './useNativeStretch'
+import { useNativeStretch, STRETCH_SIGNALS } from './useNativeStretch'
 
 export interface HealthTimerController {
   timer: ActiveHealthTimer | null
@@ -109,7 +109,7 @@ function useWebHealthTimer(nativeGym: boolean): HealthTimerController {
     const token = ++signalGeneration.current
     if (gym && result.event.final) setFinishingSignal(true)
     const signal = gym ? signalStretchTimer : signalHealthTimer
-    void signal(result.event.final, preferencesRef.current).then((played) => {
+    void signal(result.event.final, gym ? STRETCH_SIGNALS : preferencesRef.current).then((played) => {
       if (gym && token !== signalGeneration.current) return
       if (gym) setFinishingSignal(false)
       if (!played && (!gym || timerRef.current?.startedAt === current.startedAt && timerRef.current.status !== 'paused')) setAudioWarning('Звуковой сигнал заблокирован браузером')
@@ -164,7 +164,7 @@ function useWebHealthTimer(nativeGym: boolean): HealthTimerController {
   }, [])
 
   const prepareAudioFromGesture = useCallback((kind: HealthTimerKind) => {
-    if (kind === 'face' && audioReady || !preferencesRef.current.soundEnabled) return
+    if (kind === 'face' && (audioReady || !preferencesRef.current.soundEnabled)) return
     void (kind === 'gym' ? prepareStretchAudio() : unlockTimerAudio()).then((ready) => {
       setAudioReady(ready)
       if (ready) setAudioWarning(null)
@@ -233,7 +233,7 @@ function useWebHealthTimer(nativeGym: boolean): HealthTimerController {
   }, [requestStart])
 
   const testSound = useCallback(async (kind: HealthTimerKind = 'face') => {
-    const ready = kind === 'gym' ? await signalStretchTimer(false, preferencesRef.current) : await unlockTimerAudio()
+    const ready = kind === 'gym' ? await signalStretchTimer(false, STRETCH_SIGNALS) : await unlockTimerAudio()
     setAudioReady(ready)
     setAudioWarning(null)
     setNotice(ready
@@ -317,7 +317,7 @@ export function useHealthTimer(): HealthTimerController {
     resume: () => { if (native.timer) void native.resume(); else web.resume() },
     stop: () => { if (native.timer) void native.stop(); else web.stop(); setPending(null) },
     testSound: async (kind = 'face') => { if (kind === 'gym') { await native.testSound() } else await web.testSound(kind) },
-    setPreference: (name, value) => { web.setPreference(name, value); native.preferences({ ...web.preferences, [name]: value }) },
+    setPreference: (name, value) => { web.setPreference(name, value) },
     dismissAudioWarning: () => { native.dismissWarning(); web.dismissAudioWarning() },
   }
 }

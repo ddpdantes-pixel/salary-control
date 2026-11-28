@@ -287,10 +287,10 @@ describe('экран здоровья сегодня', () => {
       name: 'Поделиться отчётом здоровья отдельными изображениями',
     })).not.toBeNull()
     expect(
-      screen.getByText(
+      screen.queryByText(
         'Для ChatGPT отправится один общий файл. Обычная отправка передаст изображения отдельно',
       ),
-    ).not.toBeNull()
+    ).toBeNull()
     expect(screen.queryByRole('button', { name: 'Скопировать только текст' })).toBeNull()
   })
 
@@ -361,7 +361,8 @@ describe('экран здоровья сегодня', () => {
     })
 
     render(<HealthScreen />)
-    await screen.findByText('Добавлено: 1 из 4')
+    expect(screen.queryByText('Добавлено: 1 из 4')).toBeNull()
+    await waitFor(async () => expect(await listHealthAttachments(today)).toHaveLength(1))
     await selectQuantity(user, 'Количество кружек воды', 1)
     await user.click(screen.getByRole('button', {
       name: 'Поделиться отчётом здоровья отдельными изображениями',
@@ -683,7 +684,7 @@ describe('экран здоровья сегодня', () => {
   it('оформляет Сегодня карточками с декоративными иконками, не меняя текстовые названия', () => {
     const { container } = render(<HealthScreen />)
 
-    for (const icon of ['calendar', 'history', 'settings', 'droplet', 'coffee', 'checklist', 'dumbbell', 'image']) {
+    for (const icon of ['calendar', 'history', 'settings', 'droplet', 'coffee', 'checklist', 'dumbbell']) {
       expect(container.querySelector(`[data-health-icon="${icon}"]`)?.getAttribute('aria-hidden')).toBe('true')
     }
     expect(container.querySelectorAll('.health-date-panel, .health-block, .health-attachments-block').length).toBeGreaterThan(4)

@@ -54,7 +54,7 @@ describe('native stretch bridge and shared face controller', () => {
     localStorage.setItem('moi-ritm.timer-preferences.v1', '{"soundEnabled":false,"vibrationEnabled":false}')
     mocks.current = state('paused', 0, 1)
     const { result } = renderHook(() => useHealthTimer()); await flush()
-    expect(mocks.api.read).toHaveBeenCalledWith({ legacy: expect.objectContaining({ gymPlanVersion: 1, status: 'paused' }), preferences: { soundEnabled: false, vibrationEnabled: false } })
+    expect(mocks.api.read).toHaveBeenCalledWith({ legacy: expect.objectContaining({ gymPlanVersion: 1, status: 'paused' }), preferences: { soundEnabled: true, vibrationEnabled: true } })
     expect(mocks.api.start).not.toHaveBeenCalled(); expect(mocks.api.resume).not.toHaveBeenCalled()
     expect(result.current.timer?.gymPlanVersion).toBe(1)
   })
@@ -94,5 +94,31 @@ describe('native stretch bridge and shared face controller', () => {
     const bad = state('running'); bad.timer = { ...bad.timer!, kind: 'face' } as ActiveHealthTimer
     expect(() => nativeStretchTimer(bad)).toThrow('некорректное')
     expect(() => nativeStretchTimer({ ...state(), protocol: 2 } as unknown as NativeStretchState)).toThrow('Несовместимый')
+  })
+})
+
+describe('обязательные сигналы растяжки', () => {
+  it('запускает растяжку со звуком и вибрацией при выключенных настройках лица', async () => {
+    localStorage.setItem('moi-ritm.timer-preferences.v1', '{"soundEnabled":false,"vibrationEnabled":false}')
+    const { result } = renderHook(() => useHealthTimer()); await flush()
+    act(() => result.current.requestStart('gym')); await flush()
+    expect(mocks.api.start).toHaveBeenCalledWith({ soundEnabled: true, vibrationEnabled: true })
+    expect(JSON.parse(localStorage.getItem('moi-ritm.timer-preferences.v1')!)).toEqual({ soundEnabled: false, vibrationEnabled: false })
+  })
+  it('не скрывает живой таймер при отказе обновления параметров сигнала', async () => {
+    mocks.current = state('paused')
+    mocks.api.preferences.mockRejectedValueOnce(new Error('Не удалось включить сигналы'))
+    const { result } = renderHook(() => useHealthTimer()); await flush()
+    expect(result.current.timer?.status).toBe('paused')
+    expect(result.current.audioWarning).toBe('Не удалось включить сигналы')
+  })
+  it('включает оба сигнала перед продолжением старого paused сеанса', async () => {
+    mocks.current = state('paused')
+    const { result } = renderHook(() => useHealthTimer()); await flush()
+    mocks.api.preferences.mockClear()
+    act(() => result.current.resume()); await flush()
+    expect(mocks.api.preferences).toHaveBeenCalledWith({ soundEnabled: true, vibrationEnabled: true })
+    expect(mocks.api.resume).toHaveBeenCalledOnce()
+    expect(mocks.api.preferences.mock.invocationCallOrder[0]).toBeLessThan(mocks.api.resume.mock.invocationCallOrder[0])
   })
 })

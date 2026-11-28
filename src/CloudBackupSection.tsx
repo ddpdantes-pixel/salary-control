@@ -15,10 +15,12 @@ import {
   loadCloudRestoreSnapshot,
   parseCloudConnectionToken,
   parseCloudKeyFile,
-  saveCloudBackup,
+  saveCloudBackupSafely,
+  withBackupDeadline,
+  MAX_CLOUD_BACKUPS,
   saveCloudBackupKey,
   type CloudBackupMetadata,
-} from './cloudBackup'
+} from './cloudBackupService'
 import './CloudBackupSection.css'
 import { createBackupFileName } from './backup'
 import { exportFile } from './fileExport'
@@ -40,6 +42,10 @@ export function CloudBackupSection({
   const [backups, setBackups] = useState<CloudBackupMetadata[]>([])
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
+  const [localBusy, setLocalBusy] = useState(false)
+  const [listKnown, setListKnown] = useState(false)
+  const refreshGeneration = useRef(0)
+  const localBusyRef = useRef(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
@@ -58,8 +64,10 @@ export function CloudBackupSection({
   useEffect(() => {
     const initialKey = loadCloudBackupKey()
     if (!initialKey) return
-    void refreshBackups(initialKey, false).catch((error: unknown) => {
-      setStatus(describeError(error))
+    const initial = refreshBackups(initialKey, false)
+    const generation = refreshGeneration.current
+    void initial.catch((error: unknown) => {
+      if (generation === refreshGeneration.current) setStatus(describeError(error))
     })
   }, [])
 
@@ -83,8 +91,11 @@ export function CloudBackupSection({
       setBackups([])
       return []
     }
+    const generation = ++refreshGeneration.current
     const next = await listCloudBackups(cloudKey)
+    if (generation !== refreshGeneration.current) return next
     setBackups(next)
+    setListKnown(true)
     if (announce) {
       setStatus(next.length > 0 ? `Найдено копий: ${next.length}` : 'Облачных копий пока нет.')
     }
@@ -100,19 +111,29 @@ export function CloudBackupSection({
   function handleSave(): void {
     void runBusy(async () => {
       const cloudKey = getOrCreateKey()
-      const saved = await saveCloudBackup(await createBackupPayload(), cloudKey)
-      const next = await refreshBackups(cloudKey, false)
-      setStatus(`Облачная копия сохранена ${formatCloudBackupDate(saved.createdAt)}`)
-      setBackups(next)
+      ++refreshGeneration.current
+      const result = await saveCloudBackupSafely(await withBackupDeadline(Promise.resolve().then(createBackupPayload)), cloudKey)
+      const saved = result.backup
+      ++refreshGeneration.current
+      setBackups(current => [saved, ...current.filter(item => item.backupId !== saved.backupId)].slice(0, MAX_CLOUD_BACKUPS))
+      const success = result.recovered ? 'Предыдущая отправка подтверждена' : 'Облачная копия сохранена'
+      setStatus(`${success} ${formatCloudBackupDate(saved.createdAt)}`)
+      try { await refreshBackups(cloudKey, false) }
+      catch { setListKnown(false); setStatus('Копия сохранена. Не удалось обновить список') }
     })
   }
 
   function handleLocalExport(): void {
-    void runBusy(async () => {
-      const payload = await createBackupPayload()
-      const saved = await exportFile(createBackupFileName(), new Blob([payload], { type: 'application/json' }))
-      setStatus(saved ? 'Резервная копия подготовлена для сохранения в файл.' : 'Сохранение файла отменено.')
-    })
+    if (localBusyRef.current) return
+    localBusyRef.current = true; setLocalBusy(true)
+    void (async () => {
+      try {
+        const payload = await withBackupDeadline(Promise.resolve().then(createBackupPayload))
+        const saved = await exportFile(createBackupFileName(), new Blob([payload], { type: 'application/json' }))
+        setStatus(saved ? 'Резервная копия подготовлена для сохранения в файл.' : 'Сохранение файла отменено.')
+      } catch (error) { setStatus(describeError(error)) }
+      finally { localBusyRef.current = false; setLocalBusy(false) }
+    })()
   }
 
   function handleRestore(metadata?: CloudBackupMetadata): void {
@@ -164,6 +185,7 @@ export function CloudBackupSection({
         'Отключить это устройство? Для повторного подключения понадобится QR-код или файл ключа.',
       )
     ) return
+    ++refreshGeneration.current
     disconnectCloudBackup()
     setKey(null)
     setBackups([])
@@ -229,6 +251,7 @@ export function CloudBackupSection({
       saveCloudBackupKey(nextKey)
       setKey(nextKey)
       setBackups(found)
+      setListKnown(true)
       setConnectOpen(false)
       setStatus(found.length > 0
         ? `Устройство подключено. Найдено копий: ${found.length}`
@@ -244,6 +267,7 @@ export function CloudBackupSection({
       saveCloudBackupKey(parsed.cloudKey)
       setKey(parsed.cloudKey)
       setBackups(found)
+      setListKnown(true)
       setConnectOpen(false)
       setStatus(found.length > 0
         ? `Устройство подключено. Найдено копий: ${found.length}`
@@ -269,13 +293,13 @@ export function CloudBackupSection({
           <h2 id="cloud-backup-title">Облачная копия</h2>
           <p>{connected ? 'Подключено на этом устройстве' : 'Не подключено'}</p>
         </div>
-        <span className={connected ? 'connected' : ''}>{connected ? 'Готово' : 'Локально'}</span>
+        <span className={connected ? 'connected' : ''}>{connected ? 'Подключено' : 'Локально'}</span>
       </div>
 
       <dl className="cloud-backup-summary">
         <div><dt>Последняя копия</dt><dd>{latest ? formatCloudBackupDate(latest.createdAt) : 'Нет данных'}</dd></div>
         <div><dt>Размер</dt><dd>{latest ? formatCloudBackupSize(latest.payloadSize) : '—'}</dd></div>
-        <div><dt>Версий</dt><dd>{backups.length}</dd></div>
+        <div><dt>Версий</dt><dd>{listKnown ? backups.length : connected ? '—' : 0}</dd></div>
       </dl>
 
       <p className="cloud-backup-note">
@@ -283,7 +307,7 @@ export function CloudBackupSection({
       </p>
 
       <div className="cloud-backup-actions">
-        <button type="button" disabled={busy} onClick={handleLocalExport}>Сохранить резервную копию в файл</button>
+        <button type="button" disabled={localBusy} onClick={handleLocalExport}>Сохранить резервную копию в файл</button>
         {onRequestLocalRestore && <button type="button" disabled={busy} onClick={onRequestLocalRestore}>Восстановить из файла</button>}
         <button type="button" className="primary-action" disabled={busy} onClick={handleSave}>
           {busy ? 'Подождите…' : 'Сохранить в облако'}

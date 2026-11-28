@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
+import { createHash } from 'node:crypto'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,6 +30,8 @@ const PAYLOAD = JSON.stringify({
 beforeEach(() => {
   vi.mocked(exportFile).mockReset().mockResolvedValue(true)
   window.localStorage.clear()
+  vi.stubGlobal('indexedDB', new IDBFactory())
+  vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001')
   vi.stubGlobal('fetch', vi.fn())
   vi.stubGlobal('confirm', vi.fn(() => true))
   vi.stubGlobal('scrollTo', vi.fn())
@@ -85,10 +90,12 @@ describe('интерфейс облачной копии', () => {
 
     const save = screen.getByRole('button', { name: 'Сохранить в облако' })
     await user.dblClick(save)
-    expect(fetch).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
     expect(window.localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE)).toHaveLength(43)
 
-    pending.resolve(Response.json({ ok: true, backup: metadata() }, { status: 201 }))
+    const posted = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)
+    const { payload: _payload, ...confirmed } = posted
+    pending.resolve(Response.json({ ok: true, backup: confirmed }, { status: 201 }))
     expect(await screen.findByText(/Облачная копия сохранена/)).not.toBeNull()
     expect(fetch).toHaveBeenCalledTimes(2)
   })
@@ -100,7 +107,7 @@ describe('интерфейс облачной копии', () => {
     renderSection({ createBackupPayload })
 
     await user.click(screen.getByRole('button', { name: 'Сохранить в облако' }))
-    expect(await screen.findByText('Сервис облачных копий временно недоступен.')).not.toBeNull()
+    expect(await screen.findByText(/Сохранение пока не подтверждено/)).not.toBeNull()
     expect(createBackupPayload).toHaveReturnedWith(PAYLOAD)
   })
 
@@ -200,6 +207,44 @@ describe('интерфейс облачной копии', () => {
   })
 })
 
+describe('подтверждение облачного сохранения', () => {
+  it('сохраняет успех POST при отказе GET и показывает подтверждённые дату/размер', async () => {
+    window.localStorage.setItem(CLOUD_BACKUP_KEY_STORAGE, 'A'.repeat(43))
+    let reads = 0
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      if (init?.method === 'POST') {
+        const { payload: _payload, ...sent } = JSON.parse(init.body as string)
+        return Response.json({ backup: { ...sent, createdAt: '2026-11-28T10:00:00.000Z' } }, { status: 201 })
+      }
+      if (++reads === 1) return Response.json({ backups: Array.from({ length: 5 }, (_, n) => metadata(`00000000-0000-4000-8000-00000000000${n + 2}`)) })
+      throw new TypeError('list unavailable')
+    })
+    renderSection()
+    await screen.findByText('5')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Сохранить в облако' }))
+    await screen.findByText('Копия сохранена. Не удалось обновить список')
+    expect(screen.getByText(formatCloudBackupDate('2026-11-28T10:00:00.000Z'))).not.toBeNull()
+    expect((screen.getByRole('button', { name: 'Сохранить в облако' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE)).toBe('A'.repeat(43))
+  })
+
+  it('локальный экспорт доступен во время ожидания облака', async () => {
+    const pending = deferred<Response>()
+    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST' ? pending.promise : Response.json({ backups: [] }))
+    renderSection()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Сохранить в облако' }))
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+    const local = screen.getByRole('button', { name: 'Сохранить резервную копию в файл' }) as HTMLButtonElement
+    expect(local.disabled).toBe(false)
+    await user.click(local)
+    expect(exportFile).toHaveBeenCalledOnce()
+    const { payload: _payload, ...sent } = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)
+    pending.resolve(Response.json({ backup: sent }, { status: 201 }))
+    await screen.findByText(/Облачная копия сохранена/)
+  })
+})
+
 function renderSection(input: {
   createBackupPayload?: () => string
   onRequestRestore?: (
@@ -225,7 +270,7 @@ function metadata(
     appVersion: '1',
     createdAt: '2026-07-18T19:15:00.000Z',
     devicePlatform: 'desktop',
-    payloadChecksum: 'a'.repeat(64),
+    payloadChecksum: createHash('sha256').update(PAYLOAD).digest('hex'),
     payloadSize: new TextEncoder().encode(PAYLOAD).byteLength,
   }
 }

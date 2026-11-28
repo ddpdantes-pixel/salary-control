@@ -49,25 +49,10 @@ export class D1CloudBackupStore implements CloudBackupStore {
     const statements: D1PreparedStatement[] = [
       this.db
         .prepare(
-          `DELETE FROM cloud_backup_chunks
-           WHERE owner_id = ? AND backup_id = ?`,
-        )
-        .bind(ownerId, envelope.backupId),
-      this.db
-        .prepare(
           `INSERT INTO cloud_backups (
              owner_id, backup_id, schema_version, app_version, created_at,
              device_platform, payload_checksum, payload_size, chunk_count, stored_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(owner_id, backup_id) DO UPDATE SET
-             schema_version = excluded.schema_version,
-             app_version = excluded.app_version,
-             created_at = excluded.created_at,
-             device_platform = excluded.device_platform,
-             payload_checksum = excluded.payload_checksum,
-             payload_size = excluded.payload_size,
-             chunk_count = excluded.chunk_count,
-             stored_at = excluded.stored_at`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           ownerId,
@@ -106,15 +91,16 @@ export class D1CloudBackupStore implements CloudBackupStore {
         .prepare(
           `DELETE FROM cloud_backups
            WHERE owner_id = ?
+             AND backup_id <> ?
              AND backup_id NOT IN (
                SELECT backup_id
                FROM cloud_backups
-               WHERE owner_id = ?
-               ORDER BY created_at DESC, backup_id DESC
+               WHERE owner_id = ? AND backup_id <> ?
+               ORDER BY stored_at DESC, rowid DESC
                LIMIT ?
              )`,
         )
-        .bind(ownerId, ownerId, 5),
+        .bind(ownerId, envelope.backupId, ownerId, envelope.backupId, 4),
     )
 
     await this.db.batch(statements)
@@ -128,7 +114,7 @@ export class D1CloudBackupStore implements CloudBackupStore {
            payload_checksum, payload_size, chunk_count
          FROM cloud_backups
          WHERE owner_id = ?
-         ORDER BY created_at DESC, backup_id DESC
+         ORDER BY stored_at DESC, rowid DESC
          LIMIT ?`,
       )
       .bind(ownerId, limit)

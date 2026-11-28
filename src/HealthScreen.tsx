@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { getVisibleHealthView, HEALTH_TABS } from './appNavigation'
 import type { HealthView, VisibleHealthView } from './appNavigation'
-import { HealthAttachmentsSection } from './HealthAttachmentsSection'
 import { HealthIcon, type HealthIconName } from './HealthIcon'
 import { HealthHistoryView } from './HealthHistoryView'
 import { HealthSettingsScreen } from './HealthSettingsScreen'
@@ -45,7 +44,7 @@ import type { HealthAttachment } from './healthAttachments'
 import { getTimerDisplayRemaining, getTimerTitle } from './healthTimer'
 import type { HealthTimerController } from './useHealthTimer'
 import StretchTimer from './StretchTimer'
-import { deleteHealthAttachmentsForDate } from './healthAttachmentStorage'
+import { deleteHealthAttachmentsForDate, listHealthAttachments } from './healthAttachmentStorage'
 import { shareHealthReport, shareHealthReportForChatGpt } from './healthShare'
 import type { HealthShareResult } from './healthShare'
 import { getHealthEntryWaterMl, getWaterGoalMl, isWaterGoalMet, switchHealthEntryToManualWater } from './appleHealthWater'
@@ -388,6 +387,8 @@ export function HealthScreen({
       <HealthTabs activeTab={activeTab} onChange={changeHealthTab} />
 
       {loaded.repairBlocked && <p role="alert" className="health-muted">{loaded.issue}</p>}
+      {activeTab === 'settings' && <details className="health-technical-settings">
+        <summary>История и восстановление</summary>
       {loaded.integrityIssues.length > 0 && <p role="status" className="health-muted">Есть неоднозначные записи задолженностей. История сохранена для проверки.
       </p>}
       {loaded.snapshotKey && Object.keys(state.cosmetologyDebts).length > 0 && <details className="health-muted">
@@ -398,6 +399,7 @@ export function HealthScreen({
         <button type="button" onClick={() => { recoveryTargetRef.current = loaded.snapshotKey; setRestoreOriginalOpen(true) }}>Восстановить исходные записи</button>
       </details>}
       {recoveryUndoKey && <button type="button" onClick={() => { recoveryTargetRef.current = recoveryUndoKey; setRestoreOriginalOpen(true) }}>Отменить восстановление здоровья</button>}
+      </details>}
       {recoveryIssue && <p role="alert">{recoveryIssue}</p>}
       {restoreOriginalOpen && <div className="dialog-backdrop" role="presentation"><section className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="cosmetology-recovery-title">
         <h2 id="cosmetology-recovery-title">Восстановить здоровье и настройки из выбранной копии?</h2>
@@ -585,6 +587,8 @@ function HealthToday({
     ? overdueDebts
     : overdueDebts.slice(0, 3)
   const [attachments, setAttachments] = useState<HealthAttachment[]>([])
+  const [attachmentDate, setAttachmentDate] = useState<string | null>(null)
+  const attachmentsReady = attachmentDate === selectedDate
   const [attachmentRefreshToken, setAttachmentRefreshToken] = useState(0)
   const [shareResult, setShareResult] = useState<HealthShareResult | null>(null)
   const [activeShareMode, setActiveShareMode] = useState<'chatgpt' | 'images' | null>(null)
@@ -610,10 +614,13 @@ function HealthToday({
     .join(', ') || 'Нет'
   const alcoholDetailsAvailable = Object.values(alcoholVisibility).some(Boolean)
   const alcoholDetailsSummary = getAlcoholDetailsSummary(entry)
-  const handleAttachmentsChange = useCallback(
-    (nextAttachments: HealthAttachment[]) => setAttachments(nextAttachments),
-    [],
-  )
+  useEffect(() => {
+    let active = true
+    setAttachments([]); setAttachmentDate(null)
+    void listHealthAttachments(selectedDate).then(stored => { if (active) { setAttachments(stored); setAttachmentDate(selectedDate) } })
+      .catch(() => { if (active) setShareResult({ status: 'error', message: 'Не удалось загрузить сохранённые скриншоты. Повторите открытие дня перед отправкой.' }) })
+    return () => { active = false }
+  }, [selectedDate, attachmentRefreshToken])
 
   useEffect(() => {
     setShareResult(null)
@@ -831,12 +838,7 @@ function HealthToday({
         )}
       </HealthBlock>
 
-      <HealthAttachmentsSection
-        date={selectedDate}
-        refreshToken={attachmentRefreshToken}
-        showDownloadActions={showDownloadActions}
-        onAttachmentsChange={handleAttachmentsChange}
-      />
+      <p className="health-workout-reminder"><strong>Не забудьте скриншоты тренировки и пульса</strong></p>
 
       <HealthBlock icon="wind" title={`Расслабление — ${formatMinutes(getRelaxationMinutes(settings))}`}>
         <div className="health-toggle-list">
@@ -1345,7 +1347,7 @@ function HealthToday({
           <button
             type="button"
             className="health-share-action"
-            disabled={!hasSavedEntry || activeShareMode !== null}
+            disabled={!hasSavedEntry || activeShareMode !== null || !attachmentsReady}
             aria-label="Отправить отчёт здоровья в ChatGPT одним файлом"
             onClick={() => requestFinalAction('chatgpt')}
           >
@@ -1354,16 +1356,13 @@ function HealthToday({
           <button
             type="button"
             className="health-secondary-action"
-            disabled={!hasSavedEntry || activeShareMode !== null}
+            disabled={!hasSavedEntry || activeShareMode !== null || !attachmentsReady}
             aria-label="Поделиться отчётом здоровья отдельными изображениями"
             onClick={() => requestFinalAction('images')}
           >
             {activeShareMode === 'images' ? 'Подготавливаем…' : 'Поделиться изображениями'}
           </button>
         </div>
-        <p className="health-share-hint">
-          Для ChatGPT отправится один общий файл. Обычная отправка передаст изображения отдельно
-        </p>
         {shareResult?.checklistImage && (
           <HealthChecklistDownload file={shareResult.checklistImage} />
         )}

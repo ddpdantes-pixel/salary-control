@@ -97,6 +97,7 @@ export async function handleBackupRequest(input: {
     if (error instanceof CorruptedCloudBackupStorageError) {
       return backupJson({ error: 'Backup checksum does not match' }, 400, origin)
     }
+    console.error('cloud_backup_storage_failure', { method: request.method, code: error instanceof Error ? /D1_[A-Z_]+|SQLITE_[A-Z_]+/.exec(error.message)?.[0] ?? error.name : 'unknown' })
     return backupJson({ error: 'Cloud backup request failed' }, 503, origin)
   }
 }
@@ -133,8 +134,26 @@ async function saveBackup(
     return backupJson({ error: 'Backup checksum does not match' }, 400, origin)
   }
 
-  await store.save(ownerId, envelope, nowIso)
-  return backupJson({ ok: true, backup: toMetadata(envelope) }, 201, origin)
+  const same = (existing: Awaited<ReturnType<CloudBackupStore['load']>>) => existing
+    && existing.payload === envelope.payload && existing.metadata.payloadChecksum === envelope.payloadChecksum
+    && existing.metadata.payloadSize === envelope.payloadSize && existing.metadata.schemaVersion === envelope.schemaVersion
+    && existing.metadata.appVersion === envelope.appVersion && existing.metadata.devicePlatform === envelope.devicePlatform
+  const existing = await store.load(ownerId, envelope.backupId)
+  if (existing) return same(existing)
+    ? backupJson({ ok: true, backup: existing.metadata }, 201, origin)
+    : backupJson({ error: 'Backup id already contains another snapshot' }, 409, origin)
+  const stored = { ...envelope, createdAt: nowIso }
+  try { await store.save(ownerId, stored, nowIso) }
+  catch (error) {
+    // A concurrent retry may have won. INSERT is immutable and D1 batch rolls
+    // back on conflict, so a failed retry never overwrites chunks or rotates.
+    const raced = await store.load(ownerId, envelope.backupId)
+    if (raced) return same(raced)
+      ? backupJson({ ok: true, backup: raced.metadata }, 201, origin)
+      : backupJson({ error: 'Backup id already contains another snapshot' }, 409, origin)
+    throw error
+  }
+  return backupJson({ ok: true, backup: toMetadata(stored) }, 201, origin)
 }
 
 function parseEnvelope(text: string): CloudBackupEnvelope | null {

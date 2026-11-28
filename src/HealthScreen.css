@@ -1946,3 +1946,9 @@
   .health-settings-savebar { grid-template-columns: 1fr; }
   .health-settings-savebar button { width: 100%; }
 }
+
+/* Compact reminder; saved attachments remain available to history/share. */
+.health-workout-reminder { margin: 0; padding: 2px 1px; color: var(--health-muted, #75618a); font-size: clamp(12px, 3.33vw, 14px); line-height: 1.45; white-space: nowrap; }
+.health-technical-settings { margin: 0 0 12px; font-size: 13px; }
+.health-technical-settings > summary { cursor: pointer; padding: 10px; }
+.health-technical-settings button { margin: 5px; }

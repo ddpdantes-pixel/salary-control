@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ACTIVE_TIMER_STORAGE_KEY, GYM_TIMER_V2_STORAGE_KEY, loadHealthTimerSession, loadTimerPreferences, saveActiveHealthTimer, type TimerPreferences } from './healthTimer'
+import { ACTIVE_TIMER_STORAGE_KEY, GYM_TIMER_V2_STORAGE_KEY, loadHealthTimerSession, saveActiveHealthTimer, type TimerPreferences } from './healthTimer'
 import { nativeStretch, nativeStretchTimer, type NativeStretchState } from './nativeStretch'
+
+export const STRETCH_SIGNALS: TimerPreferences = { soundEnabled: true, vibrationEnabled: true }
 
 export function useNativeStretch(supported: boolean) {
   const [legacy] = useState(() => supported ? loadHealthTimerSession().timer : null)
@@ -24,7 +26,16 @@ export function useNativeStretch(supported: boolean) {
     if (!supported) return
     let disposed = false
     let remove: (() => Promise<void>) | undefined
-    ready.current = nativeStretch.read(legacy?.kind === 'gym' ? { legacy, preferences: loadTimerPreferences() } : {}).then(next => { if (!disposed) apply(next) })
+    ready.current = nativeStretch.read(legacy?.kind === 'gym' ? { legacy, preferences: STRETCH_SIGNALS } : {}).then(async next => {
+      if (disposed) return
+      apply(next)
+      if (next.timer) {
+        try {
+          const enabled = await nativeStretch.preferences(STRETCH_SIGNALS)
+          if (!disposed) apply(enabled)
+        } catch (caught) { if (!disposed) setError(message(caught)) }
+      }
+    })
       .catch((caught: unknown) => { if (!disposed) { setError(message(caught)); setState({ protocol: 1, backend: 'android', status: 'stopped', exactAlarmGranted: false }) } })
     void nativeStretch.addListener('state', next => { if (!disposed) apply(next) }).then(handle => {
       if (disposed) void handle.remove(); else remove = () => handle.remove()
@@ -68,11 +79,11 @@ export function useNativeStretch(supported: boolean) {
   return {
     supported, busy: supported && (busy || state === null), timer: state ? nativeStretchTimer(state) : null, now,
     warning: error ?? state?.warning ?? null,
-    start: (preferences: TimerPreferences) => command(() => nativeStretch.start(preferences)),
-    resume: () => command(() => nativeStretch.resume()),
+    start: (_preferences: TimerPreferences) => command(() => nativeStretch.start(STRETCH_SIGNALS)),
+    resume: () => command(async () => { await nativeStretch.preferences(STRETCH_SIGNALS); return nativeStretch.resume() }),
     pause: () => command(() => nativeStretch.pause()),
     stop: () => command(() => nativeStretch.stop()),
-    preferences: (preferences: TimerPreferences) => { if (supported) void nativeStretch.preferences(preferences).then(apply).catch((caught: unknown) => setError(message(caught))) },
+    preferences: (_preferences: TimerPreferences) => { if (supported) void nativeStretch.preferences(STRETCH_SIGNALS).then(apply).catch((caught: unknown) => setError(message(caught))) },
     testSound: async () => { try { const result = await nativeStretch.testSound(); if (!result.played) setError('Android не подтвердил воспроизведение. Проверьте громкость будильника и режим «Не беспокоить».'); return result.played } catch (caught) { setError(message(caught)); return false } },
     dismissWarning: () => setError(null),
   }
