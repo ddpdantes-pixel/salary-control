@@ -237,6 +237,17 @@ describe('подтверждение облачного сохранения', (
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('ошибка повреждённого ключа при переносе не открывает QR и не ломает экран', async () => {
+    localStorage.setItem(CLOUD_BACKUP_KEY_STORAGE, 'old-damaged-key-record')
+    renderSection()
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Перенос на новое устройство'))
+    await user.click(screen.getByRole('button', { name: 'Показать QR-код' }))
+    await screen.findByText(/Сохранённый ключ подключения повреждён/)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE)).toBe('old-damaged-key-record')
+  })
+
   it('локальный экспорт доступен во время ожидания облака', async () => {
     const pending = deferred<Response>()
     vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST' ? pending.promise : Response.json({ backups: [] }))

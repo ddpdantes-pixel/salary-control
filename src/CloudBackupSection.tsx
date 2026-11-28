@@ -103,18 +103,21 @@ export function CloudBackupSection({
     return next
   }
 
-  function getOrCreateKey(): string {
-    if (!key && window.localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE) !== null) {
-      throw new CloudBackupError('Сохранённый ключ подключения повреждён. Он не заменён; используйте сохранённый файл ключа.', 'invalid-key')
-    }
-    const next = key ?? ensureCloudBackupKey()
-    if (next !== key) setKey(next)
-    return next
+  function getOrCreateKey(): string | null {
+    try {
+      if (!key && window.localStorage.getItem(CLOUD_BACKUP_KEY_STORAGE) !== null) {
+        throw new CloudBackupError('Сохранённый ключ подключения повреждён. Он не заменён; используйте сохранённый файл ключа.', 'invalid-key')
+      }
+      const next = key ?? ensureCloudBackupKey()
+      if (next !== key) setKey(next)
+      return next
+    } catch (error) { setStatus(describeError(error)); return null }
   }
 
   function handleSave(): void {
     void runBusy(async () => {
       const cloudKey = getOrCreateKey()
+      if (!cloudKey) return
       ++refreshGeneration.current
       const result = await saveCloudBackupSafely(await withBackupDeadline(Promise.resolve().then(createBackupPayload)), cloudKey)
       const saved = result.backup
@@ -199,6 +202,7 @@ export function CloudBackupSection({
 
   function openTransfer(): void {
     const cloudKey = getOrCreateKey()
+    if (!cloudKey) return
     const token = createCloudConnectionToken(cloudKey)
     setTransferOpen(true)
     window.setTimeout(() => qrCloseButtonRef.current?.focus(), 0)
@@ -232,7 +236,9 @@ export function CloudBackupSection({
   }
 
   function copyConnectionKey(): void {
-    const token = createCloudConnectionToken(getOrCreateKey())
+    const cloudKey = getOrCreateKey()
+    if (!cloudKey) return
+    const token = createCloudConnectionToken(cloudKey)
     void navigator.clipboard.writeText(token).then(
       () => setStatus('Ключ подключения скопирован.'),
       () => setStatus('Не удалось скопировать ключ подключения.'),
@@ -241,6 +247,7 @@ export function CloudBackupSection({
 
   function downloadConnectionKey(): void {
     const cloudKey = getOrCreateKey()
+    if (!cloudKey) return
     downloadJsonFile(
       'moi-ritm-cloud-key.json',
       JSON.stringify(createCloudKeyFile(cloudKey), null, 2),

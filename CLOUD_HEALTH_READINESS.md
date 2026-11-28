@@ -36,6 +36,6 @@
 
 Адресные тесты, настоящий production API на синтетике, HTTP→локальный Worker/D1 с потерей ответов и 20-секундным зависшим телом, браузерный production POST/GET и JSON-скачивание, widths360/390/430×light/dark, screenshots/overlay фиксируются в `ota-output/cloud-health`. Реальная SQLite/D1 batch-ошибка также проверяется на сохранность предыдущих копий. Облако не принимается только по mock-тестам.
 
-Готовится локальный подписанный QA OTA `1.2.2-qa.cloud-health.2` только для native4. Worker имеет отдельный dry-run bundle. Финальные commit, подписи, hashes и точные ограничения приёмки находятся в `ota-output/cloud-health/REPORT.md`. Production пока остаётся прежним.
+Готовится локальный подписанный QA OTA `1.2.2-qa.cloud-health.3` только для native4. Worker имеет отдельный dry-run bundle. Финальные commit, подписи, hashes и точные ограничения приёмки находятся в `ota-output/cloud-health/REPORT.md`. Production пока остаётся прежним.
 
 После одного явного GO: авторизация в существующем аккаунте Cloudflare, независимый защищённый export D1 до изменений, проверка ожидаемого deployment и возможность возврата прежнего Worker; публикация Worker без замены DB/секретов и реальный синтетический smoke; штатная интеграция принятого commit в clean main, сборка/проверка свежего stable1.2.2, сохранение revocations и атомарная публикация указателя. Без Cloudflare-доступа Worker не публикуется. Новое ТЗ не требуется.
